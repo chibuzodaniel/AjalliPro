@@ -27,6 +27,7 @@ export default async function DashboardPage() {
   const today = todayISO();
   const todayRec = approvedRecords.find((r) => r.date === today);
   const soldToday = todayRec ? recordSoldTotal(todayRec) : 0;
+  const producedToday = todayRec ? todayRec.productionLines.reduce((s, p) => s + p.bags, 0) : null;
 
   const wk = currentWeekKey();
   const weekRecords = approvedRecords.filter((r) => weekKeyOf(r.date) === wk);
@@ -89,7 +90,7 @@ export default async function DashboardPage() {
         </Link>
       </div>
 
-      <div className="grid grid-5" style={{ marginBottom: 18 }}>
+      <div className="grid grid-3" style={{ marginBottom: 18 }}>
         <KpiCard
           label="Current Stock"
           value={`${stock} bags`}
@@ -106,6 +107,15 @@ export default async function DashboardPage() {
           iconColor="var(--teal)"
         />
         <KpiCard
+          label="Total Produced (Today)"
+          value={producedToday !== null ? `${producedToday} bags` : "—"}
+          icon="🏭"
+          iconBg="rgba(255,193,85,.15)"
+          iconColor="var(--amber)"
+          delta={producedToday !== null ? "Live" : "Not logged yet"}
+          deltaTone={producedToday !== null ? "pos" : "neg"}
+        />
+        <KpiCard
           label="Total Produced (This Week)"
           value={`${weekProduced} bags`}
           icon="🏭"
@@ -115,12 +125,11 @@ export default async function DashboardPage() {
         />
         {approver && (
           <KpiCard
-            label="Revenue (This Week)"
+            label="Net Income (This Week)"
             value={formatMoney(revenue.net)}
             icon="₦"
             iconBg="rgba(63,222,154,.15)"
             iconColor="var(--green)"
-            delta="after expenses"
           />
         )}
         <KpiCard
