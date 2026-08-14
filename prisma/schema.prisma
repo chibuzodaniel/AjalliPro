@@ -1,0 +1,139 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SALES_STAFF
+  EDITOR
+  ADMIN_STAFF
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(SALES_STAFF)
+  createdAt    DateTime @default(now())
+
+  dailyRecordsCreated  DailyRecord[] @relation("DailyRecordCreatedBy")
+  dailyRecordsApproved DailyRecord[] @relation("DailyRecordApprovedBy")
+  driversCreated       Driver[]      @relation("DriverCreatedBy")
+  driversApproved      Driver[]      @relation("DriverApprovedBy")
+  customersCreated     Customer[]
+  activityLogs         ActivityLog[]
+}
+
+model DailyRecord {
+  id                 String         @id @default(cuid())
+  date               String         @unique // 'YYYY-MM-DD'
+  openingStock       Int
+  closingStock       Int
+  factoryBags        Int            @default(0)
+  factoryPricePerBag Int            @default(0)
+  factoryCustomerId  String?
+  factoryCustomer    Customer?      @relation("FactoryCustomer", fields: [factoryCustomerId], references: [id])
+  pumpWaterAmount    Int            @default(0)
+  leakageBags        Int            @default(0)
+  expenseRolls       Int            @default(0)
+  expensePackingBags Int            @default(0)
+  expenseGas         Int            @default(0)
+  expenseOther       Int            @default(0)
+  status             ApprovalStatus @default(PENDING)
+  createdById        String
+  createdBy          User           @relation("DailyRecordCreatedBy", fields: [createdById], references: [id])
+  createdByRole      Role
+  approvedById       String?
+  approvedBy         User?          @relation("DailyRecordApprovedBy", fields: [approvedById], references: [id])
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  productionLines ProductionLine[]
+  driverSales     DriverSale[]
+
+  @@index([status])
+  @@index([date])
+}
+
+model ProductionLine {
+  id            String      @id @default(cuid())
+  dailyRecordId String
+  dailyRecord   DailyRecord @relation(fields: [dailyRecordId], references: [id], onDelete: Cascade)
+  packerName    String
+  bags          Int
+
+  @@index([dailyRecordId])
+}
+
+model Driver {
+  id           String         @id @default(cuid())
+  name         String
+  phone        String?
+  pricePerBag  Int            @default(0)
+  status       ApprovalStatus @default(PENDING)
+  createdById  String
+  createdBy    User           @relation("DriverCreatedBy", fields: [createdById], references: [id])
+  approvedById String?
+  approvedBy   User?          @relation("DriverApprovedBy", fields: [approvedById], references: [id])
+  createdAt    DateTime       @default(now())
+
+  sales DriverSale[]
+}
+
+model DriverSale {
+  id            String      @id @default(cuid())
+  dailyRecordId String
+  dailyRecord   DailyRecord @relation(fields: [dailyRecordId], references: [id], onDelete: Cascade)
+  driverId      String
+  driver        Driver      @relation(fields: [driverId], references: [id])
+  customerId    String?
+  customer      Customer?   @relation("DriverSaleCustomer", fields: [customerId], references: [id])
+  bags          Int
+  pricePerBag   Int
+  loadingFee    Int         @default(0)
+
+  @@index([dailyRecordId])
+  @@index([driverId])
+  @@index([customerId])
+}
+
+model Customer {
+  id          String   @id @default(cuid())
+  name        String
+  email       String
+  phone       String?
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  factorySalesAsCustomer DailyRecord[] @relation("FactoryCustomer")
+  driverSalesAsCustomer  DriverSale[]  @relation("DriverSaleCustomer")
+}
+
+model IncentiveTier {
+  id    String @id @default(cuid())
+  min   Int
+  max   Int
+  bonus Int
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  text      String
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+}

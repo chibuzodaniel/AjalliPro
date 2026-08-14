@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cusica International — Ajalli ERP</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#0E0B1A;
+  --panel:#171229;
+  --panel-2:#1E1834;
+  --card:#221C3B;
+  --border:#332B54;
+  --accent:#7C6EF5;
+  --accent-2:#5B4FD1;
+  --accent-soft:rgba(124,110,245,.15);
+  --teal:#2FD7C4;
+  --green:#3FDE9A;
+  --red:#FF6584;
+  --amber:#FFC155;
+  --text:#EDEBFA;
+  --text-dim:#A79FC9;
+  --text-faint:#6F6693;
+  --radius:16px;
+  --font-display:'Segoe UI', ui-sans-serif, system-ui, sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{
+  font-family:var(--font-display);
+  background:radial-gradient(circle at 15% 0%, #241C42 0%, var(--bg) 45%), var(--bg);
+  color:var(--text);
+  min-height:100vh;
+}
+::-webkit-scrollbar{width:8px;height:8px;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:8px;}
+button{font-family:inherit;cursor:pointer;}
+input,select,textarea{font-family:inherit;}
+
+/* ===== LOGIN ===== */
+#loginScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
+.login-card{
+  width:100%;max-width:420px;background:var(--panel);border:1px solid var(--border);
+  border-radius:20px;padding:36px 32px;box-shadow:0 30px 60px rgba(0,0,0,.4);
+}
+.login-brand{display:flex;align-items:center;gap:12px;margin-bottom:28px;}
+.login-brand .logo{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--teal));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;}
+.login-brand h1{font-size:18px;}
+.login-brand p{font-size:12px;color:var(--text-dim);}
+.field{margin-bottom:16px;}
+.field label{display:block;font-size:12px;color:var(--text-dim);margin-bottom:6px;}
+.field input,.field select{
+  width:100%;padding:11px 13px;border-radius:10px;background:var(--panel-2);
+  border:1px solid var(--border);color:var(--text);font-size:14px;outline:none;
+}
+.field input:focus,.field select:focus{border-color:var(--accent);}
+.hint{font-size:11px;color:var(--text-faint);margin-top:6px;}
+.btn{
+  border:none;border-radius:10px;padding:11px 18px;font-size:14px;font-weight:600;
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:.15s;
+}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;width:100%;padding:13px;}
+.btn-primary:hover{filter:brightness(1.08);}
+.btn-ghost{background:var(--panel-2);color:var(--text);border:1px solid var(--border);}
+.btn-ghost:hover{border-color:var(--accent);}
+.btn-sm{padding:7px 12px;font-size:12px;border-radius:8px;}
+.btn-approve{background:var(--green);color:#08321F;}
+.btn-reject{background:var(--red);color:#3A0313;}
+
+/* ===== APP SHELL ===== */
+#app{display:none;min-height:100vh;}
+.shell{display:grid;grid-template-columns:250px 1fr;min-height:100vh;}
+.sidebar{
+  background:linear-gradient(180deg,#1B1533,#151027);
+  border-right:1px solid var(--border);padding:22px 16px;
+  display:flex;flex-direction:column;gap:6px;position:sticky;top:0;height:100vh;overflow-y:auto;
+}
+.sb-brand{display:flex;align-items:center;gap:10px;padding:6px 8px 22px;}
+.sb-brand .logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--teal));display:flex;align-items:center;justify-content:center;font-weight:800;}
+.sb-brand h2{font-size:15px;}
+.sb-brand span{font-size:10px;color:var(--text-faint);}
+.sb-section{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-faint);margin:14px 8px 6px;}
+.nav-item{
+  display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:10px;
+  color:var(--text-dim);font-size:13.5px;font-weight:500;cursor:pointer;position:relative;
+}
+.nav-item:hover{background:var(--panel-2);color:var(--text);}
+.nav-item.active{background:var(--accent-soft);color:var(--accent);}
+.nav-item .ic{width:18px;text-align:center;}
+.nav-badge{margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:20px;}
+.sb-user{margin-top:auto;padding-top:14px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:12px 8px 4px;}
+.avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--teal),var(--accent));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;}
+.sb-user-info{overflow:hidden;flex:1;}
+.sb-user-info .nm{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sb-user-info .rl{font-size:10.5px;color:var(--accent);}
+.logout-btn{background:none;border:none;color:var(--text-faint);font-size:16px;}
+
+.main{padding:24px 30px 60px;overflow-x:hidden;}
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:14px;}
+.topbar h1{font-size:22px;}
+.topbar .sub{font-size:12.5px;color:var(--text-dim);margin-top:2px;}
+
+.page{display:none;}
+.page.active{display:block;}
+
+.grid{display:grid;gap:18px;}
+.grid-4{grid-template-columns:repeat(4,1fr);}
+.grid-5{grid-template-columns:repeat(5,1fr);}
+.grid-3{grid-template-columns:repeat(3,1fr);}
+.grid-2{grid-template-columns:2fr 1fr;}
+@media(max-width:1300px){.grid-5{grid-template-columns:repeat(3,1fr);}}
+@media(max-width:1100px){.grid-4{grid-template-columns:repeat(2,1fr);}.grid-5{grid-template-columns:repeat(2,1fr);}.grid-2{grid-template-columns:1fr;}.grid-3{grid-template-columns:1fr 1fr;}}
+@media(max-width:640px){.grid-4,.grid-3,.grid-5{grid-template-columns:1fr;}}
+
+/* ===== MOBILE HEADER + OFF-CANVAS SIDEBAR ===== */
+.mobile-header{display:none;}
+.sidebar-overlay{display:none;}
+@media(max-width:900px){
+  .shell{grid-template-columns:1fr;}
+  .mobile-header{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:14px 18px;background:#151027;border-bottom:1px solid var(--border);
+    position:sticky;top:0;z-index:40;
+  }
+  .mobile-header .mh-brand{display:flex;align-items:center;gap:10px;}
+  .mobile-header .mh-brand .logo{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--teal));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;}
+  .mobile-header .mh-brand span{font-size:14px;font-weight:700;}
+  .hamburger-btn{width:38px;height:38px;border-radius:9px;background:var(--panel-2);border:1px solid var(--border);color:var(--text);font-size:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .sidebar{
+    position:fixed;top:0;left:0;height:100vh;width:260px;z-index:60;
+    transform:translateX(-105%);transition:transform .25s ease;
+  }
+  .sidebar.open{transform:translateX(0);box-shadow:20px 0 60px rgba(0,0,0,.5);}
+  .sidebar-overlay{
+    display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:55;
+  }
+  .sidebar-overlay.show{display:block;}
+  .main{padding:18px 16px 50px;}
+  .topbar h1{font-size:19px;}
+}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;}
+.kpi .top{display:flex;align-items:center;justify-content:space-between;color:var(--text-dim);font-size:12.5px;}
+.kpi .icon{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px;}
+.kpi .val{font-size:26px;font-weight:800;margin:10px 0 4px;}
+.kpi .delta{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:20px;display:inline-block;}
+.delta.pos{background:rgba(63,222,154,.15);color:var(--green);}
+.delta.neg{background:rgba(255,101,132,.15);color:var(--red);}
+
+.section-title{font-size:15px;font-weight:700;margin-bottom:4px;}
+.section-sub{font-size:12px;color:var(--text-dim);margin-bottom:16px;}
+
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{text-align:left;color:var(--text-faint);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding:8px 10px;border-bottom:1px solid var(--border);}
+td{padding:10px 10px;border-bottom:1px solid var(--border);color:var(--text-dim);}
+tr:last-child td{border-bottom:none;}
+.pill{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;display:inline-block;}
+.pill.approved{background:rgba(63,222,154,.15);color:var(--green);}
+.pill.pending{background:rgba(255,193,85,.15);color:var(--amber);}
+.pill.rejected{background:rgba(255,101,132,.15);color:var(--red);}
+
+.tabs{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;}
+.tab-btn{padding:8px 16px;border-radius:9px;background:var(--panel-2);border:1px solid var(--border);color:var(--text-dim);font-size:12.5px;font-weight:600;}
+.tab-btn.active{background:var(--accent-soft);color:var(--accent);border-color:var(--accent);}
+
+form .field{margin-bottom:14px;}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+@media(max-width:640px){.form-grid{grid-template-columns:1fr;}}
+.subhead{font-size:12.5px;font-weight:700;color:var(--accent);margin:18px 0 10px;text-transform:uppercase;letter-spacing:.04em;}
+.repeater-row{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;margin-bottom:10px;}
+.repeater-row.dr{grid-template-columns:1.4fr .8fr .8fr .8fr auto;}
+.icon-btn{width:34px;height:34px;border-radius:8px;background:var(--panel-2);border:1px solid var(--border);color:var(--text-dim);display:flex;align-items:center;justify-content:center;}
+.icon-btn:hover{color:var(--red);border-color:var(--red);}
+.add-row-btn{font-size:12px;color:var(--accent);background:none;border:1px dashed var(--accent);padding:8px 12px;border-radius:8px;width:100%;text-align:center;}
+.calc-box{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-top:10px;font-size:13px;display:flex;justify-content:space-between;}
+.calc-box b{color:var(--text);}
+
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:50;align-items:center;justify-content:center;padding:20px;}
+.modal-bg.show{display:flex;}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:18px;max-width:560px;width:100%;max-height:88vh;overflow-y:auto;padding:26px;}
+.modal h3{font-size:16px;margin-bottom:16px;}
+.close-x{position:absolute;top:18px;right:18px;background:none;border:none;color:var(--text-faint);font-size:18px;}
+
+.toast-wrap{position:fixed;top:20px;right:20px;z-index:80;display:flex;flex-direction:column;gap:10px;}
+.toast{background:var(--panel);border:1px solid var(--accent);border-radius:10px;padding:12px 18px;font-size:13px;box-shadow:0 10px 30px rgba(0,0,0,.4);animation:slideIn .2s;}
+@keyframes slideIn{from{transform:translateX(30px);opacity:0;}to{transform:translateX(0);opacity:1;}}
+
+.empty{text-align:center;padding:40px 20px;color:var(--text-faint);font-size:13px;}
+.locked-note{background:rgba(124,110,245,.1);border:1px dashed var(--accent);border-radius:12px;padding:14px 16px;font-size:12.5px;color:var(--text-dim);margin-bottom:16px;}
+.chart-wrap{position:relative;height:260px;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+@media(max-width:900px){.two-col{grid-template-columns:1fr;}}
+.badge-role{font-size:10px;padding:2px 8px;border-radius:6px;background:var(--panel-2);color:var(--text-dim);border:1px solid var(--border);}
+
+/* ===== NOTIFICATION BELL ===== */
+.notif-wrap{position:fixed;top:18px;right:26px;z-index:70;}
+.notif-btn{
+  width:40px;height:40px;border-radius:11px;background:var(--panel);border:1px solid var(--border);
+  color:var(--text);font-size:17px;display:flex;align-items:center;justify-content:center;position:relative;
+  box-shadow:0 6px 18px rgba(0,0,0,.3);
+}
+.notif-btn:hover{border-color:var(--accent);}
+.notif-badge{
+  position:absolute;top:-5px;right:-5px;background:var(--red);color:#fff;font-size:10px;font-weight:700;
+  min-width:17px;height:17px;border-radius:20px;display:flex;align-items:center;justify-content:center;padding:0 4px;
+  border:2px solid var(--bg);
+}
+.notif-dropdown{
+  display:none;position:absolute;top:50px;right:0;width:320px;max-height:420px;overflow-y:auto;
+  background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,.45);
+  padding:6px;
+}
+.notif-dropdown.show{display:block;}
+.notif-head{display:flex;align-items:center;justify-content:space-between;padding:10px 12px 8px;font-size:13px;font-weight:700;border-bottom:1px solid var(--border);margin-bottom:6px;}
+.notif-clear{background:none;border:none;color:var(--text-faint);font-size:14px;}
+.notif-item{
+  display:flex;flex-direction:column;gap:2px;padding:9px 12px;border-radius:9px;font-size:12.5px;color:var(--text-dim);cursor:pointer;
+}
+.notif-item:hover{background:var(--panel-2);}
+.notif-item .ni-title{color:var(--text);font-weight:600;font-size:12.5px;}
+.notif-item .ni-time{color:var(--text-faint);font-size:10.5px;}
+.notif-item.pending-item{border-left:2px solid var(--amber);}
+@media(max-width:900px){
+  .notif-wrap{top:12px;right:64px;}
+  .notif-dropdown{width:280px;right:-8px;}
+}
+
+@media print{
+  .sidebar,.topbar .btn,.no-print{display:none !important;}
+  body{background:#fff;color:#000;}
+  .shell{grid-template-columns:1fr;}
+  .card{border:1px solid #ccc;background:#fff;color:#000;break-inside:avoid;}
+  th,td{color:#000;border-color:#ccc;}
+}
+</style>
+</head>
+<body>
+
+<!-- ================= LOGIN ================= -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="logo">CI</div>
+      <div>
+        <h1>Cusica International</h1>
+        <p>Ajalli Table Water — Operations ERP</p>
+      </div>
+    </div>
+    <form id="loginForm" onsubmit="handleLogin(event)">
+      <div class="field">
+        <label>Full name</label>
+        <input type="text" id="loginName" placeholder="e.g. Ifeoma Okafor" required>
+      </div>
+      <div class="field">
+        <label>Work email</label>
+        <input type="email" id="loginEmail" placeholder="you@cusica.com" required>
+      </div>
+      <div class="field">
+        <label>Role</label>
+        <select id="loginRole">
+          <option value="Sales Staff">Sales Staff</option>
+          <option value="Editor">Editor</option>
+          <option value="Admin Staff">Admin Staff</option>
+          <option value="Admin">Admin</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" type="submit">Sign in →</button>
+    </form>
+  </div>
+</div>
+
+<!-- ================= APP ================= -->
+<div id="app">
+<div class="notif-wrap" id="notifWrap">
+  <button class="notif-btn" onclick="toggleNotifDropdown()" aria-label="Notifications">
+    🔔<span class="notif-badge" id="notifBadge" style="display:none">0</span>
+  </button>
+  <div class="notif-dropdown" id="notifDropdown">
+    <div class="notif-head">
+      <span>Notifications</span>
+      <button class="notif-clear" onclick="closeNotifDropdown()">✕</button>
+    </div>
+    <div id="notifList"><div class="empty">No notifications yet</div></div>
+  </div>
+</div>
+<div class="mobile-header">
+  <div class="mh-brand"><div class="logo">CI</div><span>Cusica ERP</span></div>
+  <button class="hamburger-btn" onclick="toggleSidebar()" aria-label="Open menu">☰</button>
+</div>
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+<div class="shell">
+  <!-- SIDEBAR -->
+  <div class="sidebar" id="sidebar">
+    <div class="sb-brand"><div class="logo">CI</div><div><h2>Cusica ERP</h2><span>Ajalli Table Water</span></div></div>
+
+    <div class="sb-section">Overview</div>
+    <div class="nav-item active" data-page="dashboard" onclick="showPage('dashboard')"><span class="ic">▦</span>Dashboard</div>
+
+    <div class="sb-section">Operations</div>
+    <div class="nav-item" data-page="daily" onclick="showPage('daily')"><span class="ic">📋</span>Daily Record</div>
+    <div class="nav-item" data-page="production" onclick="showPage('production')"><span class="ic">🏭</span>Total Produced</div>
+    <div class="nav-item" data-page="drivers" onclick="showPage('drivers')"><span class="ic">🚚</span>Drivers</div>
+    <div class="nav-item" data-page="customers" onclick="showPage('customers')"><span class="ic">👥</span>Customers</div>
+    <div class="nav-item" data-page="incentives" onclick="showPage('incentives')"><span class="ic">🎁</span>Incentive Tracking</div>
+
+    <div class="sb-section">Governance</div>
+    <div class="nav-item" data-page="approvals" onclick="showPage('approvals')"><span class="ic">✅</span>Approvals<span class="nav-badge" id="approvalBadge" style="display:none">0</span></div>
+    <div class="nav-item" data-page="reports" onclick="showPage('reports')"><span class="ic">📈</span>Reports</div>
+    <div class="nav-item" data-page="settings" onclick="showPage('settings')"><span class="ic">⚙️</span>Settings</div>
+
+    <div class="sb-user">
+      <div class="avatar" id="sbAvatar">?</div>
+      <div class="sb-user-info"><div class="nm" id="sbName">—</div><div class="rl" id="sbRole">—</div></div>
+      <button class="logout-btn" onclick="logout()" title="Log out">⏻</button>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="topbar">
+        <div><h1>Dashboard</h1><div class="sub" id="dashDate"></div></div>
+        <button class="btn btn-ghost no-print" onclick="showPage('reports')">📄 View reports</button>
+      </div>
+      <div class="grid grid-5" style="margin-bottom:18px;">
+        <div class="card kpi">
+          <div class="top">Current Stock <div class="icon" style="background:rgba(124,110,245,.15);color:var(--accent)">📦</div></div>
+          <div class="val" id="kpiStock">0 bags</div>
+          <span class="delta pos" id="kpiStockDelta">Live</span>
+        </div>
+        <div class="card kpi">
+          <div class="top">Bags Sold (Today) <div class="icon" style="background:rgba(47,215,196,.15);color:var(--teal)">💧</div></div>
+          <div class="val" id="kpiSoldToday">0</div>
+          <span class="delta pos" id="kpiSoldDelta">+0% vs yesterday</span>
+        </div>
+        <div class="card kpi" style="cursor:pointer;" onclick="showPage('production')">
+          <div class="top">Total Produced (This Week) <div class="icon" style="background:rgba(255,193,85,.15);color:var(--amber)">🏭</div></div>
+          <div class="val" id="kpiProduced">0 bags</div>
+          <span class="delta pos" id="kpiProducedDelta">See breakdown →</span>
+        </div>
+        <div class="card kpi" id="kpiRevenueCard">
+          <div class="top">Revenue (This Week) <div class="icon" style="background:rgba(63,222,154,.15);color:var(--green)">₦</div></div>
+          <div class="val" id="kpiRevenue">₦0</div>
+          <span class="delta pos" id="kpiRevenueDelta">after expenses</span>
+        </div>
+        <div class="card kpi">
+          <div class="top">Pending Approvals <div class="icon" style="background:rgba(255,193,85,.15);color:var(--amber)">⏳</div></div>
+          <div class="val" id="kpiPending">0</div>
+          <span class="delta neg" id="kpiPendingDelta">needs review</span>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="card">
+          <div class="section-title">Bags Sold — last 14 days</div>
+          <div class="section-sub">Factory sales + driver sales combined</div>
+          <div class="chart-wrap"><canvas id="salesChart"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="section-title">Stock Movement</div>
+          <div class="section-sub">Opening vs closing (approved records)</div>
+          <div class="chart-wrap"><canvas id="stockChart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="grid grid-3" style="margin-top:18px;">
+        <div class="card">
+          <div class="section-title">Top Drivers (This Week)</div>
+          <div id="topDrivers"><div class="empty">No driver sales yet</div></div>
+        </div>
+        <div class="card">
+          <div class="section-title">Incentive Watch</div>
+          <div class="section-sub">Customers/drivers near weekly bonus threshold</div>
+          <div id="incentiveWatch"><div class="empty">Nothing to show</div></div>
+        </div>
+        <div class="card">
+          <div class="section-title">Recent Activity</div>
+          <div id="recentActivity"><div class="empty">No activity yet</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DAILY RECORD -->
+    <div class="page" id="page-daily">
+      <div class="topbar">
+        <div><h1>Daily Record</h1><div class="sub">Opening stock, production, sales, leakages & expenses for one day</div></div>
+        <button class="btn btn-primary no-print" onclick="openDailyForm()">+ New daily entry</button>
+      </div>
+      <div class="card">
+        <table>
+          <thead><tr><th>Date</th><th>Opening</th><th>Produced</th><th>Sold</th><th>Pump water</th><th>Leakages</th><th>Closing</th><th>Status</th><th>By</th><th></th></tr></thead>
+          <tbody id="dailyTableBody"></tbody>
+        </table>
+        <div class="empty" id="dailyEmpty" style="display:none;">No daily records yet. Click "New daily entry" to log today's activity.</div>
+      </div>
+    </div>
+
+    <!-- DRIVERS -->
+    <div class="page" id="page-drivers">
+      <div class="topbar">
+        <div><h1>Drivers</h1><div class="sub">Added by Admin Staff, approved by Admin/Super Admin</div></div>
+        <button class="btn btn-primary no-print" id="addDriverBtn" onclick="openDriverForm()">+ Add driver</button>
+      </div>
+      <div class="card">
+        <table>
+          <thead><tr><th>Name</th><th>Phone</th><th>Weekly bags</th><th>Status</th><th>Added by</th><th></th></tr></thead>
+          <tbody id="driverTableBody"></tbody>
+        </table>
+        <div class="empty" id="driverEmpty" style="display:none;">No drivers added yet.</div>
+      </div>
+    </div>
+
+    <!-- CUSTOMERS -->
+    <div class="page" id="page-customers">
+      <div class="topbar">
+        <div><h1>Customers</h1><div class="sub">Added by Admin Staff or Admin. Incentives &amp; weekly mail tracked here.</div></div>
+        <button class="btn btn-primary no-print" id="addCustomerBtn" onclick="openCustomerForm()">+ Add customer</button>
+      </div>
+      <div class="card">
+        <table>
+          <thead><tr><th>Name</th><th>Email</th><th>Weekly bags</th><th>Yearly bags</th><th>Bonus status</th><th></th></tr></thead>
+          <tbody id="customerTableBody"></tbody>
+        </table>
+        <div class="empty" id="customerEmpty" style="display:none;">No customers added yet.</div>
+      </div>
+      <div class="card" style="margin-top:16px;">
+        <div class="section-title">Weekly customer mail</div>
+        <div class="section-sub">Generates each customer's weekly + year-to-date purchase summary and flags the 500-bag/week bonus (+5 bags). This composes the mail content in-app — actually delivering it needs an email service (e.g. SendGrid) wired to a backend, which this prototype doesn't have.</div>
+        <button class="btn btn-ghost no-print" onclick="generateWeeklyMail()">✉️ Generate this week's customer mail</button>
+        <div id="mailPreviewArea" style="margin-top:14px;"></div>
+      </div>
+    </div>
+
+    <!-- TOTAL PRODUCED -->
+    <div class="page" id="page-production">
+      <div class="topbar">
+        <div><h1>Total Produced</h1><div class="sub">Bags packed by day and by packer, from approved daily records</div></div>
+      </div>
+      <div class="tabs no-print">
+        <button class="tab-btn active" data-prodrange="week" onclick="setProdRange('week')">This Week</button>
+        <button class="tab-btn" data-prodrange="month" onclick="setProdRange('month')">This Month</button>
+        <button class="tab-btn" data-prodrange="year" onclick="setProdRange('year')">This Year</button>
+        <button class="tab-btn" data-prodrange="all" onclick="setProdRange('all')">Overall</button>
+      </div>
+      <div class="grid grid-4" style="margin-bottom:18px;">
+        <div class="card kpi"><div class="top">Total Bags Produced</div><div class="val" id="prTotal">0</div></div>
+        <div class="card kpi"><div class="top">Production Days</div><div class="val" id="prDays">0</div></div>
+        <div class="card kpi"><div class="top">Avg / Production Day</div><div class="val" id="prAvg">0</div></div>
+        <div class="card kpi"><div class="top">Top Packer</div><div class="val" id="prTopPacker" style="font-size:17px;">—</div></div>
+      </div>
+      <div class="card">
+        <div class="section-title" id="prChartTitle">Bags produced trend</div>
+        <div class="chart-wrap"><canvas id="productionChart"></canvas></div>
+      </div>
+      <div class="card" style="margin-top:16px;">
+        <div class="section-title">Packer breakdown</div>
+        <table><thead><tr><th>Packer</th><th>Bags packed</th><th>Share of total</th></tr></thead>
+          <tbody id="packerTableBody"></tbody></table>
+        <div class="empty" id="packerEmpty" style="display:none;">No production logged in this range.</div>
+      </div>
+    </div>
+
+    <!-- INCENTIVE TRACKING -->
+    <div class="page" id="page-incentives">
+      <div class="topbar">
+        <div><h1>Incentive Tracking</h1><div class="sub">Weekly bag totals against customer (500) and driver (1,000) bonus thresholds</div></div>
+      </div>
+      <div class="tabs no-print">
+        <button class="tab-btn active" data-inctab="customers" onclick="setIncentiveTab('customers')">Customers</button>
+        <button class="tab-btn" data-inctab="drivers" onclick="setIncentiveTab('drivers')">Drivers</button>
+      </div>
+
+      <div id="incTabCustomers">
+        <div class="grid grid-3" style="margin-bottom:18px;">
+          <div class="card kpi"><div class="top">Qualified This Week</div><div class="val" id="incCustQualified">0</div></div>
+          <div class="card kpi"><div class="top">Bonus Bags This Week</div><div class="val" id="incCustBonusBags">0</div></div>
+          <div class="card kpi"><div class="top">Avg Bags / Customer</div><div class="val" id="incCustAvg">0</div></div>
+        </div>
+        <div class="card">
+          <div class="section-title">Customer weekly incentive — 500 bags/week qualifies for +5 bonus bags</div>
+          <table><thead><tr><th>Customer</th><th>This week</th><th>Progress</th><th>Status</th><th>Weeks qualified (all-time)</th><th>Year-to-date</th></tr></thead>
+            <tbody id="incCustBody"></tbody></table>
+          <div class="empty" id="incCustEmpty" style="display:none;">No customers yet.</div>
+        </div>
+      </div>
+
+      <div id="incTabDrivers" style="display:none;">
+        <div class="grid grid-3" style="margin-bottom:18px;">
+          <div class="card kpi"><div class="top">Qualified This Week</div><div class="val" id="incDrvQualified">0</div></div>
+          <div class="card kpi"><div class="top">Bonus Bags This Week</div><div class="val" id="incDrvBonusBags">0</div></div>
+          <div class="card kpi"><div class="top">Avg Bags / Driver</div><div class="val" id="incDrvAvg">0</div></div>
+        </div>
+        <div class="card">
+          <div class="section-title">Driver weekly incentive — 1,000 bags/week qualifies for +10 bonus bags</div>
+          <table><thead><tr><th>Driver</th><th>This week</th><th>Progress</th><th>Status</th><th>Weeks qualified (all-time)</th></tr></thead>
+            <tbody id="incDrvBody"></tbody></table>
+          <div class="empty" id="incDrvEmpty" style="display:none;">No drivers yet.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- APPROVALS -->
+    <div class="page" id="page-approvals">
+      <div class="topbar">
+        <div><h1>Approvals</h1><div class="sub">Entries by Sales Staff, Editors &amp; Admin Staff wait here until Admin/Super Admin approves</div></div>
+      </div>
+      <div class="card">
+        <div class="section-title">Pending daily records</div>
+        <table><thead><tr><th>Date</th><th>Submitted by</th><th>Role</th><th>Net stock change</th><th></th></tr></thead>
+          <tbody id="pendingDailyBody"></tbody></table>
+        <div class="empty" id="pendingDailyEmpty" style="display:none;">Nothing pending here.</div>
+      </div>
+      <div class="card" style="margin-top:16px;">
+        <div class="section-title">Pending drivers</div>
+        <table><thead><tr><th>Name</th><th>Phone</th><th>Submitted by</th><th></th></tr></thead>
+          <tbody id="pendingDriverBody"></tbody></table>
+        <div class="empty" id="pendingDriverEmpty" style="display:none;">Nothing pending here.</div>
+      </div>
+    </div>
+
+    <!-- REPORTS -->
+    <div class="page" id="page-reports">
+      <div class="topbar">
+        <div><h1>Reports</h1><div class="sub">Sales, production &amp; revenue — weekly, monthly, yearly or overall</div></div>
+        <button class="btn btn-ghost no-print" onclick="window.print()">🖨️ Print / Save as PDF</button>
+      </div>
+      <div class="tabs no-print">
+        <button class="tab-btn active" data-range="week" onclick="setReportRange('week')">This Week</button>
+        <button class="tab-btn" data-range="month" onclick="setReportRange('month')">This Month</button>
+        <button class="tab-btn" data-range="year" onclick="setReportRange('year')">This Year</button>
+        <button class="tab-btn" data-range="all" onclick="setReportRange('all')">Overall</button>
+      </div>
+      <div class="grid grid-4" style="margin-bottom:18px;">
+        <div class="card kpi"><div class="top">Total Bags Sold</div><div class="val" id="repBags">0</div></div>
+        <div class="card kpi"><div class="top">Pump Water Sales</div><div class="val" id="repPumpLitres">₦0</div></div>
+        <div class="card kpi"><div class="top">Total Bags Produced</div><div class="val" id="repProduced">0</div></div>
+        <div class="card kpi"><div class="top">Total Expenses</div><div class="val" id="repExpenses">₦0</div></div>
+      </div>
+      <div class="grid grid-4" style="margin-bottom:18px;">
+        <div class="card kpi" id="repRevenueCard"><div class="top">Net Revenue</div><div class="val" id="repRevenue">₦0</div></div>
+      </div>
+      <div class="card">
+        <div class="section-title" id="repChartTitle">Sales trend</div>
+        <div class="chart-wrap"><canvas id="reportChart"></canvas></div>
+      </div>
+      <div class="card" style="margin-top:16px;">
+        <div class="section-title">Record detail</div>
+        <table><thead><tr><th>Date</th><th>Produced</th><th>Factory sales</th><th>Driver sales</th><th>Pump water</th><th>Leakages</th><th>Expenses</th><th>Closing stock</th></tr></thead>
+          <tbody id="reportTableBody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="page" id="page-settings">
+      <div class="topbar"><div><h1>Settings</h1><div class="sub">Incentive tiers &amp; production requirement — Super Admin only editing</div></div></div>
+      <div class="card">
+        <div class="section-title">Customer incentive tiers</div>
+        <div class="section-sub">Bonus bags awarded based on bags bought in a single sale.</div>
+        <table><thead><tr><th>Min bags</th><th>Max bags</th><th>Bonus bags</th></tr></thead><tbody id="tierBody"></tbody></table>
+        <div class="hint" style="margin-top:8px;">Special weekly incentive: customers reaching 500 bags in a week get +5 bonus bags. Drivers reaching 1,000 bags in a week get +10 bonus bags. These are fixed thresholds per the company policy.</div>
+      </div>
+      <div class="card" style="margin-top:16px;">
+        <div class="section-title">Production requirement (today)</div>
+        <div class="section-sub">Suggested bags to produce today to cover expected demand and keep a safety buffer.</div>
+        <div class="form-grid">
+          <div class="field"><label>Expected demand today (bags)</label><input type="number" id="prodExpected" placeholder="e.g. 1200"></div>
+          <div class="field"><label>Safety buffer (%)</label><input type="number" id="prodBuffer" value="15"></div>
+        </div>
+        <button class="btn btn-ghost" onclick="calcProdRequirement()">Calculate requirement</button>
+        <div class="calc-box" id="prodResultBox" style="display:none;margin-top:14px;"></div>
+      </div>
+      <div class="card" style="margin-top:16px;">
+        <div class="section-title">About this system</div>
+        <div class="section-sub" style="line-height:1.6;">
+          This is a working prototype: sign-in is a simple role picker (no password/verification), and data is stored per-browser-session via the app's shared storage — it is not a hardened, production-secure multi-tenant backend. Weekly customer emails are composed in-app but not actually delivered; wiring real delivery, CBN-grade auth, and audit logging would need a proper backend (e.g. a small Node/Postgres service) behind this interface.
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<!-- ===== MODALS ===== -->
+<div class="modal-bg" id="dailyModalBg">
+  <div class="modal" style="max-width:680px;position:relative;">
+    <button class="close-x" onclick="closeModal('dailyModalBg')">✕</button>
+    <h3>New Daily Record</h3>
+    <form id="dailyForm" onsubmit="submitDaily(event)">
+      <div class="form-grid">
+        <div class="field"><label>Date</label><input type="date" id="dfDate" required></div>
+        <div class="field"><label>Opening stock (bags)</label><input type="number" id="dfOpening" readonly></div>
+      </div>
+      <div class="subhead">Production</div>
+      <div id="prodRows"></div>
+      <button type="button" class="add-row-btn" onclick="addProdRow()">+ Add packer</button>
+
+      <div class="subhead">Factory sales (walk-in, no driver)</div>
+      <div class="form-grid">
+        <div class="field"><label>Bags sold</label><input type="number" id="dfFactoryBags" value="0" min="0"></div>
+        <div class="field"><label>Price per bag (₦)</label><input type="number" id="dfFactoryPrice" value="0" min="0"></div>
+      </div>
+
+      <div class="subhead">Pump water sales</div>
+      <div class="field"><label>Amount from pump water sales (₦)</label><input type="number" id="dfPumpAmount" value="0" min="0"></div>
+
+      <div class="subhead">Driver sales</div>
+      <div id="driverSaleRows"></div>
+      <button type="button" class="add-row-btn" onclick="addDriverSaleRow()">+ Add driver sale</button>
+
+      <div class="subhead">Leakages &amp; expenses</div>
+      <div class="form-grid">
+        <div class="field"><label>Leakages (bags)</label><input type="number" id="dfLeakages" value="0" min="0"></div>
+        <div class="field"><label>Rolls (₦)</label><input type="number" id="dfRolls" value="0" min="0"></div>
+        <div class="field"><label>Packing bags (₦)</label><input type="number" id="dfPackBags" value="0" min="0"></div>
+        <div class="field"><label>Gas (₦)</label><input type="number" id="dfGas" value="0" min="0"></div>
+        <div class="field"><label>Other expenses (₦)</label><input type="number" id="dfOther" value="0" min="0"></div>
+      </div>
+
+      <div class="calc-box"><span>Projected closing stock</span><b id="dfClosingPreview">0 bags</b></div>
+      <button class="btn btn-primary" style="width:100%;margin-top:16px;" type="submit">Save daily record</button>
+    </form>
+  </div>
+</div>
+
+<div class="modal-bg" id="driverModalBg">
+  <div class="modal" style="position:relative;">
+    <button class="close-x" onclick="closeModal('driverModalBg')">✕</button>
+    <h3>Add Driver</h3>
+    <form onsubmit="submitDriver(event)">
+      <div class="field"><label>Driver name</label><input type="text" id="drName" required></div>
+      <div class="field"><label>Phone</label><input type="text" id="drPhone"></div>
+      <div class="field"><label>Standard price to driver (₦/bag)</label><input type="number" id="drPrice" min="0"></div>
+      <button class="btn btn-primary" style="width:100%;" type="submit">Submit driver</button>
+    </form>
+  </div>
+</div>
+
+<div class="modal-bg" id="customerModalBg">
+  <div class="modal" style="position:relative;">
+    <button class="close-x" onclick="closeModal('customerModalBg')">✕</button>
+    <h3>Add Customer</h3>
+    <form onsubmit="submitCustomer(event)">
+      <div class="field"><label>Customer name</label><input type="text" id="cuName" required></div>
+      <div class="field"><label>Email</label><input type="email" id="cuEmail" required></div>
+      <div class="field"><label>Phone</label><input type="text" id="cuPhone"></div>
+      <button class="btn btn-primary" style="width:100%;" type="submit">Save customer</button>
+    </form>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   CUSICA ERP — prototype logic
+   Persistence: window.storage (shared=true → whole-company data)
+   ========================================================= */
+const SUPER_ADMIN_EMAIL = "chibuzodaniel71@gmail.com";
+const STORAGE_KEY = "cusica-erp-state-v1";
+let state = { dailyRecords:[], drivers:[], customers:[], incentiveTiers:[
+  {min:1,max:49,bonus:0},{min:50,max:99,bonus:1},{min:100,max:199,bonus:2},{min:200,max:499,bonus:3},{min:500,max:999999,bonus:5}
+], activity:[], mailLog:[] };
+let currentUser = null;
+let reportRange = 'week';
+let charts = {};
+
+function uid(){ return Math.random().toString(36).slice(2,10); }
+function toast(msg){
+  const wrap = document.getElementById('toastWrap');
+  const t = document.createElement('div'); t.className='toast'; t.textContent = msg;
+  wrap.appendChild(t); setTimeout(()=>t.remove(), 3500);
+}
+function money(n){ return '₦' + Math.round(n).toLocaleString(); }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function logActivity(text){
+  state.activity.unshift({text, time: new Date().toISOString()});
+  state.activity = state.activity.slice(0,20);
+}
+
+/* ---------- persistence ---------- */
+async function loadState(){
+  try{
+    const res = await window.storage.get(STORAGE_KEY, true);
+    if(res && res.value){ state = Object.assign(state, JSON.parse(res.value)); }
+  }catch(e){ /* key not found yet — fine, use defaults */ }
+}
+async function saveState(){
+  try{ await window.storage.set(STORAGE_KEY, JSON.stringify(state), true); }
+  catch(e){ console.error('storage save failed', e); toast('⚠️ Could not save — check connection'); }
+}
+
+/* ---------- auth ---------- */
+document.getElementById('loginEmail').addEventListener('input', (e)=>{
+  const isOwner = e.target.value.trim().toLowerCase() === SUPER_ADMIN_EMAIL;
+  const roleSel = document.getElementById('loginRole');
+  roleSel.disabled = isOwner;
+});
+
+async function handleLogin(e){
+  e.preventDefault();
+  const name = document.getElementById('loginName').value.trim();
+  const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+  let role = document.getElementById('loginRole').value;
+  if(email === SUPER_ADMIN_EMAIL) role = 'Super Admin';
+  currentUser = {name, email, role};
+  await loadState();
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('app').style.display='block';
+  initShell();
+}
+function logout(){
+  currentUser = null;
+  document.getElementById('app').style.display='none';
+  document.getElementById('loginScreen').style.display='flex';
+  document.getElementById('loginForm').reset();
+}
+
+function isApprover(role){ return role==='Admin' || role==='Super Admin'; }
+function canManageDrivers(role){ return role==='Admin Staff' || isApprover(role); }
+function canManageCustomers(role){ return role==='Admin Staff' || isApprover(role); }
+function needsApproval(role){ return !isApprover(role); }
+
+/* ---------- shell / nav ---------- */
+function initShell(){
+  document.getElementById('sbName').textContent = currentUser.name;
+  document.getElementById('sbRole').textContent = currentUser.role;
+  document.getElementById('sbAvatar').textContent = currentUser.name.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
+  document.getElementById('dashDate').textContent = new Date().toLocaleDateString('en-NG',{weekday:'long', year:'numeric', month:'long', day:'numeric'});
+
+  // role-gated UI
+  if(!isApprover(currentUser.role)){
+    document.getElementById('kpiRevenueCard').style.display='none';
+  }
+  document.querySelector('.nav-item[data-page="approvals"]').style.display = isApprover(currentUser.role) ? 'flex':'none';
+  document.querySelector('.nav-item[data-page="settings"]').style.display = isApprover(currentUser.role) ? 'flex':'none';
+  const addDriverBtn = document.getElementById('addDriverBtn');
+  if(addDriverBtn) addDriverBtn.style.display = canManageDrivers(currentUser.role) ? 'inline-flex':'none';
+  const addCustBtn = document.getElementById('addCustomerBtn');
+  if(addCustBtn) addCustBtn.style.display = canManageCustomers(currentUser.role) ? 'inline-flex':'none';
+
+  document.getElementById('dfDate').value = todayISO();
+  addProdRow(); addDriverSaleRow();
+  renderTierTable();
+  renderAll();
+}
+
+function showPage(name){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.querySelector(`.nav-item[data-page="${name}"]`).classList.add('active');
+  if(name==='reports') renderReports();
+  if(name==='dashboard') renderDashboard();
+  if(name==='production') renderProduction();
+  if(name==='incentives') renderIncentives();
+  closeSidebar();
+}
+
+/* ---------- mobile off-canvas sidebar ---------- */
+function toggleSidebar(){
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('show');
+}
+function closeSidebar(){
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('show');
+}
+
+/* ---------- notification bell ---------- */
+function toggleNotifDropdown(){ document.getElementById('notifDropdown').classList.toggle('show'); }
+function closeNotifDropdown(){ document.getElementById('notifDropdown').classList.remove('show'); }
+document.addEventListener('click', (e)=>{
+  const wrap = document.getElementById('notifWrap');
+  if(wrap && !wrap.contains(e.target)) closeNotifDropdown();
+});
+function renderNotifications(){
+  const badge = document.getElementById('notifBadge');
+  const list = document.getElementById('notifList');
+  const items = [];
+
+  if(currentUser && isApprover(currentUser.role)){
+    state.dailyRecords.filter(r=>r.status==='pending').forEach(r=>{
+      items.push({title:`Daily record awaiting approval — ${r.date}`, sub:`Submitted by ${r.createdBy} (${r.createdByRole})`, time:r.timestamp, pending:true, go:'approvals'});
+    });
+    state.drivers.filter(d=>d.status==='pending').forEach(d=>{
+      items.push({title:`Driver "${d.name}" awaiting approval`, sub:`Submitted by ${d.createdBy}`, time:null, pending:true, go:'approvals'});
+    });
+  }
+  state.activity.slice(0,8).forEach(a=>{
+    items.push({title:a.text, sub:null, time:a.time, pending:false, go:null});
+  });
+
+  const pendingCount = items.filter(i=>i.pending).length;
+  if(pendingCount>0){ badge.style.display='flex'; badge.textContent = pendingCount; }
+  else { badge.style.display='none'; }
+
+  list.innerHTML = items.length ? items.map(i=>`
+    <div class="notif-item ${i.pending?'pending-item':''}" onclick="${i.go? `showPage('${i.go}');closeNotifDropdown();` : 'closeNotifDropdown();'}">
+      <span class="ni-title">${i.title}</span>
+      ${i.sub? `<span class="ni-time">${i.sub}</span>`:''}
+      ${i.time? `<span class="ni-time">${new Date(i.time).toLocaleString('en-NG',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span>`:''}
+    </div>`).join('') : '<div class="empty">No notifications yet</div>';
+}
+
+/* ---------- stock chain ---------- */
+function approvedRecordsSorted(){
+  return state.dailyRecords.filter(r=>r.status==='approved').sort((a,b)=>a.date.localeCompare(b.date));
+}
+function latestClosingStock(){
+  const list = approvedRecordsSorted();
+  return list.length ? list[list.length-1].closing : 0;
+}
+
+/* ---------- DAILY RECORD FORM ---------- */
+function openDailyForm(){
+  document.getElementById('dfOpening').value = latestClosingStock();
+  document.getElementById('dailyModalBg').classList.add('show');
+  recalcClosingPreview();
+}
+function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+
+function addProdRow(){
+  const row = document.createElement('div'); row.className='repeater-row';
+  row.innerHTML = `
+    <div class="field" style="margin-bottom:0;"><input type="text" placeholder="Packer name" class="prodName"></div>
+    <div class="field" style="margin-bottom:0;"><input type="number" placeholder="Bags packed" class="prodQty" value="0" min="0" oninput="recalcClosingPreview()"></div>
+    <button type="button" class="icon-btn" onclick="this.parentElement.remove();recalcClosingPreview();">✕</button>`;
+  document.getElementById('prodRows').appendChild(row);
+}
+function addDriverSaleRow(){
+  const approvedDrivers = state.drivers.filter(d=>d.status==='approved');
+  const options = approvedDrivers.map(d=>`<option value="${d.id}">${d.name}</option>`).join('') || '<option value="">No approved drivers yet</option>';
+  const row = document.createElement('div'); row.className='repeater-row dr';
+  row.innerHTML = `
+    <div class="field" style="margin-bottom:0;"><select class="dsDriver">${options}</select></div>
+    <div class="field" style="margin-bottom:0;"><input type="number" placeholder="Bags" class="dsBags" value="0" min="0" oninput="recalcClosingPreview()"></div>
+    <div class="field" style="margin-bottom:0;"><input type="number" placeholder="Price/bag" class="dsPrice" value="0" min="0"></div>
+    <div class="field" style="margin-bottom:0;"><input type="number" placeholder="Loading ₦" class="dsLoading" value="0" min="0"></div>
+    <button type="button" class="icon-btn" onclick="this.parentElement.remove();recalcClosingPreview();">✕</button>`;
+  document.getElementById('driverSaleRows').appendChild(row);
+}
+function recalcClosingPreview(){
+  const opening = Number(document.getElementById('dfOpening').value)||0;
+  const prod = [...document.querySelectorAll('.prodQty')].reduce((s,i)=>s+(Number(i.value)||0),0);
+  const factory = Number(document.getElementById('dfFactoryBags').value)||0;
+  const driverBags = [...document.querySelectorAll('.dsBags')].reduce((s,i)=>s+(Number(i.value)||0),0);
+  const leak = Number(document.getElementById('dfLeakages').value)||0;
+  const closing = opening + prod - factory - driverBags - leak;
+  document.getElementById('dfClosingPreview').textContent = closing + ' bags';
+}
+['dfFactoryBags','dfLeakages'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', recalcClosingPreview);
+});
+
+async function submitDaily(e){
+  e.preventDefault();
+  const opening = Number(document.getElementById('dfOpening').value)||0;
+  const production = [...document.querySelectorAll('#prodRows .repeater-row')].map(r=>({
+    packer: r.querySelector('.prodName').value || 'Unnamed',
+    bags: Number(r.querySelector('.prodQty').value)||0
+  })).filter(p=>p.bags>0);
+  const prodTotal = production.reduce((s,p)=>s+p.bags,0);
+  const factoryBags = Number(document.getElementById('dfFactoryBags').value)||0;
+  const factoryPrice = Number(document.getElementById('dfFactoryPrice').value)||0;
+  const pumpWater = {
+    amount: Number(document.getElementById('dfPumpAmount').value)||0
+  };
+  const driverSales = [...document.querySelectorAll('#driverSaleRows .repeater-row')].map(r=>{
+    const driverId = r.querySelector('.dsDriver').value;
+    const driver = state.drivers.find(d=>d.id===driverId);
+    return {
+      driverId, driverName: driver?driver.name:'—',
+      bags: Number(r.querySelector('.dsBags').value)||0,
+      price: Number(r.querySelector('.dsPrice').value)||0,
+      loading: Number(r.querySelector('.dsLoading').value)||0
+    };
+  }).filter(d=>d.bags>0 && d.driverId);
+  const leakages = Number(document.getElementById('dfLeakages').value)||0;
+  const expenses = {
+    rolls: Number(document.getElementById('dfRolls').value)||0,
+    packingBags: Number(document.getElementById('dfPackBags').value)||0,
+    gas: Number(document.getElementById('dfGas').value)||0,
+    other: Number(document.getElementById('dfOther').value)||0
+  };
+  expenses.total = expenses.rolls+expenses.packingBags+expenses.gas+expenses.other;
+  const driverBagsTotal = driverSales.reduce((s,d)=>s+d.bags,0);
+  const closing = opening + prodTotal - factoryBags - driverBagsTotal - leakages;
+
+  const record = {
+    id: uid(), date: document.getElementById('dfDate').value || todayISO(),
+    opening, production, prodTotal, factory:{bags:factoryBags, price:factoryPrice}, pumpWater,
+    driverSales, leakages, expenses, closing,
+    status: needsApproval(currentUser.role) ? 'pending':'approved',
+    createdBy: currentUser.name, createdByRole: currentUser.role,
+    approvedBy: needsApproval(currentUser.role) ? null : currentUser.name,
+    timestamp: new Date().toISOString()
+  };
+  state.dailyRecords.push(record);
+
+  // bump driver weekly bags only once approved (handled in approve fn); for auto-approved, do it now
+  if(record.status==='approved'){ applyDriverIncentiveBags(record); }
+
+  logActivity(`${currentUser.name} logged the daily record for ${record.date} (${record.status}).`);
+  await saveState();
+  closeModal('dailyModalBg');
+  document.getElementById('dailyForm').reset();
+  document.getElementById('prodRows').innerHTML=''; document.getElementById('driverSaleRows').innerHTML='';
+  addProdRow(); addDriverSaleRow();
+  toast(record.status==='approved' ? 'Daily record saved and approved.' : 'Daily record submitted for approval.');
+  renderAll();
+}
+
+function applyDriverIncentiveBags(record){
+  const weekKey = weekKeyOf(record.date);
+  record.driverSales.forEach(ds=>{
+    const driver = state.drivers.find(d=>d.id===ds.driverId);
+    if(!driver) return;
+    driver.weeklyBags = driver.weeklyBags || {};
+    driver.weeklyBags[weekKey] = (driver.weeklyBags[weekKey]||0) + ds.bags;
+  });
+}
+
+/* ---------- DRIVERS ---------- */
+function openDriverForm(){ document.getElementById('driverModalBg').classList.add('show'); }
+async function submitDriver(e){
+  e.preventDefault();
+  const driver = {
+    id: uid(), name: document.getElementById('drName').value.trim(),
+    phone: document.getElementById('drPhone').value.trim(),
+    price: Number(document.getElementById('drPrice').value)||0,
+    status: needsApproval(currentUser.role) ? 'pending':'approved',
+    createdBy: currentUser.name, weeklyBags:{}
+  };
+  state.drivers.push(driver);
+  logActivity(`${currentUser.name} added driver "${driver.name}" (${driver.status}).`);
+  await saveState();
+  closeModal('driverModalBg'); e.target.reset();
+  toast(driver.status==='approved' ? 'Driver added.' : 'Driver submitted for approval.');
+  renderAll();
+}
+
+/* ---------- CUSTOMERS ---------- */
+function openCustomerForm(){ document.getElementById('customerModalBg').classList.add('show'); }
+async function submitCustomer(e){
+  e.preventDefault();
+  const customer = {
+    id: uid(), name: document.getElementById('cuName').value.trim(),
+    email: document.getElementById('cuEmail').value.trim(),
+    phone: document.getElementById('cuPhone').value.trim(),
+    createdBy: currentUser.name, weeklyBags:{}, yearlyBags:0
+  };
+  state.customers.push(customer);
+  logActivity(`${currentUser.name} added customer "${customer.name}".`);
+  await saveState();
+  closeModal('customerModalBg'); e.target.reset();
+  toast('Customer saved.');
+  renderAll();
+}
+
+/* ---------- APPROVALS ---------- */
+async function approveDaily(id){
+  const r = state.dailyRecords.find(x=>x.id===id); if(!r) return;
+  r.status='approved'; r.approvedBy = currentUser.name;
+  applyDriverIncentiveBags(r);
+  // bump customer weekly/yearly bags if any driver sale was tied to a customer-run - not modeled per-customer sale here,
+  // factory sales don't map to a specific customer unless added manually; kept simple for this prototype.
+  logActivity(`${currentUser.name} approved the daily record for ${r.date}.`);
+  await saveState(); toast('Daily record approved.'); renderAll();
+}
+async function rejectDaily(id){
+  const r = state.dailyRecords.find(x=>x.id===id); if(!r) return;
+  r.status='rejected'; r.approvedBy = currentUser.name;
+  logActivity(`${currentUser.name} rejected the daily record for ${r.date}.`);
+  await saveState(); toast('Daily record rejected.'); renderAll();
+}
+async function approveDriver(id){
+  const d = state.drivers.find(x=>x.id===id); if(!d) return;
+  d.status='approved';
+  logActivity(`${currentUser.name} approved driver "${d.name}".`);
+  await saveState(); toast('Driver approved.'); renderAll();
+}
+async function rejectDriver(id){
+  const d = state.drivers.find(x=>x.id===id); if(!d) return;
+  d.status='rejected';
+  logActivity(`${currentUser.name} rejected driver "${d.name}".`);
+  await saveState(); toast('Driver rejected.'); renderAll();
+}
+
+/* ---------- incentive tiers ---------- */
+function bonusForBags(bags){
+  const tier = state.incentiveTiers.find(t=>bags>=t.min && bags<=t.max);
+  return tier ? tier.bonus : 0;
+}
+function weekKeyOf(dateStr){
+  const d = new Date(dateStr+'T00:00:00');
+  const onejan = new Date(d.getFullYear(),0,1);
+  const week = Math.ceil((((d-onejan)/86400000) + onejan.getDay()+1)/7);
+  return `${d.getFullYear()}-W${week}`;
+}
+function currentWeekKey(){ return weekKeyOf(todayISO()); }
+
+function renderTierTable(){
+  const tb = document.getElementById('tierBody');
+  tb.innerHTML = state.incentiveTiers.map(t=>`<tr><td>${t.min}</td><td>${t.max>=999999?'∞':t.max}</td><td>+${t.bonus} bags</td></tr>`).join('');
+}
+
+function calcProdRequirement(){
+  const demand = Number(document.getElementById('prodExpected').value)||0;
+  const buffer = Number(document.getElementById('prodBuffer').value)||0;
+  const stock = latestClosingStock();
+  const needed = Math.max(0, Math.ceil(demand*(1+buffer/100) - stock));
+  const box = document.getElementById('prodResultBox');
+  box.style.display='flex';
+  box.innerHTML = `<span>Recommended production today</span><b>${needed} bags</b>`;
+}
+
+/* ---------- weekly mail ---------- */
+function generateWeeklyMail(){
+  const wk = currentWeekKey();
+  const area = document.getElementById('mailPreviewArea');
+  if(!state.customers.length){ area.innerHTML = '<div class="empty">No customers to mail yet.</div>'; return; }
+  let html = '';
+  state.customers.forEach(c=>{
+    const weekly = (c.weeklyBags && c.weeklyBags[wk]) || 0;
+    const qualifies = weekly >= 500;
+    html += `<div class="card" style="margin-bottom:10px;">
+      <b>${c.name}</b> — ${c.email}<br>
+      <span style="font-size:12.5px;color:var(--text-dim)">This week: ${weekly} bags · Year to date: ${c.yearlyBags||0} bags</span>
+      ${qualifies ? `<div class="pill approved" style="margin-top:6px;">Qualifies for +5 bonus bags this week</div>` : ''}
+    </div>`;
+    state.mailLog.push({customerId:c.id, week:wk, sentAt:new Date().toISOString()});
+  });
+  area.innerHTML = html + '<div class="hint">Preview generated for '+wk+'. Delivering these automatically each week would need a scheduled backend job connected to a real email provider.</div>';
+  saveState();
+  toast('Weekly mail content generated (preview only).');
+}
+
+/* ---------- render: tables ---------- */
+function renderDailyTable(){
+  const body = document.getElementById('dailyTableBody');
+  const sorted = [...state.dailyRecords].sort((a,b)=>b.date.localeCompare(a.date));
+  document.getElementById('dailyEmpty').style.display = sorted.length? 'none':'block';
+  body.innerHTML = sorted.map(r=>{
+    const soldTotal = r.factory.bags + r.driverSales.reduce((s,d)=>s+d.bags,0);
+    const pumpL = r.pumpWater ? r.pumpWater.amount : 0;
+    const canAct = isApprover(currentUser.role) && r.status==='pending';
+    return `<tr>
+      <td>${r.date}</td><td>${r.opening}</td><td>${r.prodTotal}</td><td>${soldTotal}</td><td>${money(pumpL)}</td><td>${r.leakages}</td><td>${r.closing}</td>
+      <td><span class="pill ${r.status}">${r.status}</span></td><td>${r.createdBy}<br><span class="badge-role">${r.createdByRole}</span></td>
+      <td>${canAct ? `<button class="btn btn-sm btn-approve" onclick="approveDaily('${r.id}')">Approve</button>` : ''}</td>
+    </tr>`;
+  }).join('');
+}
+function renderDriverTable(){
+  const body = document.getElementById('driverTableBody');
+  document.getElementById('driverEmpty').style.display = state.drivers.length? 'none':'block';
+  const wk = currentWeekKey();
+  body.innerHTML = state.drivers.map(d=>{
+    const wkBags = (d.weeklyBags && d.weeklyBags[wk]) || 0;
+    const canAct = isApprover(currentUser.role) && d.status==='pending';
+    return `<tr><td>${d.name}</td><td>${d.phone||'—'}</td><td>${wkBags}${wkBags>=1000?' 🎉 +10 bonus':''}</td>
+      <td><span class="pill ${d.status}">${d.status}</span></td><td>${d.createdBy}</td>
+      <td>${canAct?`<button class="btn btn-sm btn-approve" onclick="approveDriver('${d.id}')">Approve</button>`:''}</td></tr>`;
+  }).join('');
+}
+function renderCustomerTable(){
+  const body = document.getElementById('customerTableBody');
+  document.getElementById('customerEmpty').style.display = state.customers.length? 'none':'block';
+  const wk = currentWeekKey();
+  body.innerHTML = state.customers.map(c=>{
+    const wkBags = (c.weeklyBags && c.weeklyBags[wk]) || 0;
+    return `<tr><td>${c.name}</td><td>${c.email}</td><td>${wkBags}</td><td>${c.yearlyBags||0}</td>
+      <td>${wkBags>=500?'<span class="pill approved">+5 bonus qualified</span>':'<span class="pill pending">below threshold</span>'}</td>
+      <td></td></tr>`;
+  }).join('');
+}
+function renderApprovals(){
+  const pd = state.dailyRecords.filter(r=>r.status==='pending');
+  const pdrv = state.drivers.filter(d=>d.status==='pending');
+  document.getElementById('pendingDailyEmpty').style.display = pd.length?'none':'block';
+  document.getElementById('pendingDailyBody').innerHTML = pd.map(r=>{
+    const net = r.prodTotal - r.leakages - r.factory.bags - r.driverSales.reduce((s,d)=>s+d.bags,0);
+    return `<tr><td>${r.date}</td><td>${r.createdBy}</td><td><span class="badge-role">${r.createdByRole}</span></td><td>${net>=0?'+':''}${net} bags</td>
+      <td><button class="btn btn-sm btn-approve" onclick="approveDaily('${r.id}')">Approve</button>
+      <button class="btn btn-sm btn-reject" onclick="rejectDaily('${r.id}')">Reject</button></td></tr>`;
+  }).join('');
+  document.getElementById('pendingDriverEmpty').style.display = pdrv.length?'none':'block';
+  document.getElementById('pendingDriverBody').innerHTML = pdrv.map(d=>`
+    <tr><td>${d.name}</td><td>${d.phone||'—'}</td><td>${d.createdBy}</td>
+    <td><button class="btn btn-sm btn-approve" onclick="approveDriver('${d.id}')">Approve</button>
+    <button class="btn btn-sm btn-reject" onclick="rejectDriver('${d.id}')">Reject</button></td></tr>`).join('');
+
+  const totalPending = pd.length + pdrv.length;
+  const badge = document.getElementById('approvalBadge');
+  badge.style.display = totalPending? 'inline-block':'none';
+  badge.textContent = totalPending;
+  document.getElementById('kpiPending').textContent = totalPending;
+}
+
+/* ---------- dashboard ---------- */
+function computeRevenue(records){
+  let rev=0, exp=0;
+  records.forEach(r=>{
+    rev += r.factory.bags*r.factory.price;
+    if(r.pumpWater) rev += r.pumpWater.amount;
+    r.driverSales.forEach(d=>{ rev += d.bags*d.price + d.loading; });
+    exp += r.expenses.total;
+  });
+  return {gross:rev, expenses:exp, net:rev-exp};
+}
+function inRangeThisWeek(dateStr){ return weekKeyOf(dateStr)===currentWeekKey(); }
+
+function renderDashboard(){
+  const approved = approvedRecordsSorted();
+  const stock = latestClosingStock();
+  document.getElementById('kpiStock').textContent = stock + ' bags';
+
+  const today = todayISO();
+  const todayRec = approved.find(r=>r.date===today);
+  const soldToday = todayRec ? (todayRec.factory.bags + todayRec.driverSales.reduce((s,d)=>s+d.bags,0)) : 0;
+  document.getElementById('kpiSoldToday').textContent = soldToday;
+
+  const weekRecords = approved.filter(r=>inRangeThisWeek(r.date));
+  const rev = computeRevenue(weekRecords);
+  document.getElementById('kpiRevenue').textContent = money(rev.net);
+
+  const weekProduced = weekRecords.reduce((s,r)=>s+r.prodTotal,0);
+  document.getElementById('kpiProduced').textContent = weekProduced + ' bags';
+
+  // sales chart - last 14 days
+  const days = [];
+  for(let i=13;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); days.push(d.toISOString().slice(0,10)); }
+  const soldSeries = days.map(day=>{
+    const r = approved.find(x=>x.date===day);
+    return r ? r.factory.bags + r.driverSales.reduce((s,d)=>s+d.bags,0) : 0;
+  });
+  drawChart('salesChart','line', days.map(d=>d.slice(5)), [{label:'Bags sold', data:soldSeries, color:'#7C6EF5'}]);
+
+  const openSeries = days.map(day=>{ const r=approved.find(x=>x.date===day); return r?r.opening:null; });
+  const closeSeries = days.map(day=>{ const r=approved.find(x=>x.date===day); return r?r.closing:null; });
+  drawChart('stockChart','bar', days.map(d=>d.slice(5)), [
+    {label:'Opening', data:openSeries, color:'#2FD7C4'},
+    {label:'Closing', data:closeSeries, color:'#7C6EF5'}
+  ]);
+
+  // top drivers this week
+  const driverTotals = {};
+  weekRecords.forEach(r=>r.driverSales.forEach(d=>{ driverTotals[d.driverName]=(driverTotals[d.driverName]||0)+d.bags; }));
+  const top = Object.entries(driverTotals).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  document.getElementById('topDrivers').innerHTML = top.length ? top.map(([n,b])=>`
+    <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">
+      <span>${n}</span><b>${b} bags</b></div>`).join('') : '<div class="empty">No driver sales this week</div>';
+
+  // incentive watch
+  const wk = currentWeekKey();
+  let watchHtml='';
+  state.customers.forEach(c=>{
+    const b=(c.weeklyBags&&c.weeklyBags[wk])||0;
+    if(b>0 && b<500) watchHtml += `<div style="font-size:12.5px;padding:6px 0;border-bottom:1px solid var(--border);">${c.name}: ${b}/500 bags</div>`;
+  });
+  state.drivers.forEach(d=>{
+    const b=(d.weeklyBags&&d.weeklyBags[wk])||0;
+    if(b>0 && b<1000) watchHtml += `<div style="font-size:12.5px;padding:6px 0;border-bottom:1px solid var(--border);">${d.name} (driver): ${b}/1000 bags</div>`;
+  });
+  document.getElementById('incentiveWatch').innerHTML = watchHtml || '<div class="empty">Nothing close to threshold</div>';
+
+  // recent activity
+  document.getElementById('recentActivity').innerHTML = state.activity.length ? state.activity.slice(0,6).map(a=>`
+    <div style="font-size:12.5px;padding:7px 0;border-bottom:1px solid var(--border);color:var(--text-dim);">${a.text}</div>`).join('') : '<div class="empty">No activity yet</div>';
+}
+
+function drawChart(canvasId, type, labels, datasets){
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  if(charts[canvasId]) charts[canvasId].destroy();
+  charts[canvasId] = new Chart(ctx, {
+    type,
+    data:{ labels, datasets: datasets.map(ds=>({
+      label:ds.label, data:ds.data, borderColor:ds.color, backgroundColor:type==='bar'?ds.color+'cc':ds.color+'33',
+      borderRadius:type==='bar'?6:0, tension:.35, fill:type==='line', pointRadius:2
+    }))},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ labels:{ color:'#A79FC9', font:{size:11} } } },
+      scales:{
+        x:{ ticks:{color:'#6F6693', font:{size:10}}, grid:{color:'#241E3D'} },
+        y:{ ticks:{color:'#6F6693', font:{size:10}}, grid:{color:'#241E3D'} }
+      }
+    }
+  });
+}
+
+/* ---------- reports ---------- */
+function setReportRange(r){
+  reportRange = r;
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector(`.tab-btn[data-range="${r}"]`).classList.add('active');
+  renderReports();
+}
+function recordsInRange(range){
+  const approved = approvedRecordsSorted();
+  const now = new Date();
+  return approved.filter(r=>{
+    const d = new Date(r.date+'T00:00:00');
+    if(range==='week') return weekKeyOf(r.date)===currentWeekKey();
+    if(range==='month') return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth();
+    if(range==='year') return d.getFullYear()===now.getFullYear();
+    return true;
+  });
+}
+function renderReports(){
+  if(!isApprover(currentUser.role)) document.getElementById('repRevenueCard').style.display='none';
+  const recs = recordsInRange(reportRange);
+  const bagsSold = recs.reduce((s,r)=>s+r.factory.bags+r.driverSales.reduce((a,d)=>a+d.bags,0),0);
+  const pumpTotal = recs.reduce((s,r)=>s+(r.pumpWater?r.pumpWater.amount:0),0);
+  const produced = recs.reduce((s,r)=>s+r.prodTotal,0);
+  const rev = computeRevenue(recs);
+  document.getElementById('repBags').textContent = bagsSold;
+  document.getElementById('repPumpLitres').textContent = money(pumpTotal);
+  document.getElementById('repProduced').textContent = produced;
+  document.getElementById('repExpenses').textContent = money(rev.expenses);
+  document.getElementById('repRevenue').textContent = money(rev.net);
+  document.getElementById('repChartTitle').textContent = 'Sales trend — ' + ({week:'this week',month:'this month',year:'this year',all:'overall'}[reportRange]);
+
+  const labels = recs.map(r=>r.date.slice(5));
+  const series = recs.map(r=>r.factory.bags+r.driverSales.reduce((a,d)=>a+d.bags,0));
+  drawChart('reportChart','line', labels, [{label:'Bags sold', data:series, color:'#3FDE9A'}]);
+
+  document.getElementById('reportTableBody').innerHTML = recs.map(r=>`
+    <tr><td>${r.date}</td><td>${r.prodTotal}</td><td>${r.factory.bags} @ ${money(r.factory.price)}</td>
+    <td>${r.driverSales.reduce((s,d)=>s+d.bags,0)} bags</td><td>${money(r.pumpWater?r.pumpWater.amount:0)}</td><td>${r.leakages}</td><td>${money(r.expenses.total)}</td><td>${r.closing}</td></tr>`).join('')
+    || '<tr><td colspan="8" style="text-align:center;color:var(--text-faint);">No approved records in this range</td></tr>';
+}
+
+/* ---------- total produced ---------- */
+let prodRange = 'week';
+function setProdRange(r){
+  prodRange = r;
+  document.querySelectorAll('#page-production .tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector(`#page-production .tab-btn[data-prodrange="${r}"]`).classList.add('active');
+  renderProduction();
+}
+function renderProduction(){
+  const recs = recordsInRange(prodRange);
+  const total = recs.reduce((s,r)=>s+r.prodTotal,0);
+  const days = recs.filter(r=>r.prodTotal>0).length;
+  document.getElementById('prTotal').textContent = total + ' bags';
+  document.getElementById('prDays').textContent = days;
+  document.getElementById('prAvg').textContent = (days? Math.round(total/days):0) + ' bags';
+  document.getElementById('prChartTitle').textContent = 'Bags produced trend — ' + ({week:'this week',month:'this month',year:'this year',all:'overall'}[prodRange]);
+
+  const packerTotals = {};
+  recs.forEach(r=>r.production.forEach(p=>{ packerTotals[p.packer]=(packerTotals[p.packer]||0)+p.bags; }));
+  const sortedPackers = Object.entries(packerTotals).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('prTopPacker').textContent = sortedPackers.length ? `${sortedPackers[0][0]} (${sortedPackers[0][1]})` : '—';
+
+  document.getElementById('packerEmpty').style.display = sortedPackers.length ? 'none':'block';
+  document.getElementById('packerTableBody').innerHTML = sortedPackers.map(([name,bags])=>`
+    <tr><td>${name}</td><td>${bags}</td><td>${total? Math.round(bags/total*100):0}%</td></tr>`).join('');
+
+  const labels = recs.map(r=>r.date.slice(5));
+  const series = recs.map(r=>r.prodTotal);
+  drawChart('productionChart','bar', labels, [{label:'Bags produced', data:series, color:'#2FD7C4'}]);
+}
+
+/* ---------- incentive tracking ---------- */
+let incentiveTab = 'customers';
+function setIncentiveTab(tab){
+  incentiveTab = tab;
+  document.querySelectorAll('#page-incentives .tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector(`#page-incentives .tab-btn[data-inctab="${tab}"]`).classList.add('active');
+  document.getElementById('incTabCustomers').style.display = tab==='customers' ? 'block':'none';
+  document.getElementById('incTabDrivers').style.display = tab==='drivers' ? 'block':'none';
+  renderIncentives();
+}
+function weeksQualified(entity, threshold){
+  return Object.values(entity.weeklyBags||{}).filter(b=>b>=threshold).length;
+}
+function renderIncentives(){
+  const wk = currentWeekKey();
+
+  // customers
+  const custRows = state.customers.map(c=>{
+    const wkBags = (c.weeklyBags && c.weeklyBags[wk]) || 0;
+    return {c, wkBags, qualifies: wkBags>=500};
+  });
+  const custQualified = custRows.filter(r=>r.qualifies).length;
+  document.getElementById('incCustQualified').textContent = custQualified;
+  document.getElementById('incCustBonusBags').textContent = (custQualified*5) + ' bags';
+  document.getElementById('incCustAvg').textContent = custRows.length ? Math.round(custRows.reduce((s,r)=>s+r.wkBags,0)/custRows.length) : 0;
+  document.getElementById('incCustEmpty').style.display = custRows.length ? 'none':'block';
+  document.getElementById('incCustBody').innerHTML = custRows.map(({c,wkBags,qualifies})=>`
+    <tr><td>${c.name}</td><td>${wkBags} bags</td>
+      <td style="min-width:120px;"><div style="background:var(--panel-2);border-radius:20px;height:8px;overflow:hidden;">
+        <div style="width:${Math.min(100,wkBags/500*100)}%;height:100%;background:${qualifies?'var(--green)':'var(--accent)'};"></div></div>
+        <span style="font-size:11px;color:var(--text-faint);">${wkBags}/500</span></td>
+      <td>${qualifies? '<span class="pill approved">+5 bonus qualified</span>':'<span class="pill pending">in progress</span>'}</td>
+      <td>${weeksQualified(c,500)}</td><td>${c.yearlyBags||0}</td></tr>`).join('');
+
+  // drivers
+  const drvRows = state.drivers.filter(d=>d.status==='approved').map(d=>{
+    const wkBags = (d.weeklyBags && d.weeklyBags[wk]) || 0;
+    return {d, wkBags, qualifies: wkBags>=1000};
+  });
+  const drvQualified = drvRows.filter(r=>r.qualifies).length;
+  document.getElementById('incDrvQualified').textContent = drvQualified;
+  document.getElementById('incDrvBonusBags').textContent = (drvQualified*10) + ' bags';
+  document.getElementById('incDrvAvg').textContent = drvRows.length ? Math.round(drvRows.reduce((s,r)=>s+r.wkBags,0)/drvRows.length) : 0;
+  document.getElementById('incDrvEmpty').style.display = drvRows.length ? 'none':'block';
+  document.getElementById('incDrvBody').innerHTML = drvRows.map(({d,wkBags,qualifies})=>`
+    <tr><td>${d.name}</td><td>${wkBags} bags</td>
+      <td style="min-width:120px;"><div style="background:var(--panel-2);border-radius:20px;height:8px;overflow:hidden;">
+        <div style="width:${Math.min(100,wkBags/1000*100)}%;height:100%;background:${qualifies?'var(--green)':'var(--accent)'};"></div></div>
+        <span style="font-size:11px;color:var(--text-faint);">${wkBags}/1000</span></td>
+      <td>${qualifies? '<span class="pill approved">+10 bonus qualified</span>':'<span class="pill pending">in progress</span>'}</td>
+      <td>${weeksQualified(d,1000)}</td></tr>`).join('');
+}
+
+/* ---------- master render ---------- */
+function renderAll(){
+  renderDailyTable(); renderDriverTable(); renderCustomerTable(); renderApprovals();
+  renderDashboard(); renderNotifications();
+  if(document.getElementById('page-reports').classList.contains('active')) renderReports();
+  if(document.getElementById('page-production').classList.contains('active')) renderProduction();
+  if(document.getElementById('page-incentives').classList.contains('active')) renderIncentives();
+}
+</script>
+</body>
+</html>
