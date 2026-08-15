@@ -28,6 +28,12 @@ interface DriverSaleRow {
   loadingFee: string;
   customerId: string;
 }
+interface ExpenseRow {
+  key: number;
+  description: string;
+  amount: string;
+  paid: boolean;
+}
 
 let rowKeySeq = 0;
 function nextKey() {
@@ -35,18 +41,30 @@ function nextKey() {
   return rowKeySeq;
 }
 
+function defaultExpenseRows(): ExpenseRow[] {
+  return ["Rolls", "Packing bags", "Gas", "Other"].map((description) => ({
+    key: nextKey(),
+    description,
+    amount: "0",
+    paid: false,
+  }));
+}
+
 export default function AddDailyRecordButton({
   openingStock,
   drivers,
   customers,
+  canEditOpeningStock,
 }: {
   openingStock: number;
   drivers: DriverOption[];
   customers: CustomerOption[];
+  canEditOpeningStock?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState(todayISO());
+  const [openingValue, setOpeningValue] = useState(String(openingStock));
   const [production, setProduction] = useState<ProductionRow[]>([{ key: nextKey(), packerName: "", bags: "0" }]);
   const [driverSales, setDriverSales] = useState<DriverSaleRow[]>([
     { key: nextKey(), driverId: drivers[0]?.id ?? "", bags: "0", pricePerBag: "0", loadingFee: "0", customerId: "" },
@@ -56,10 +74,7 @@ export default function AddDailyRecordButton({
   const [factoryCustomerId, setFactoryCustomerId] = useState("");
   const [pumpWaterAmount, setPumpWaterAmount] = useState("0");
   const [leakageBags, setLeakageBags] = useState("0");
-  const [rolls, setRolls] = useState("0");
-  const [packingBags, setPackingBags] = useState("0");
-  const [gas, setGas] = useState("0");
-  const [other, setOther] = useState("0");
+  const [expenses, setExpenses] = useState<ExpenseRow[]>(defaultExpenseRows());
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -67,16 +82,17 @@ export default function AddDailyRecordButton({
     const prodTotal = production.reduce((s, p) => s + (Number(p.bags) || 0), 0);
     const driverBagsTotal = driverSales.reduce((s, d) => s + (Number(d.bags) || 0), 0);
     return (
-      openingStock +
+      (Number(openingValue) || 0) +
       prodTotal -
       (Number(factoryBags) || 0) -
       driverBagsTotal -
       (Number(leakageBags) || 0)
     );
-  }, [production, driverSales, factoryBags, leakageBags, openingStock]);
+  }, [production, driverSales, factoryBags, leakageBags, openingValue]);
 
   function resetForm() {
     setDate(todayISO());
+    setOpeningValue(String(openingStock));
     setProduction([{ key: nextKey(), packerName: "", bags: "0" }]);
     setDriverSales([
       { key: nextKey(), driverId: drivers[0]?.id ?? "", bags: "0", pricePerBag: "0", loadingFee: "0", customerId: "" },
@@ -86,10 +102,7 @@ export default function AddDailyRecordButton({
     setFactoryCustomerId("");
     setPumpWaterAmount("0");
     setLeakageBags("0");
-    setRolls("0");
-    setPackingBags("0");
-    setGas("0");
-    setOther("0");
+    setExpenses(defaultExpenseRows());
     setError(null);
   }
 
@@ -99,6 +112,7 @@ export default function AddDailyRecordButton({
     setError(null);
     const payload = {
       date,
+      openingStockOverride: canEditOpeningStock ? Number(openingValue) || 0 : null,
       production: production
         .filter((p) => (Number(p.bags) || 0) > 0)
         .map((p) => ({ packerName: p.packerName || "Unnamed", bags: Number(p.bags) || 0 })),
@@ -116,10 +130,9 @@ export default function AddDailyRecordButton({
           customerId: d.customerId || null,
         })),
       leakageBags: Number(leakageBags) || 0,
-      expenseRolls: Number(rolls) || 0,
-      expensePackingBags: Number(packingBags) || 0,
-      expenseGas: Number(gas) || 0,
-      expenseOther: Number(other) || 0,
+      expenses: expenses
+        .filter((e) => e.description.trim().length > 0 && (Number(e.amount) || 0) > 0)
+        .map((e) => ({ description: e.description.trim(), amount: Number(e.amount) || 0, paid: e.paid })),
     };
     const result = await createDailyRecord(payload);
     setLoading(false);
@@ -145,8 +158,14 @@ export default function AddDailyRecordButton({
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
             </div>
             <div className="field">
-              <label>Opening stock (bags)</label>
-              <input type="number" value={openingStock} readOnly />
+              <label>Opening stock (bags){canEditOpeningStock ? " — editable (Super Admin)" : ""}</label>
+              <input
+                type="number"
+                min={0}
+                value={openingValue}
+                onChange={canEditOpeningStock ? (e) => setOpeningValue(e.target.value) : undefined}
+                readOnly={!canEditOpeningStock}
+              />
             </div>
           </div>
 
@@ -308,29 +327,66 @@ export default function AddDailyRecordButton({
             + Add driver sale
           </button>
 
-          <div className="subhead">Leakages &amp; expenses</div>
-          <div className="form-grid">
-            <div className="field">
-              <label>Leakages (bags)</label>
-              <input type="number" min={0} value={leakageBags} onChange={(e) => setLeakageBags(e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Rolls (₦)</label>
-              <input type="number" min={0} value={rolls} onChange={(e) => setRolls(e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Packing bags (₦)</label>
-              <input type="number" min={0} value={packingBags} onChange={(e) => setPackingBags(e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Gas (₦)</label>
-              <input type="number" min={0} value={gas} onChange={(e) => setGas(e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Other expenses (₦)</label>
-              <input type="number" min={0} value={other} onChange={(e) => setOther(e.target.value)} />
-            </div>
+          <div className="subhead">Leakages</div>
+          <div className="field">
+            <label>Leakages (bags)</label>
+            <input type="number" min={0} value={leakageBags} onChange={(e) => setLeakageBags(e.target.value)} />
           </div>
+
+          <div className="subhead">Expenses</div>
+          {expenses.map((row) => (
+            <div
+              className="repeater-row"
+              key={row.key}
+              style={{ gridTemplateColumns: "1.4fr .8fr auto auto", alignItems: "center" }}
+            >
+              <div className="field" style={{ marginBottom: 0 }}>
+                <input
+                  type="text"
+                  placeholder="Description (e.g. Diesel)"
+                  value={row.description}
+                  onChange={(e) =>
+                    setExpenses((rows) => rows.map((r) => (r.key === row.key ? { ...r, description: e.target.value } : r)))
+                  }
+                />
+              </div>
+              <div className="field" style={{ marginBottom: 0 }}>
+                <input
+                  type="number"
+                  placeholder="Amount ₦"
+                  min={0}
+                  value={row.amount}
+                  onChange={(e) =>
+                    setExpenses((rows) => rows.map((r) => (r.key === row.key ? { ...r, amount: e.target.value } : r)))
+                  }
+                />
+              </div>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "var(--text-dim)", whiteSpace: "nowrap" }}>
+                <input
+                  type="checkbox"
+                  checked={row.paid}
+                  onChange={(e) =>
+                    setExpenses((rows) => rows.map((r) => (r.key === row.key ? { ...r, paid: e.target.checked } : r)))
+                  }
+                />
+                Paid
+              </label>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => setExpenses((rows) => rows.filter((r) => r.key !== row.key))}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="add-row-btn"
+            onClick={() => setExpenses((rows) => [...rows, { key: nextKey(), description: "", amount: "0", paid: false }])}
+          >
+            + Add expense
+          </button>
 
           <div className="calc-box">
             <span>Projected closing stock</span>

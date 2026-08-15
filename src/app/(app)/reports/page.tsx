@@ -1,6 +1,6 @@
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { isApprover } from "@/lib/roles";
-import { getApprovedRecordsSorted, recordProdTotal, recordDriverBagsTotal } from "@/lib/records";
+import { getApprovedRecordsSorted, recordProdTotal, recordDriverBagsTotal, recordExpenseTotal } from "@/lib/records";
 import { computeRevenue } from "@/lib/revenue";
 import { filterRecordsByRange, parseRange, RANGE_OPTIONS, RANGE_LABEL } from "@/lib/ranges";
 import { formatMoney } from "@/lib/money";
@@ -90,7 +90,7 @@ export default async function ReportsPage({
                     <td>{recordDriverBagsTotal(r)} bags</td>
                     <td>{formatMoney(r.pumpWaterAmount)}</td>
                     <td>{r.leakageBags}</td>
-                    <td>{formatMoney(r.expenseRolls + r.expensePackingBags + r.expenseGas + r.expenseOther)}</td>
+                    <td>{formatMoney(recordExpenseTotal(r))}</td>
                     <td>{r.closingStock}</td>
                   </tr>
                 ))

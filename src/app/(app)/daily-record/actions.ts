@@ -27,7 +27,9 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
     return { ok: false, error: `A daily record for ${data.date} already exists.` };
   }
 
-  const opening = await latestClosingStock();
+  const computedOpening = await latestClosingStock();
+  const opening =
+    user.role === "SUPER_ADMIN" && data.openingStockOverride != null ? data.openingStockOverride : computedOpening;
   const prodTotal = data.production.reduce((s, p) => s + p.bags, 0);
   const driverBagsTotal = data.driverSales.reduce((s, d) => s + d.bags, 0);
   const closing = computeClosingStock(opening, prodTotal, data.factoryBags, driverBagsTotal, data.leakageBags);
@@ -44,10 +46,6 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
         factoryCustomerId: data.factoryCustomerId || null,
         pumpWaterAmount: data.pumpWaterAmount,
         leakageBags: data.leakageBags,
-        expenseRolls: data.expenseRolls,
-        expensePackingBags: data.expensePackingBags,
-        expenseGas: data.expenseGas,
-        expenseOther: data.expenseOther,
         status: pending ? "PENDING" : "APPROVED",
         createdById: user.id,
         createdByRole: user.role,
@@ -62,6 +60,15 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
             pricePerBag: d.pricePerBag,
             loadingFee: d.loadingFee,
             customerId: d.customerId || null,
+          })),
+        },
+        expenseItems: {
+          create: data.expenses.map((e) => ({
+            description: e.description,
+            amount: e.amount,
+            paid: e.paid,
+            paidAt: e.paid ? new Date() : null,
+            paidById: e.paid ? user.id : null,
           })),
         },
       },

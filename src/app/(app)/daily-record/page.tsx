@@ -30,6 +30,7 @@ export default async function DailyRecordPage() {
           openingStock={opening}
           drivers={drivers.map((d) => ({ id: d.id, name: d.name }))}
           customers={customers.map((c) => ({ id: c.id, name: c.name }))}
+          canEditOpeningStock={user?.role === "SUPER_ADMIN"}
         />
       </div>
       <div className="card">

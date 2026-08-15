@@ -4,7 +4,7 @@ import { getToken } from "next-auth/jwt";
 
 const PUBLIC_PATHS = ["/login", "/register"];
 
-const APPROVER_ONLY = ["/approvals", "/settings"];
+const APPROVER_ONLY = ["/approvals", "/settings", "/expenses"];
 const SUPER_ADMIN_ONLY = ["/settings"];
 
 export async function proxy(req: NextRequest) {

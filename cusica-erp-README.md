@@ -105,18 +105,33 @@ The email in `SUPER_ADMIN_EMAIL` is forced to the Super Admin role at
 registration (and re-checked on every login), regardless of the role picked
 in the sign-up form — there's no Super Admin option in that dropdown.
 
+Sessions auto-logout after 2 minutes of no mouse/keyboard/scroll/touch
+activity anywhere in the authenticated app, redirecting to `/login`.
+
 ## Core logic
 - **Opening stock** for a new daily record = closing stock of the last
-  **approved** record (0 if there isn't one yet).
+  **approved** record (0 if there isn't one yet). **Super Admin can override**
+  this on the entry form — useful for the first-ever record, or a correction
+  — everyone else gets the computed value read-only. Records can be
+  backdated freely (the date field has no restriction), so a Super Admin can
+  log a missed prior day with the real opening count and later days will
+  chain off its closing stock automatically.
 - **Closing stock** = opening + bags produced − factory sales − driver sales
   − leakages. Pump water is a separate ₦ revenue line and doesn't draw from
   the bag stock chain.
 - Anything entered by Sales Staff, Editor, or Admin Staff is `PENDING` until
   an Admin/Super Admin approves it in **Approvals**. Only approved records
   count toward stock, dashboard totals, incentive totals, and reports.
+- **Expenses are itemized**, not fixed categories — each daily record has a
+  free-form list of expense lines (description + ₦ amount), each marked
+  paid or unpaid **at entry time** by whoever logs the record. The
+  **Expenses** page (Admin+) lists every expense line across every day,
+  filterable by paid/unpaid, with a "Mark as paid"/"Mark unpaid" toggle for
+  settling them later.
 - **Net income** (Admin/Super Admin only) = sachet-bag sales + pump water
-  sales − that period's expenses (rolls, packing bags, gas, other),
-  recalculated per range.
+  sales − that period's total expenses (regardless of paid/unpaid status —
+  an incurred expense reduces net income whether or not it's been settled
+  yet), recalculated per range.
 - **Customer and driver weekly/yearly bag totals are derived by aggregation**
   from approved daily records (production lines, factory sales, driver
   sales) rather than stored as a running counter — there's no risk of
@@ -146,6 +161,9 @@ in the sign-up form — there's no Super Admin option in that dropdown.
   all-time weeks-qualified count, and (for customers) year-to-date bags.
 - **Approvals** (`/approvals`, Admin+) — pending daily records and pending
   drivers, approve/reject.
+- **Expenses** (`/expenses`, Admin+) — every expense line across every daily
+  record, filterable by paid/unpaid/all, with paid-total/unpaid-total KPIs
+  and a mark-paid/unpaid toggle.
 - **Reports** (`/reports`) — week/month/year/overall totals, sales trend
   chart, record detail table, print/Save-as-PDF.
 - **Settings** (`/settings`, Super Admin) — editable weekly incentive

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { isApprover } from "@/lib/roles";
 import AppShell from "@/components/shell/AppShell";
 import NotificationBell, { type NotifItem } from "@/components/shell/NotificationBell";
+import InactivityLogout from "@/components/shell/InactivityLogout";
 
 function fmtTime(d: Date) {
   return d.toLocaleString("en-NG", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -57,6 +58,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <>
+      <InactivityLogout />
       <NotificationBell items={items} />
       <AppShell user={{ name: user.name ?? "", role: user.role }} pendingApprovalCount={pendingApprovalCount}>
         {children}

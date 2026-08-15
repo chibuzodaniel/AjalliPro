@@ -36,6 +36,7 @@ model User {
   driversApproved      Driver[]      @relation("DriverApprovedBy")
   customersCreated     Customer[]
   activityLogs         ActivityLog[]
+  expensesMarkedPaid   ExpenseItem[] @relation("ExpensePaidBy")
 }
 
 model DailyRecord {
@@ -49,10 +50,6 @@ model DailyRecord {
   factoryCustomer    Customer?      @relation("FactoryCustomer", fields: [factoryCustomerId], references: [id])
   pumpWaterAmount    Int            @default(0)
   leakageBags        Int            @default(0)
-  expenseRolls       Int            @default(0)
-  expensePackingBags Int            @default(0)
-  expenseGas         Int            @default(0)
-  expenseOther       Int            @default(0)
   status             ApprovalStatus @default(PENDING)
   createdById        String
   createdBy          User           @relation("DailyRecordCreatedBy", fields: [createdById], references: [id])
@@ -64,9 +61,25 @@ model DailyRecord {
 
   productionLines ProductionLine[]
   driverSales     DriverSale[]
+  expenseItems    ExpenseItem[]
 
   @@index([status])
   @@index([date])
+}
+
+model ExpenseItem {
+  id            String      @id @default(cuid())
+  dailyRecordId String
+  dailyRecord   DailyRecord @relation(fields: [dailyRecordId], references: [id], onDelete: Cascade)
+  description   String
+  amount        Int
+  paid          Boolean     @default(false)
+  paidAt        DateTime?
+  paidById      String?
+  paidBy        User?       @relation("ExpensePaidBy", fields: [paidById], references: [id])
+
+  @@index([dailyRecordId])
+  @@index([paid])
 }
 
 model ProductionLine {

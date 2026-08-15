@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client";
 export const dailyRecordInclude = {
   productionLines: true,
   driverSales: { include: { driver: true, customer: true } },
+  expenseItems: { include: { paidBy: true } },
   factoryCustomer: true,
   createdBy: true,
   approvedBy: true,
@@ -39,4 +40,8 @@ export function recordDriverBagsTotal(r: DailyRecordFull): number {
 
 export function recordSoldTotal(r: DailyRecordFull): number {
   return r.factoryBags + recordDriverBagsTotal(r);
+}
+
+export function recordExpenseTotal(r: DailyRecordFull): number {
+  return r.expenseItems.reduce((s, e) => s + e.amount, 0);
 }
