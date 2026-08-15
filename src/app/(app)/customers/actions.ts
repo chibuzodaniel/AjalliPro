@@ -8,8 +8,8 @@ import { customerSchema } from "@/lib/validation/customer";
 import { getApprovedRecordsSorted } from "@/lib/records";
 import { computeIncentiveData } from "@/lib/incentives";
 import { currentWeekKey } from "@/lib/week";
-import { getWeeklyIncentiveSettings } from "@/lib/settings";
-import { isSendGridConfigured, sendWeeklyCustomerEmail } from "@/lib/mail";
+import { getWeeklyIncentiveSettings, getEmailTemplateSettings } from "@/lib/settings";
+import { isEmailConfigured, sendWeeklyCustomerEmail } from "@/lib/mail";
 
 export async function createCustomer(input: unknown) {
   const user = await requireRole(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
@@ -81,16 +81,19 @@ export interface SendWeeklyMailResult {
 export async function sendWeeklyMailNow(): Promise<SendWeeklyMailResult> {
   const user = await requireRole(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
 
-  if (!isSendGridConfigured()) {
+  if (!isEmailConfigured()) {
     return {
       ok: false,
       sent: 0,
       failed: 0,
-      error: "SendGrid isn't configured yet — set SENDGRID_API_KEY and SENDGRID_FROM_EMAIL in .env first.",
+      error: "Email isn't configured yet — set BREVO_API_KEY and BREVO_FROM_EMAIL in .env first.",
     };
   }
 
-  const { entries, weeklySettings, weekKey } = await computeWeeklyMailEntries();
+  const [{ entries, weeklySettings, weekKey }, template] = await Promise.all([
+    computeWeeklyMailEntries(),
+    getEmailTemplateSettings(),
+  ]);
 
   let sent = 0;
   let failed = 0;
@@ -105,6 +108,7 @@ export async function sendWeeklyMailNow(): Promise<SendWeeklyMailResult> {
         threshold: weeklySettings.customerWeeklyThreshold,
         bonus: weeklySettings.customerWeeklyBonus,
         weekKey,
+        template,
       });
       await prisma.mailLog.create({ data: { customerId: entry.customerId, weekKey } });
       sent += 1;

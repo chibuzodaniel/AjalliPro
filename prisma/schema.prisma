@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -149,6 +149,14 @@ model WeeklyIncentiveSetting {
   driverWeeklyThreshold   Int      @default(1000)
   driverWeeklyBonus       Int      @default(10)
   updatedAt               DateTime @updatedAt
+}
+
+model EmailTemplateSetting {
+  id            String   @id @default("singleton")
+  subject       String   @default("Your Ajalli Table Water summary — week {{week}}")
+  introText     String   @default("Here's your purchase summary for this week:")
+  signatureText String   @default("Thank you for your business.\nCusica International — Ajalli Table Water")
+  updatedAt     DateTime @updatedAt
 }
 
 model ActivityLog {

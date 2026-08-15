@@ -35,7 +35,7 @@ export default function WeeklyMailGenerator({ threshold, bonus }: { threshold: n
       <div className="section-title">Weekly customer mail</div>
       <div className="section-sub">
         Generates each customer&apos;s weekly + year-to-date purchase summary and flags the {threshold}-bag/week
-        bonus (+{bonus} bags). Preview it here, then send it for real via SendGrid.
+        bonus (+{bonus} bags). Preview it here, then send it for real via Brevo.
       </div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <button className="btn btn-ghost no-print" onClick={handleGenerate} disabled={loading}>

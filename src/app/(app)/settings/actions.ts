@@ -6,7 +6,8 @@ import { requireRole } from "@/lib/auth-helpers";
 import { logActivity } from "@/lib/activity";
 import { incentiveTiersSchema } from "@/lib/validation/incentive-tier";
 import { weeklyIncentiveSettingsSchema } from "@/lib/validation/weekly-incentive";
-import { saveWeeklyIncentiveSettings } from "@/lib/settings";
+import { emailTemplateSettingsSchema } from "@/lib/validation/email-template";
+import { saveWeeklyIncentiveSettings, saveEmailTemplateSettings } from "@/lib/settings";
 
 export interface UpdateTiersResult {
   ok: boolean;
@@ -48,5 +49,23 @@ export async function updateWeeklyIncentiveSettings(input: unknown): Promise<Upd
     user.id
   );
   revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export interface UpdateEmailTemplateResult {
+  ok: boolean;
+  error?: string;
+}
+
+export async function updateEmailTemplate(input: unknown): Promise<UpdateEmailTemplateResult> {
+  const user = await requireRole(["SUPER_ADMIN"]);
+  const parsed = emailTemplateSettingsSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid values" };
+  }
+
+  await saveEmailTemplateSettings(parsed.data);
+  await logActivity(`${user.name} updated the weekly customer mail template.`, user.id);
+  revalidatePath("/settings");
   return { ok: true };
 }

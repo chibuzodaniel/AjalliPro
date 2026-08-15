@@ -1,15 +1,17 @@
 import { prisma } from "@/lib/prisma";
 import { latestClosingStock } from "@/lib/stock";
-import { getWeeklyIncentiveSettings } from "@/lib/settings";
+import { getWeeklyIncentiveSettings, getEmailTemplateSettings } from "@/lib/settings";
 import IncentiveTierEditor from "@/components/settings/IncentiveTierEditor";
 import WeeklyIncentiveEditor from "@/components/settings/WeeklyIncentiveEditor";
+import EmailTemplateEditor from "@/components/settings/EmailTemplateEditor";
 import ProductionCalculator from "@/components/settings/ProductionCalculator";
 
 export default async function SettingsPage() {
-  const [tiers, stock, weeklySettings] = await Promise.all([
+  const [tiers, stock, weeklySettings, emailTemplate] = await Promise.all([
     prisma.incentiveTier.findMany({ orderBy: { min: "asc" } }),
     latestClosingStock(),
     getWeeklyIncentiveSettings(),
+    getEmailTemplateSettings(),
   ]);
 
   return (
@@ -34,6 +36,14 @@ export default async function SettingsPage() {
         <IncentiveTierEditor initialTiers={tiers.map((t) => ({ min: t.min, max: t.max, bonus: t.bonus }))} />
       </div>
       <div className="card" style={{ marginTop: 16 }}>
+        <div className="section-title">Weekly mail email template</div>
+        <div className="section-sub">
+          Customize the subject line, intro, and signature used when the weekly customer mail is sent from the
+          Customers page. The bag totals and bonus line stay computed automatically.
+        </div>
+        <EmailTemplateEditor initial={emailTemplate} />
+      </div>
+      <div className="card" style={{ marginTop: 16 }}>
         <div className="section-title">Production requirement (today)</div>
         <div className="section-sub">
           Suggested bags to produce today to cover expected demand and keep a safety buffer.
@@ -44,8 +54,8 @@ export default async function SettingsPage() {
         <div className="section-title">About this system</div>
         <div className="section-sub" style={{ lineHeight: 1.6 }}>
           Sign-in uses real hashed-password accounts and a database behind this app (via Prisma), replacing the
-          original prototype&apos;s browser-only storage. Weekly customer mail sends for real via SendGrid from the
-          Customers page (once <code>SENDGRID_API_KEY</code> and <code>SENDGRID_FROM_EMAIL</code> are set) — it&apos;s
+          original prototype&apos;s browser-only storage. Weekly customer mail sends for real via Brevo from the
+          Customers page (once <code>BREVO_API_KEY</code> and <code>BREVO_FROM_EMAIL</code> are set) — it&apos;s
           triggered manually by an Admin/Admin Staff, not on an automatic schedule.
         </div>
       </div>

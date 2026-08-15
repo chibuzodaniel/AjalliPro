@@ -34,3 +34,33 @@ export async function saveWeeklyIncentiveSettings(input: WeeklyIncentiveSettings
     update: input,
   });
 }
+
+export interface EmailTemplateSettings {
+  subject: string;
+  introText: string;
+  signatureText: string;
+}
+
+export const DEFAULT_EMAIL_TEMPLATE_SETTINGS: EmailTemplateSettings = {
+  subject: "Your Ajalli Table Water summary — week {{week}}",
+  introText: "Here's your purchase summary for this week:",
+  signatureText: "Thank you for your business.\nCusica International — Ajalli Table Water",
+};
+
+export async function getEmailTemplateSettings(): Promise<EmailTemplateSettings> {
+  const row = await prisma.emailTemplateSetting.findUnique({ where: { id: SETTINGS_ID } });
+  if (!row) return DEFAULT_EMAIL_TEMPLATE_SETTINGS;
+  return {
+    subject: row.subject,
+    introText: row.introText,
+    signatureText: row.signatureText,
+  };
+}
+
+export async function saveEmailTemplateSettings(input: EmailTemplateSettings): Promise<void> {
+  await prisma.emailTemplateSetting.upsert({
+    where: { id: SETTINGS_ID },
+    create: { id: SETTINGS_ID, ...input },
+    update: input,
+  });
+}
