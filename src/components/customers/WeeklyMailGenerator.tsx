@@ -1,18 +1,33 @@
 "use client";
 
 import { useState } from "react";
-import { generateWeeklyMailPreview, type MailPreviewEntry } from "@/app/(app)/customers/actions";
+import { generateWeeklyMailPreview, sendWeeklyMailNow, type MailPreviewEntry } from "@/app/(app)/customers/actions";
 import { currentWeekKey } from "@/lib/week";
 
 export default function WeeklyMailGenerator({ threshold, bonus }: { threshold: number; bonus: number }) {
   const [entries, setEntries] = useState<MailPreviewEntry[] | null>(null);
   const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState<{ sent: number; failed: number; error?: string } | null>(null);
 
   async function handleGenerate() {
     setLoading(true);
+    setSendResult(null);
     const result = await generateWeeklyMailPreview();
     setEntries(result);
     setLoading(false);
+  }
+
+  async function handleSend() {
+    const count = entries?.length ?? 0;
+    if (!window.confirm(`Send this week's summary email to ${count} customer${count === 1 ? "" : "s"} now?`)) {
+      return;
+    }
+    setSending(true);
+    setSendResult(null);
+    const result = await sendWeeklyMailNow();
+    setSending(false);
+    setSendResult(result);
   }
 
   return (
@@ -20,12 +35,30 @@ export default function WeeklyMailGenerator({ threshold, bonus }: { threshold: n
       <div className="section-title">Weekly customer mail</div>
       <div className="section-sub">
         Generates each customer&apos;s weekly + year-to-date purchase summary and flags the {threshold}-bag/week
-        bonus (+{bonus} bags). This composes the mail content in-app only — actually delivering it needs an email
-        service (e.g. SendGrid) wired to a backend, which this prototype doesn&apos;t have.
+        bonus (+{bonus} bags). Preview it here, then send it for real via SendGrid.
       </div>
-      <button className="btn btn-ghost no-print" onClick={handleGenerate} disabled={loading}>
-        {loading ? "Generating…" : "✉️ Generate this week's customer mail"}
-      </button>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <button className="btn btn-ghost no-print" onClick={handleGenerate} disabled={loading}>
+          {loading ? "Generating…" : "✉️ Preview this week's customer mail"}
+        </button>
+        {entries && entries.length > 0 && (
+          <button className="btn btn-primary no-print" onClick={handleSend} disabled={sending}>
+            {sending ? "Sending…" : "📤 Send weekly mail now"}
+          </button>
+        )}
+      </div>
+      {sendResult && (
+        <div className="calc-box" style={{ marginTop: 12 }}>
+          {sendResult.error ? (
+            <span className="field-error">{sendResult.error}</span>
+          ) : (
+            <span>
+              Sent to <b>{sendResult.sent}</b> customer{sendResult.sent === 1 ? "" : "s"}
+              {sendResult.failed ? `, ${sendResult.failed} failed` : ""}.
+            </span>
+          )}
+        </div>
+      )}
       <div style={{ marginTop: 14 }}>
         {entries && entries.length === 0 && <div className="empty">No customers to mail yet.</div>}
         {entries &&
@@ -44,7 +77,7 @@ export default function WeeklyMailGenerator({ threshold, bonus }: { threshold: n
             </div>
           ))}
         {entries && entries.length > 0 && (
-          <div className="hint">Preview generated for {currentWeekKey()}. Delivering these automatically each week would need a scheduled backend job connected to a real email provider.</div>
+          <div className="hint">Preview generated for {currentWeekKey()}.</div>
         )}
       </div>
     </div>

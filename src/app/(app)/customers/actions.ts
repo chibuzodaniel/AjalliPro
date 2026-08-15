@@ -9,6 +9,7 @@ import { getApprovedRecordsSorted } from "@/lib/records";
 import { computeIncentiveData } from "@/lib/incentives";
 import { currentWeekKey } from "@/lib/week";
 import { getWeeklyIncentiveSettings } from "@/lib/settings";
+import { isSendGridConfigured, sendWeeklyCustomerEmail } from "@/lib/mail";
 
 export async function createCustomer(input: unknown) {
   const user = await requireRole(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
@@ -38,8 +39,7 @@ export interface MailPreviewEntry {
   qualifies: boolean;
 }
 
-export async function generateWeeklyMailPreview(): Promise<MailPreviewEntry[]> {
-  await requireRole(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
+async function computeWeeklyMailEntries() {
   const [customers, approvedRecords, weeklySettings] = await Promise.all([
     prisma.customer.findMany({ orderBy: { name: "asc" } }),
     getApprovedRecordsSorted(),
@@ -49,7 +49,7 @@ export async function generateWeeklyMailPreview(): Promise<MailPreviewEntry[]> {
   const wk = currentWeekKey();
   const year = new Date().getFullYear();
 
-  return customers.map((c) => {
+  const entries = customers.map((c) => {
     const weeklyBags = customerWeekly.get(c.id)?.[wk] ?? 0;
     const yearlyBags = customerYearly.get(c.id)?.[year] ?? 0;
     return {
@@ -61,4 +61,62 @@ export async function generateWeeklyMailPreview(): Promise<MailPreviewEntry[]> {
       qualifies: weeklyBags >= weeklySettings.customerWeeklyThreshold,
     };
   });
+
+  return { entries, weeklySettings, weekKey: wk };
+}
+
+export async function generateWeeklyMailPreview(): Promise<MailPreviewEntry[]> {
+  await requireRole(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
+  const { entries } = await computeWeeklyMailEntries();
+  return entries;
+}
+
+export interface SendWeeklyMailResult {
+  ok: boolean;
+  sent: number;
+  failed: number;
+  error?: string;
+}
+
+export async function sendWeeklyMailNow(): Promise<SendWeeklyMailResult> {
+  const user = await requireRole(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
+
+  if (!isSendGridConfigured()) {
+    return {
+      ok: false,
+      sent: 0,
+      failed: 0,
+      error: "SendGrid isn't configured yet — set SENDGRID_API_KEY and SENDGRID_FROM_EMAIL in .env first.",
+    };
+  }
+
+  const { entries, weeklySettings, weekKey } = await computeWeeklyMailEntries();
+
+  let sent = 0;
+  let failed = 0;
+  for (const entry of entries) {
+    try {
+      await sendWeeklyCustomerEmail({
+        to: entry.email,
+        customerName: entry.name,
+        weeklyBags: entry.weeklyBags,
+        yearlyBags: entry.yearlyBags,
+        qualifies: entry.qualifies,
+        threshold: weeklySettings.customerWeeklyThreshold,
+        bonus: weeklySettings.customerWeeklyBonus,
+        weekKey,
+      });
+      await prisma.mailLog.create({ data: { customerId: entry.customerId, weekKey } });
+      sent += 1;
+    } catch {
+      failed += 1;
+    }
+  }
+
+  await logActivity(
+    `${user.name} sent the weekly customer mail (${sent} sent${failed ? `, ${failed} failed` : ""}).`,
+    user.id
+  );
+  revalidatePath("/customers");
+  return { ok: true, sent, failed };
 }

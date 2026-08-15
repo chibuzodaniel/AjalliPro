@@ -121,6 +121,18 @@ model Customer {
 
   factorySalesAsCustomer DailyRecord[] @relation("FactoryCustomer")
   driverSalesAsCustomer  DriverSale[]  @relation("DriverSaleCustomer")
+  mailLogs               MailLog[]
+}
+
+model MailLog {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+  weekKey    String
+  sentAt     DateTime @default(now())
+
+  @@index([customerId])
+  @@index([weekKey])
 }
 
 model IncentiveTier {

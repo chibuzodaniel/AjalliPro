@@ -43,10 +43,10 @@ export default async function SettingsPage() {
       <div className="card" style={{ marginTop: 16 }}>
         <div className="section-title">About this system</div>
         <div className="section-sub" style={{ lineHeight: 1.6 }}>
-          Sign-in uses real hashed-password accounts and a SQLite database behind this app (via Prisma), replacing
-          the original prototype&apos;s browser-only storage. Weekly customer emails are still composed in-app only —
-          actually delivering them each week would need a scheduled job wired to a real email provider (e.g.
-          SendGrid), which isn&apos;t part of this build.
+          Sign-in uses real hashed-password accounts and a database behind this app (via Prisma), replacing the
+          original prototype&apos;s browser-only storage. Weekly customer mail sends for real via SendGrid from the
+          Customers page (once <code>SENDGRID_API_KEY</code> and <code>SENDGRID_FROM_EMAIL</code> are set) — it&apos;s
+          triggered manually by an Admin/Admin Staff, not on an automatic schedule.
         </div>
       </div>
     </div>
