@@ -4,14 +4,16 @@ import { prisma } from "@/lib/prisma";
 import { getApprovedRecordsSorted } from "@/lib/records";
 import { computeIncentiveData } from "@/lib/incentives";
 import { currentWeekKey } from "@/lib/week";
+import { getWeeklyIncentiveSettings } from "@/lib/settings";
 import AddCustomerButton from "@/components/customers/AddCustomerButton";
 import WeeklyMailGenerator from "@/components/customers/WeeklyMailGenerator";
 
 export default async function CustomersPage() {
   const user = await getCurrentUser();
-  const [customers, approvedRecords] = await Promise.all([
+  const [customers, approvedRecords, weeklySettings] = await Promise.all([
     prisma.customer.findMany({ orderBy: { createdAt: "desc" } }),
     getApprovedRecordsSorted(),
+    getWeeklyIncentiveSettings(),
   ]);
   const { customerWeekly, customerYearly } = computeIncentiveData(approvedRecords);
   const wk = currentWeekKey();
@@ -49,8 +51,8 @@ export default async function CustomersPage() {
                     <td>{wkBags}</td>
                     <td>{yrBags}</td>
                     <td>
-                      {wkBags >= 500 ? (
-                        <span className="pill approved">+5 bonus qualified</span>
+                      {wkBags >= weeklySettings.customerWeeklyThreshold ? (
+                        <span className="pill approved">+{weeklySettings.customerWeeklyBonus} bonus qualified</span>
                       ) : (
                         <span className="pill pending">below threshold</span>
                       )}
@@ -63,7 +65,7 @@ export default async function CustomersPage() {
         </div>
         {customers.length === 0 && <div className="empty">No customers added yet.</div>}
       </div>
-      <WeeklyMailGenerator />
+      <WeeklyMailGenerator threshold={weeklySettings.customerWeeklyThreshold} bonus={weeklySettings.customerWeeklyBonus} />
     </div>
   );
 }

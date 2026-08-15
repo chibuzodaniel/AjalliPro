@@ -7,6 +7,7 @@ import { computeRevenue } from "@/lib/revenue";
 import { computeIncentiveData } from "@/lib/incentives";
 import { currentWeekKey, todayISO, weekKeyOf } from "@/lib/week";
 import { formatMoney } from "@/lib/money";
+import { getWeeklyIncentiveSettings } from "@/lib/settings";
 import KpiCard from "@/components/ui/KpiCard";
 import { LineTrendChart, BarTrendChart } from "@/components/charts/TrendChart";
 
@@ -14,14 +15,16 @@ export default async function DashboardPage() {
   const user = await getCurrentUser();
   const approver = user ? isApprover(user.role) : false;
 
-  const [approvedRecords, customers, drivers, activity, pendingDailyCount, pendingDriverCount] = await Promise.all([
-    getApprovedRecordsSorted(),
-    prisma.customer.findMany(),
-    prisma.driver.findMany({ where: { status: "APPROVED" } }),
-    prisma.activityLog.findMany({ orderBy: { createdAt: "desc" }, take: 6 }),
-    prisma.dailyRecord.count({ where: { status: "PENDING" } }),
-    prisma.driver.count({ where: { status: "PENDING" } }),
-  ]);
+  const [approvedRecords, customers, drivers, activity, pendingDailyCount, pendingDriverCount, weeklySettings] =
+    await Promise.all([
+      getApprovedRecordsSorted(),
+      prisma.customer.findMany(),
+      prisma.driver.findMany({ where: { status: "APPROVED" } }),
+      prisma.activityLog.findMany({ orderBy: { createdAt: "desc" }, take: 6 }),
+      prisma.dailyRecord.count({ where: { status: "PENDING" } }),
+      prisma.driver.count({ where: { status: "PENDING" } }),
+      getWeeklyIncentiveSettings(),
+    ]);
 
   const stock = approvedRecords.length ? approvedRecords[approvedRecords.length - 1].closingStock : 0;
   const today = todayISO();
@@ -67,11 +70,13 @@ export default async function DashboardPage() {
   const watchItems: { label: string; bags: number; threshold: number }[] = [];
   for (const c of customers) {
     const b = customerWeekly.get(c.id)?.[wk] ?? 0;
-    if (b > 0 && b < 500) watchItems.push({ label: c.name, bags: b, threshold: 500 });
+    if (b > 0 && b < weeklySettings.customerWeeklyThreshold)
+      watchItems.push({ label: c.name, bags: b, threshold: weeklySettings.customerWeeklyThreshold });
   }
   for (const d of drivers) {
     const b = driverWeekly.get(d.id)?.[wk] ?? 0;
-    if (b > 0 && b < 1000) watchItems.push({ label: `${d.name} (driver)`, bags: b, threshold: 1000 });
+    if (b > 0 && b < weeklySettings.driverWeeklyThreshold)
+      watchItems.push({ label: `${d.name} (driver)`, bags: b, threshold: weeklySettings.driverWeeklyThreshold });
   }
 
   const pendingTotal = pendingDailyCount + pendingDriverCount;

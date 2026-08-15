@@ -130,6 +130,15 @@ model IncentiveTier {
   bonus Int
 }
 
+model WeeklyIncentiveSetting {
+  id                      String   @id @default("singleton")
+  customerWeeklyThreshold Int      @default(500)
+  customerWeeklyBonus     Int      @default(5)
+  driverWeeklyThreshold   Int      @default(1000)
+  driverWeeklyBonus       Int      @default(10)
+  updatedAt               DateTime @updatedAt
+}
+
 model ActivityLog {
   id        String   @id @default(cuid())
   text      String

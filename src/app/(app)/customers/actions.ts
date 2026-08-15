@@ -8,6 +8,7 @@ import { customerSchema } from "@/lib/validation/customer";
 import { getApprovedRecordsSorted } from "@/lib/records";
 import { computeIncentiveData } from "@/lib/incentives";
 import { currentWeekKey } from "@/lib/week";
+import { getWeeklyIncentiveSettings } from "@/lib/settings";
 
 export async function createCustomer(input: unknown) {
   const user = await requireRole(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
@@ -39,9 +40,10 @@ export interface MailPreviewEntry {
 
 export async function generateWeeklyMailPreview(): Promise<MailPreviewEntry[]> {
   await requireRole(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
-  const [customers, approvedRecords] = await Promise.all([
+  const [customers, approvedRecords, weeklySettings] = await Promise.all([
     prisma.customer.findMany({ orderBy: { name: "asc" } }),
     getApprovedRecordsSorted(),
+    getWeeklyIncentiveSettings(),
   ]);
   const { customerWeekly, customerYearly } = computeIncentiveData(approvedRecords);
   const wk = currentWeekKey();
@@ -56,7 +58,7 @@ export async function generateWeeklyMailPreview(): Promise<MailPreviewEntry[]> {
       email: c.email,
       weeklyBags,
       yearlyBags,
-      qualifies: weeklyBags >= 500,
+      qualifies: weeklyBags >= weeklySettings.customerWeeklyThreshold,
     };
   });
 }

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getApprovedRecordsSorted } from "@/lib/records";
 import { computeIncentiveData, weeksQualified } from "@/lib/incentives";
 import { currentWeekKey } from "@/lib/week";
+import { getWeeklyIncentiveSettings } from "@/lib/settings";
 import KpiCard from "@/components/ui/KpiCard";
 import RangeTabs from "@/components/ui/RangeTabs";
 
@@ -29,25 +30,27 @@ export default async function IncentivesPage({
   const sp = await searchParams;
   const tab = sp.tab === "drivers" ? "drivers" : "customers";
 
-  const [customers, drivers, approvedRecords] = await Promise.all([
+  const [customers, drivers, approvedRecords, weeklySettings] = await Promise.all([
     prisma.customer.findMany({ orderBy: { name: "asc" } }),
     prisma.driver.findMany({ where: { status: "APPROVED" }, orderBy: { name: "asc" } }),
     getApprovedRecordsSorted(),
+    getWeeklyIncentiveSettings(),
   ]);
   const { customerWeekly, driverWeekly, customerYearly } = computeIncentiveData(approvedRecords);
   const wk = currentWeekKey();
   const year = new Date().getFullYear();
+  const { customerWeeklyThreshold, customerWeeklyBonus, driverWeeklyThreshold, driverWeeklyBonus } = weeklySettings;
 
   const custRows = customers.map((c) => {
     const wkBags = customerWeekly.get(c.id)?.[wk] ?? 0;
-    return { c, wkBags, qualifies: wkBags >= 500 };
+    return { c, wkBags, qualifies: wkBags >= customerWeeklyThreshold };
   });
   const custQualified = custRows.filter((r) => r.qualifies).length;
   const custAvg = custRows.length ? Math.round(custRows.reduce((s, r) => s + r.wkBags, 0) / custRows.length) : 0;
 
   const drvRows = drivers.map((d) => {
     const wkBags = driverWeekly.get(d.id)?.[wk] ?? 0;
-    return { d, wkBags, qualifies: wkBags >= 1000 };
+    return { d, wkBags, qualifies: wkBags >= driverWeeklyThreshold };
   });
   const drvQualified = drvRows.filter((r) => r.qualifies).length;
   const drvAvg = drvRows.length ? Math.round(drvRows.reduce((s, r) => s + r.wkBags, 0) / drvRows.length) : 0;
@@ -57,7 +60,10 @@ export default async function IncentivesPage({
       <div className="topbar">
         <div>
           <h1>Incentive Tracking</h1>
-          <div className="sub">Weekly bag totals against customer (500) and driver (1,000) bonus thresholds</div>
+          <div className="sub">
+            Weekly bag totals against customer ({customerWeeklyThreshold}) and driver ({driverWeeklyThreshold})
+            bonus thresholds
+          </div>
         </div>
       </div>
       <RangeTabs
@@ -74,11 +80,14 @@ export default async function IncentivesPage({
         <div>
           <div className="grid grid-3" style={{ marginBottom: 18 }}>
             <KpiCard label="Qualified This Week" value={custQualified} />
-            <KpiCard label="Bonus Bags This Week" value={custQualified * 5} />
+            <KpiCard label="Bonus Bags This Week" value={custQualified * customerWeeklyBonus} />
             <KpiCard label="Avg Bags / Customer" value={custAvg} />
           </div>
           <div className="card">
-            <div className="section-title">Customer weekly incentive — 500 bags/week qualifies for +5 bonus bags</div>
+            <div className="section-title">
+              Customer weekly incentive — {customerWeeklyThreshold} bags/week qualifies for +{customerWeeklyBonus}{" "}
+              bonus bags
+            </div>
             <div className="table-wrap">
               <table>
                 <thead>
@@ -96,15 +105,15 @@ export default async function IncentivesPage({
                     <tr key={c.id}>
                       <td>{c.name}</td>
                       <td>{wkBags} bags</td>
-                      <ProgressBar bags={wkBags} threshold={500} qualifies={qualifies} />
+                      <ProgressBar bags={wkBags} threshold={customerWeeklyThreshold} qualifies={qualifies} />
                       <td>
                         {qualifies ? (
-                          <span className="pill approved">+5 bonus qualified</span>
+                          <span className="pill approved">+{customerWeeklyBonus} bonus qualified</span>
                         ) : (
                           <span className="pill pending">in progress</span>
                         )}
                       </td>
-                      <td>{weeksQualified(customerWeekly.get(c.id), 500)}</td>
+                      <td>{weeksQualified(customerWeekly.get(c.id), customerWeeklyThreshold)}</td>
                       <td>{customerYearly.get(c.id)?.[year] ?? 0}</td>
                     </tr>
                   ))}
@@ -118,11 +127,14 @@ export default async function IncentivesPage({
         <div>
           <div className="grid grid-3" style={{ marginBottom: 18 }}>
             <KpiCard label="Qualified This Week" value={drvQualified} />
-            <KpiCard label="Bonus Bags This Week" value={drvQualified * 10} />
+            <KpiCard label="Bonus Bags This Week" value={drvQualified * driverWeeklyBonus} />
             <KpiCard label="Avg Bags / Driver" value={drvAvg} />
           </div>
           <div className="card">
-            <div className="section-title">Driver weekly incentive — 1,000 bags/week qualifies for +10 bonus bags</div>
+            <div className="section-title">
+              Driver weekly incentive — {driverWeeklyThreshold} bags/week qualifies for +{driverWeeklyBonus} bonus
+              bags
+            </div>
             <div className="table-wrap">
               <table>
                 <thead>
@@ -139,15 +151,15 @@ export default async function IncentivesPage({
                     <tr key={d.id}>
                       <td>{d.name}</td>
                       <td>{wkBags} bags</td>
-                      <ProgressBar bags={wkBags} threshold={1000} qualifies={qualifies} />
+                      <ProgressBar bags={wkBags} threshold={driverWeeklyThreshold} qualifies={qualifies} />
                       <td>
                         {qualifies ? (
-                          <span className="pill approved">+10 bonus qualified</span>
+                          <span className="pill approved">+{driverWeeklyBonus} bonus qualified</span>
                         ) : (
                           <span className="pill pending">in progress</span>
                         )}
                       </td>
-                      <td>{weeksQualified(driverWeekly.get(d.id), 1000)}</td>
+                      <td>{weeksQualified(driverWeekly.get(d.id), driverWeeklyThreshold)}</td>
                     </tr>
                   ))}
                 </tbody>

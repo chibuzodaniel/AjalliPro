@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getApprovedRecordsSorted } from "@/lib/records";
 import { computeIncentiveData } from "@/lib/incentives";
 import { currentWeekKey } from "@/lib/week";
+import { getWeeklyIncentiveSettings } from "@/lib/settings";
 import Pill from "@/components/ui/Pill";
 import AddDriverButton from "@/components/drivers/AddDriverButton";
 import ApproveRejectButtons from "@/components/shared/ApproveRejectButtons";
@@ -11,9 +12,10 @@ import { approveDriver, rejectDriver } from "./actions";
 
 export default async function DriversPage() {
   const user = await getCurrentUser();
-  const [drivers, approvedRecords] = await Promise.all([
+  const [drivers, approvedRecords, weeklySettings] = await Promise.all([
     prisma.driver.findMany({ include: { createdBy: true }, orderBy: { createdAt: "desc" } }),
     getApprovedRecordsSorted(),
+    getWeeklyIncentiveSettings(),
   ]);
   const { driverWeekly } = computeIncentiveData(approvedRecords);
   const wk = currentWeekKey();
@@ -50,7 +52,9 @@ export default async function DriversPage() {
                     <td>{d.phone || "—"}</td>
                     <td>
                       {wkBags}
-                      {wkBags >= 1000 ? " 🎉 +10 bonus" : ""}
+                      {wkBags >= weeklySettings.driverWeeklyThreshold
+                        ? ` 🎉 +${weeklySettings.driverWeeklyBonus} bonus`
+                        : ""}
                     </td>
                     <td>
                       <Pill status={d.status}>{d.status.toLowerCase()}</Pill>

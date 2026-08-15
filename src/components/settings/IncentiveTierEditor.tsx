@@ -107,9 +107,8 @@ export default function IncentiveTierEditor({
         {error && <span className="field-error">{error}</span>}
       </div>
       <div className="hint" style={{ marginTop: 8 }}>
-        Special weekly incentive: customers reaching 500 bags in a week get +5 bonus bags. Drivers reaching 1,000
-        bags in a week get +10 bonus bags. These weekly thresholds are fixed company policy and aren&apos;t part of
-        this per-sale tier table.
+        This table is for per-sale bonuses only. The separate weekly bonus thresholds (customers/drivers hitting a
+        bag total in one week) are edited below.
       </div>
     </div>
   );

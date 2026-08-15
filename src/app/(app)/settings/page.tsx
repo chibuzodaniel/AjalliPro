@@ -1,12 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import { latestClosingStock } from "@/lib/stock";
+import { getWeeklyIncentiveSettings } from "@/lib/settings";
 import IncentiveTierEditor from "@/components/settings/IncentiveTierEditor";
+import WeeklyIncentiveEditor from "@/components/settings/WeeklyIncentiveEditor";
 import ProductionCalculator from "@/components/settings/ProductionCalculator";
 
 export default async function SettingsPage() {
-  const [tiers, stock] = await Promise.all([
+  const [tiers, stock, weeklySettings] = await Promise.all([
     prisma.incentiveTier.findMany({ orderBy: { min: "asc" } }),
     latestClosingStock(),
+    getWeeklyIncentiveSettings(),
   ]);
 
   return (
@@ -18,6 +21,14 @@ export default async function SettingsPage() {
         </div>
       </div>
       <div className="card">
+        <div className="section-title">Weekly incentive thresholds</div>
+        <div className="section-sub">
+          Customers reaching the threshold bags in a week qualify for the bonus bags shown on Incentive Tracking;
+          same for drivers, with their own threshold/bonus.
+        </div>
+        <WeeklyIncentiveEditor initial={weeklySettings} />
+      </div>
+      <div className="card" style={{ marginTop: 16 }}>
         <div className="section-title">Customer incentive tiers</div>
         <div className="section-sub">Bonus bags awarded based on bags bought in a single sale.</div>
         <IncentiveTierEditor initialTiers={tiers.map((t) => ({ min: t.min, max: t.max, bonus: t.bonus }))} />

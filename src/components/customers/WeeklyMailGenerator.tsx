@@ -4,7 +4,7 @@ import { useState } from "react";
 import { generateWeeklyMailPreview, type MailPreviewEntry } from "@/app/(app)/customers/actions";
 import { currentWeekKey } from "@/lib/week";
 
-export default function WeeklyMailGenerator() {
+export default function WeeklyMailGenerator({ threshold, bonus }: { threshold: number; bonus: number }) {
   const [entries, setEntries] = useState<MailPreviewEntry[] | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -19,9 +19,9 @@ export default function WeeklyMailGenerator() {
     <div className="card" style={{ marginTop: 16 }}>
       <div className="section-title">Weekly customer mail</div>
       <div className="section-sub">
-        Generates each customer&apos;s weekly + year-to-date purchase summary and flags the 500-bag/week bonus (+5
-        bags). This composes the mail content in-app only — actually delivering it needs an email service (e.g.
-        SendGrid) wired to a backend, which this prototype doesn&apos;t have.
+        Generates each customer&apos;s weekly + year-to-date purchase summary and flags the {threshold}-bag/week
+        bonus (+{bonus} bags). This composes the mail content in-app only — actually delivering it needs an email
+        service (e.g. SendGrid) wired to a backend, which this prototype doesn&apos;t have.
       </div>
       <button className="btn btn-ghost no-print" onClick={handleGenerate} disabled={loading}>
         {loading ? "Generating…" : "✉️ Generate this week's customer mail"}
@@ -38,7 +38,7 @@ export default function WeeklyMailGenerator() {
               </span>
               {c.qualifies && (
                 <div className="pill approved" style={{ marginTop: 6 }}>
-                  Qualifies for +5 bonus bags this week
+                  Qualifies for +{bonus} bonus bags this week
                 </div>
               )}
             </div>
