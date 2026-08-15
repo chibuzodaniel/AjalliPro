@@ -46,19 +46,23 @@ the `SUPER_ADMIN_EMAIL` address) from `/register`.
 
 | Variable | Purpose |
 |---|---|
-| `DATABASE_URL` | Postgres connection string |
+| `DATABASE_URL` | Pooled Postgres connection string (app runtime — via PgBouncer on Neon) |
+| `DATABASE_URL_UNPOOLED` | Direct/unpooled connection string, used only for `prisma migrate deploy` (see `directUrl` in `prisma/schema.prisma`) |
 | `NEXTAUTH_SECRET` | Session encryption secret — generate with `openssl rand -base64 32`, replace the placeholder for anything beyond local dev |
 | `NEXTAUTH_URL` | Local dev default is `http://localhost:3001`; set to your deployed URL in production |
 | `SUPER_ADMIN_EMAIL` | The one email that always becomes Super Admin on registration |
 | `BREVO_API_KEY` | Optional locally — required for the "Send weekly mail now" button on Customers to actually send |
 | `BREVO_FROM_EMAIL` | Must be a sender address verified with Brevo (single-sender or domain auth) |
 
-If your Postgres provider gives you a **pooled** connection string (common
-with Neon/Vercel Postgres — often via pgbouncer), add `?pgbouncer=true` to
-`DATABASE_URL`, or use the provider's separate "direct"/unpooled connection
-string instead. Without one of those, you may hit a
-`prepared statement "s0" already exists` error under concurrent requests —
-confirmed while building this against a Postgres-wire-protocol test server.
+Schema migrations must run over a **direct** (non-pooled) connection, not
+the pooled one — running them over a pooled PgBouncer connection can fail
+with `prepared statement "s0" already exists` (Prisma Migrate specifically)
+or a `SET search_path` that silently doesn't persist. `directUrl` in
+`prisma/schema.prisma` handles this automatically as long as
+`DATABASE_URL_UNPOOLED` is set; if your provider only gives you one
+connection string, use it for both variables. (Confirmed while building
+this: hit exactly this error against a Postgres-wire-protocol test server
+before adding `directUrl`.)
 
 ## Deploying to Vercel
 

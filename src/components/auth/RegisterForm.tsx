@@ -92,9 +92,7 @@ export default function RegisterForm() {
             </option>
           ))}
         </select>
-        <div className="hint">
-          Signing up with the designated owner email always grants Super Admin, regardless of the role picked here.
-        </div>
+        {/* Signing up with the designated owner email always grants Super Admin, regardless of the role picked here. */}
       </div>
       {error && <div className="field-error">{error}</div>}
       <button className="btn btn-primary" type="submit" disabled={loading}>
