@@ -6,6 +6,7 @@ import { computeIncentiveData } from "@/lib/incentives";
 import { currentWeekKey } from "@/lib/week";
 import { getWeeklyIncentiveSettings } from "@/lib/settings";
 import AddCustomerButton from "@/components/customers/AddCustomerButton";
+import CustomerNameDetail from "@/components/customers/CustomerNameDetail";
 import WeeklyMailGenerator from "@/components/customers/WeeklyMailGenerator";
 
 export default async function CustomersPage() {
@@ -24,7 +25,7 @@ export default async function CustomersPage() {
       <div className="topbar">
         <div>
           <h1>Customers</h1>
-          <div className="sub">Added by Admin Staff or Admin. Incentives &amp; weekly mail tracked here.</div>
+          <div className="sub">Added by Admin Staff or Admin. Click a name for phone/address/email. Incentives &amp; weekly mail tracked here.</div>
         </div>
         {user && canManageCustomers(user.role) && <AddCustomerButton />}
       </div>
@@ -34,7 +35,7 @@ export default async function CustomersPage() {
             <thead>
               <tr>
                 <th>Name</th>
-                <th>Email</th>
+                <th>Phone</th>
                 <th>Weekly bags</th>
                 <th>Yearly bags</th>
                 <th>Bonus status</th>
@@ -46,8 +47,17 @@ export default async function CustomersPage() {
                 const yrBags = customerYearly.get(c.id)?.[year] ?? 0;
                 return (
                   <tr key={c.id}>
-                    <td>{c.name}</td>
-                    <td>{c.email}</td>
+                    <td>
+                      <CustomerNameDetail
+                        name={c.name}
+                        email={c.email}
+                        phone={c.phone}
+                        address={c.address}
+                        weeklyBags={wkBags}
+                        yearlyBags={yrBags}
+                      />
+                    </td>
+                    <td>{c.phone || "—"}</td>
                     <td>{wkBags}</td>
                     <td>{yrBags}</td>
                     <td>

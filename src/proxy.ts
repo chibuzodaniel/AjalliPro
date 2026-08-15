@@ -5,7 +5,10 @@ import { getToken } from "next-auth/jwt";
 const PUBLIC_PATHS = ["/login", "/register"];
 
 const APPROVER_ONLY = ["/approvals", "/settings", "/expenses"];
-const SUPER_ADMIN_ONLY = ["/settings"];
+// /settings is reachable by Admin+ (page itself hides Super-Admin-only
+// sections from a plain Admin); nothing currently needs a stricter,
+// Super-Admin-only route gate.
+const SUPER_ADMIN_ONLY: string[] = [];
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;

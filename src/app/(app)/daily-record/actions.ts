@@ -7,7 +7,9 @@ import { requireRole } from "@/lib/auth-helpers";
 import { needsApproval } from "@/lib/roles";
 import { logActivity } from "@/lib/activity";
 import { dailyRecordSchema } from "@/lib/validation/daily-record";
-import { latestClosingStock, computeClosingStock } from "@/lib/stock";
+import { latestClosingStock, latestLeakageClosing, computeClosingStock, computeLeakageClosing } from "@/lib/stock";
+import { getPricingSettings } from "@/lib/settings";
+import { bonusForBags } from "@/lib/incentives";
 
 export interface CreateDailyRecordResult {
   ok: boolean;
@@ -27,13 +29,44 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
     return { ok: false, error: `A daily record for ${data.date} already exists.` };
   }
 
-  const computedOpening = await latestClosingStock();
+  const [computedOpening, leakageOpening, fixedPricing, tiers, drivers] = await Promise.all([
+    latestClosingStock(),
+    latestLeakageClosing(),
+    getPricingSettings(),
+    prisma.incentiveTier.findMany(),
+    prisma.driver.findMany({ where: { id: { in: data.driverSales.map((d) => d.driverId) } } }),
+  ]);
+
+  if (data.factoryBagsFromLeakage > leakageOpening) {
+    return {
+      ok: false,
+      error: `Only ${leakageOpening} bags are available in the leakage pile to rebag.`,
+    };
+  }
+
   const opening =
     user.role === "SUPER_ADMIN" && data.openingStockOverride != null ? data.openingStockOverride : computedOpening;
   const prodTotal = data.production.reduce((s, p) => s + p.bags, 0);
   const driverBagsTotal = data.driverSales.reduce((s, d) => s + d.bags, 0);
-  const closing = computeClosingStock(opening, prodTotal, data.factoryBags, driverBagsTotal, data.leakageBags);
+  const driverBonusBagsTotal = data.driverSales.reduce((s, d) => s + bonusForBags(d.bags, tiers), 0);
+  const truckDeliveryBagsTotal = data.truckDeliveries.reduce((s, t) => s + t.bags, 0);
+
+  const closing = computeClosingStock({
+    opening,
+    prodTotal,
+    factoryBags: data.factoryBags,
+    factoryBagsFromLeakage: data.factoryBagsFromLeakage,
+    driverBagsTotal,
+    driverBonusBagsTotal,
+    truckDeliveryBagsTotal,
+    leakageBagsNew: data.leakageBags,
+  });
+  const leakageClosing = computeLeakageClosing(leakageOpening, data.leakageBags, data.factoryBagsFromLeakage);
   const pending = needsApproval(user.role);
+
+  const canEditFactoryPrice = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
+  const factoryPricePerBag = canEditFactoryPrice ? data.factoryPricePerBag : fixedPricing.factoryPricePerBag;
+  const driverById = new Map(drivers.map((d) => [d.id, d]));
 
   try {
     const record = await prisma.dailyRecord.create({
@@ -42,10 +75,13 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
         openingStock: opening,
         closingStock: closing,
         factoryBags: data.factoryBags,
-        factoryPricePerBag: data.factoryPricePerBag,
+        factoryBagsFromLeakage: data.factoryBagsFromLeakage,
+        factoryPricePerBag,
         factoryCustomerId: data.factoryCustomerId || null,
         pumpWaterAmount: data.pumpWaterAmount,
+        leakageOpening,
         leakageBags: data.leakageBags,
+        leakageClosing,
         status: pending ? "PENDING" : "APPROVED",
         createdById: user.id,
         createdByRole: user.role,
@@ -54,12 +90,25 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
           create: data.production.map((p) => ({ packerName: p.packerName, bags: p.bags })),
         },
         driverSales: {
-          create: data.driverSales.map((d) => ({
-            driverId: d.driverId,
-            bags: d.bags,
-            pricePerBag: d.pricePerBag,
-            loadingFee: d.loadingFee,
-            customerId: d.customerId || null,
+          create: data.driverSales.map((d) => {
+            const driver = driverById.get(d.driverId);
+            return {
+              driverId: d.driverId,
+              bags: d.bags,
+              pricePerBag: driver?.pricePerBag ?? 0,
+              loadingFee: driver?.loadingFee ?? 0,
+              bonusBags: bonusForBags(d.bags, tiers),
+              customerId: d.customerId || null,
+            };
+          }),
+        },
+        truckDeliveries: {
+          create: data.truckDeliveries.map((t) => ({
+            customerId: t.customerId || null,
+            bags: t.bags,
+            ownTruck: t.ownTruck,
+            fuelCost: t.ownTruck ? t.fuelCost : 0,
+            hiredCost: t.ownTruck ? 0 : t.hiredCost,
           })),
         },
         expenseItems: {

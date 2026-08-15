@@ -33,7 +33,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/approvals", label: "Approvals", icon: "✅", approverOnly: true, badge: true },
       { href: "/expenses", label: "Expenses", icon: "💸", approverOnly: true },
       { href: "/reports", label: "Reports", icon: "📈" },
-      { href: "/settings", label: "Settings", icon: "⚙️", superAdminOnly: true },
+      { href: "/settings", label: "Settings", icon: "⚙️", approverOnly: true },
     ],
   },
 ];

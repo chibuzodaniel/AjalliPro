@@ -5,19 +5,21 @@ import { useRouter } from "next/navigation";
 import Modal from "@/components/ui/Modal";
 import { createDriver } from "@/app/(app)/drivers/actions";
 
-export default function AddDriverButton() {
+export default function AddDriverButton({ canSetPricing }: { canSetPricing?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [price, setPrice] = useState("0");
+  const [price, setPrice] = useState("");
+  const [loadingFee, setLoadingFee] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   function reset() {
     setName("");
     setPhone("");
-    setPrice("0");
+    setPrice("");
+    setLoadingFee("");
     setError(null);
   }
 
@@ -29,6 +31,7 @@ export default function AddDriverButton() {
       name,
       phone: phone || undefined,
       pricePerBag: Number(price) || 0,
+      loadingFee: Number(loadingFee) || 0,
     });
     setLoading(false);
     if (!result.ok) {
@@ -49,16 +52,34 @@ export default function AddDriverButton() {
         <form onSubmit={handleSubmit}>
           <div className="field">
             <label>Driver name</label>
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
+            <input type="text" placeholder="e.g. John Trucker" value={name} onChange={(e) => setName(e.target.value)} required />
           </div>
           <div className="field">
             <label>Phone</label>
-            <input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            <input type="text" placeholder="e.g. 0803 123 4567" value={phone} onChange={(e) => setPhone(e.target.value)} />
           </div>
-          <div className="field">
-            <label>Standard price to driver (₦/bag)</label>
-            <input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
-          </div>
+          {canSetPricing ? (
+            <>
+              <div className="field">
+                <label>Standard price to driver (₦/bag)</label>
+                <input type="number" min={0} placeholder="0" value={price} onChange={(e) => setPrice(e.target.value)} />
+              </div>
+              <div className="field">
+                <label>Standard loading fee (₦)</label>
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="0"
+                  value={loadingFee}
+                  onChange={(e) => setLoadingFee(e.target.value)}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="hint" style={{ marginBottom: 14 }}>
+              Price/bag and loading fee are set by an Admin or Super Admin after this driver is added.
+            </div>
+          )}
           {error && <div className="field-error">{error}</div>}
           <button className="btn btn-primary" style={{ width: "100%" }} type="submit" disabled={loading}>
             {loading ? "Submitting…" : "Submit driver"}

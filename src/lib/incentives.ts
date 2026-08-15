@@ -50,6 +50,13 @@ export function computeIncentiveData(records: DailyRecordFull[]): IncentiveData 
         bumpYearly(ds.customerId, year, ds.bags);
       }
     }
+
+    for (const t of r.truckDeliveries) {
+      if (t.customerId) {
+        bumpWeekly(customerWeekly, t.customerId, weekKey, t.bags);
+        bumpYearly(t.customerId, year, t.bags);
+      }
+    }
   }
 
   return { driverWeekly, customerWeekly, customerYearly };

@@ -1,8 +1,14 @@
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { isApprover } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
-import { getAllRecordsSorted, recordProdTotal, recordSoldTotal } from "@/lib/records";
-import { latestClosingStock } from "@/lib/stock";
+import {
+  getAllRecordsSorted,
+  recordProdTotal,
+  recordSoldTotal,
+  recordTruckDeliveryBagsTotal,
+} from "@/lib/records";
+import { latestClosingStock, latestLeakageClosing } from "@/lib/stock";
+import { getPricingSettings } from "@/lib/settings";
 import { formatMoney } from "@/lib/money";
 import Pill from "@/components/ui/Pill";
 import AddDailyRecordButton from "@/components/daily-record/AddDailyRecordButton";
@@ -11,11 +17,14 @@ import { approveDailyRecord } from "../approvals/actions";
 
 export default async function DailyRecordPage() {
   const user = await getCurrentUser();
-  const [records, drivers, customers, opening] = await Promise.all([
+  const [records, drivers, customers, opening, leakageOpening, pricing, tiers] = await Promise.all([
     getAllRecordsSorted(),
     prisma.driver.findMany({ where: { status: "APPROVED" }, orderBy: { name: "asc" } }),
     prisma.customer.findMany({ orderBy: { name: "asc" } }),
     latestClosingStock(),
+    latestLeakageClosing(),
+    getPricingSettings(),
+    prisma.incentiveTier.findMany({ orderBy: { min: "asc" } }),
   ]);
   const approver = user ? isApprover(user.role) : false;
 
@@ -28,9 +37,13 @@ export default async function DailyRecordPage() {
         </div>
         <AddDailyRecordButton
           openingStock={opening}
-          drivers={drivers.map((d) => ({ id: d.id, name: d.name }))}
+          leakageOpening={leakageOpening}
+          drivers={drivers.map((d) => ({ id: d.id, name: d.name, pricePerBag: d.pricePerBag, loadingFee: d.loadingFee }))}
           customers={customers.map((c) => ({ id: c.id, name: c.name }))}
+          incentiveTiers={tiers.map((t) => ({ min: t.min, max: t.max, bonus: t.bonus }))}
           canEditOpeningStock={user?.role === "SUPER_ADMIN"}
+          factoryPricePerBag={pricing.factoryPricePerBag}
+          canEditFactoryPrice={user?.role === "ADMIN" || user?.role === "SUPER_ADMIN"}
         />
       </div>
       <div className="card">
@@ -42,8 +55,10 @@ export default async function DailyRecordPage() {
                 <th>Opening</th>
                 <th>Produced</th>
                 <th>Sold</th>
+                <th>Truck bags</th>
                 <th>Pump water</th>
                 <th>Leakages</th>
+                <th>Leakage balance</th>
                 <th>Closing</th>
                 <th>Status</th>
                 <th>By</th>
@@ -57,8 +72,10 @@ export default async function DailyRecordPage() {
                   <td>{r.openingStock}</td>
                   <td>{recordProdTotal(r)}</td>
                   <td>{recordSoldTotal(r)}</td>
+                  <td>{recordTruckDeliveryBagsTotal(r)}</td>
                   <td>{formatMoney(r.pumpWaterAmount)}</td>
                   <td>{r.leakageBags}</td>
+                  <td>{r.leakageClosing}</td>
                   <td>{r.closingStock}</td>
                   <td>
                     <Pill status={r.status}>{r.status.toLowerCase()}</Pill>

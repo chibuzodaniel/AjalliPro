@@ -20,8 +20,9 @@ export async function createCustomer(input: unknown) {
   const customer = await prisma.customer.create({
     data: {
       name: parsed.data.name,
-      email: parsed.data.email,
+      email: parsed.data.email || null,
       phone: parsed.data.phone || null,
+      address: parsed.data.address || null,
       createdById: user.id,
     },
   });
@@ -33,7 +34,7 @@ export async function createCustomer(input: unknown) {
 export interface MailPreviewEntry {
   customerId: string;
   name: string;
-  email: string;
+  email: string | null;
   weeklyBags: number;
   yearlyBags: number;
   qualifies: boolean;
@@ -98,6 +99,7 @@ export async function sendWeeklyMailNow(): Promise<SendWeeklyMailResult> {
   let sent = 0;
   let failed = 0;
   for (const entry of entries) {
+    if (!entry.email) continue;
     try {
       await sendWeeklyCustomerEmail({
         to: entry.email,

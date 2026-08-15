@@ -64,7 +64,7 @@ export default function WeeklyMailGenerator({ threshold, bonus }: { threshold: n
         {entries &&
           entries.map((c) => (
             <div className="card" key={c.customerId} style={{ marginBottom: 10 }}>
-              <b>{c.name}</b> — {c.email}
+              <b>{c.name}</b> — {c.email || "no email on file, will be skipped"}
               <br />
               <span style={{ fontSize: 12.5, color: "var(--text-dim)" }}>
                 This week: {c.weeklyBags} bags · Year to date: {c.yearlyBags} bags

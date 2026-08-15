@@ -48,8 +48,11 @@ model DailyRecord {
   factoryPricePerBag Int            @default(0)
   factoryCustomerId  String?
   factoryCustomer    Customer?      @relation("FactoryCustomer", fields: [factoryCustomerId], references: [id])
+  factoryBagsFromLeakage Int        @default(0) // subset of factoryBags rebagged from the leakage pile, not fresh production
   pumpWaterAmount    Int            @default(0)
-  leakageBags        Int            @default(0)
+  leakageOpening     Int            @default(0) // leakage pile balance carried from the previous approved record
+  leakageBags        Int            @default(0) // NEW leakage logged today, added to the pile
+  leakageClosing     Int            @default(0) // leakageOpening + leakageBags - factoryBagsFromLeakage
   status             ApprovalStatus @default(PENDING)
   createdById        String
   createdBy          User           @relation("DailyRecordCreatedBy", fields: [createdById], references: [id])
@@ -61,6 +64,7 @@ model DailyRecord {
 
   productionLines ProductionLine[]
   driverSales     DriverSale[]
+  truckDeliveries TruckDelivery[]
   expenseItems    ExpenseItem[]
 
   @@index([status])
@@ -96,7 +100,8 @@ model Driver {
   id           String         @id @default(cuid())
   name         String
   phone        String?
-  pricePerBag  Int            @default(0)
+  pricePerBag  Int            @default(0) // fixed by Admin/Super Admin, applied automatically on each sale
+  loadingFee   Int            @default(0) // fixed by Admin/Super Admin, applied automatically on each sale
   status       ApprovalStatus @default(PENDING)
   createdById  String
   createdBy    User           @relation("DriverCreatedBy", fields: [createdById], references: [id])
@@ -116,25 +121,43 @@ model DriverSale {
   customerId    String?
   customer      Customer?   @relation("DriverSaleCustomer", fields: [customerId], references: [id])
   bags          Int
-  pricePerBag   Int
-  loadingFee    Int         @default(0)
+  pricePerBag   Int // snapshot of the driver's fixed price at the time of this sale
+  loadingFee    Int         @default(0) // snapshot of the driver's fixed loading fee at the time of this sale
+  bonusBags     Int         @default(0) // instant per-sale incentive, from the IncentiveTier table at the time of this sale
 
   @@index([dailyRecordId])
   @@index([driverId])
   @@index([customerId])
 }
 
+model TruckDelivery {
+  id            String      @id @default(cuid())
+  dailyRecordId String
+  dailyRecord   DailyRecord @relation(fields: [dailyRecordId], references: [id], onDelete: Cascade)
+  customerId    String?
+  customer      Customer?   @relation(fields: [customerId], references: [id])
+  bags          Int
+  ownTruck      Boolean     @default(true)
+  fuelCost      Int         @default(0) // used when ownTruck = true
+  hiredCost     Int         @default(0) // used when ownTruck = false (price paid to the hired truck)
+
+  @@index([dailyRecordId])
+  @@index([customerId])
+}
+
 model Customer {
   id          String   @id @default(cuid())
   name        String
-  email       String
+  email       String?
   phone       String?
+  address     String?
   createdById String
   createdBy   User     @relation(fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
 
-  factorySalesAsCustomer DailyRecord[] @relation("FactoryCustomer")
-  driverSalesAsCustomer  DriverSale[]  @relation("DriverSaleCustomer")
+  factorySalesAsCustomer DailyRecord[]   @relation("FactoryCustomer")
+  driverSalesAsCustomer  DriverSale[]    @relation("DriverSaleCustomer")
+  truckDeliveries        TruckDelivery[]
   mailLogs               MailLog[]
 }
 
@@ -154,6 +177,12 @@ model IncentiveTier {
   min   Int
   max   Int
   bonus Int
+}
+
+model PricingSetting {
+  id                 String   @id @default("singleton")
+  factoryPricePerBag Int      @default(0)
+  updatedAt          DateTime @updatedAt
 }
 
 model WeeklyIncentiveSetting {

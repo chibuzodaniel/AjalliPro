@@ -1,6 +1,12 @@
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { isApprover } from "@/lib/roles";
-import { getApprovedRecordsSorted, recordProdTotal, recordDriverBagsTotal, recordExpenseTotal } from "@/lib/records";
+import {
+  getApprovedRecordsSorted,
+  recordProdTotal,
+  recordDriverBagsTotal,
+  recordTruckDeliveryBagsTotal,
+  recordExpenseTotal,
+} from "@/lib/records";
 import { computeRevenue } from "@/lib/revenue";
 import { filterRecordsByRange, parseRange, RANGE_OPTIONS, RANGE_LABEL } from "@/lib/ranges";
 import { formatMoney } from "@/lib/money";
@@ -22,13 +28,16 @@ export default async function ReportsPage({
   const approvedRecords = await getApprovedRecordsSorted();
   const records = filterRecordsByRange(approvedRecords, range);
 
-  const bagsSold = records.reduce((s, r) => s + r.factoryBags + recordDriverBagsTotal(r), 0);
+  const bagsSold = records.reduce(
+    (s, r) => s + r.factoryBags + recordDriverBagsTotal(r) + recordTruckDeliveryBagsTotal(r),
+    0
+  );
   const pumpTotal = records.reduce((s, r) => s + r.pumpWaterAmount, 0);
   const produced = records.reduce((s, r) => s + recordProdTotal(r), 0);
   const revenue = computeRevenue(records);
 
   const labels = records.map((r) => r.date.slice(5));
-  const series = records.map((r) => r.factoryBags + recordDriverBagsTotal(r));
+  const series = records.map((r) => r.factoryBags + recordDriverBagsTotal(r) + recordTruckDeliveryBagsTotal(r));
 
   return (
     <div>
@@ -66,6 +75,7 @@ export default async function ReportsPage({
                 <th>Produced</th>
                 <th>Factory sales</th>
                 <th>Driver sales</th>
+                <th>Truck deliveries</th>
                 <th>Pump water</th>
                 <th>Leakages</th>
                 <th>Expenses</th>
@@ -75,7 +85,7 @@ export default async function ReportsPage({
             <tbody>
               {records.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: "center", color: "var(--text-faint)" }}>
+                  <td colSpan={9} style={{ textAlign: "center", color: "var(--text-faint)" }}>
                     No approved records in this range
                   </td>
                 </tr>
@@ -86,8 +96,10 @@ export default async function ReportsPage({
                     <td>{recordProdTotal(r)}</td>
                     <td>
                       {r.factoryBags} @ {formatMoney(r.factoryPricePerBag)}
+                      {r.factoryBagsFromLeakage > 0 ? ` (${r.factoryBagsFromLeakage} rebagged)` : ""}
                     </td>
                     <td>{recordDriverBagsTotal(r)} bags</td>
+                    <td>{recordTruckDeliveryBagsTotal(r)} bags</td>
                     <td>{formatMoney(r.pumpWaterAmount)}</td>
                     <td>{r.leakageBags}</td>
                     <td>{formatMoney(recordExpenseTotal(r))}</td>

@@ -7,7 +7,8 @@ import { logActivity } from "@/lib/activity";
 import { incentiveTiersSchema } from "@/lib/validation/incentive-tier";
 import { weeklyIncentiveSettingsSchema } from "@/lib/validation/weekly-incentive";
 import { emailTemplateSettingsSchema } from "@/lib/validation/email-template";
-import { saveWeeklyIncentiveSettings, saveEmailTemplateSettings } from "@/lib/settings";
+import { pricingSettingsSchema } from "@/lib/validation/pricing";
+import { saveWeeklyIncentiveSettings, saveEmailTemplateSettings, savePricingSettings } from "@/lib/settings";
 
 export interface UpdateTiersResult {
   ok: boolean;
@@ -67,5 +68,23 @@ export async function updateEmailTemplate(input: unknown): Promise<UpdateEmailTe
   await saveEmailTemplateSettings(parsed.data);
   await logActivity(`${user.name} updated the weekly customer mail template.`, user.id);
   revalidatePath("/settings");
+  return { ok: true };
+}
+
+export interface UpdatePricingResult {
+  ok: boolean;
+  error?: string;
+}
+
+export async function updatePricingSettings(input: unknown): Promise<UpdatePricingResult> {
+  const user = await requireRole(["ADMIN", "SUPER_ADMIN"]);
+  const parsed = pricingSettingsSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid value" };
+  }
+
+  await savePricingSettings(parsed.data);
+  await logActivity(`${user.name} set the factory sale price to ₦${parsed.data.factoryPricePerBag}/bag.`, user.id);
+  revalidatePath("/", "layout");
   return { ok: true };
 }

@@ -1,5 +1,5 @@
 import type { DailyRecordFull } from "./records";
-import { recordExpenseTotal } from "./records";
+import { recordExpenseTotal, recordTruckDeliveryCostTotal } from "./records";
 
 export interface RevenueSummary {
   gross: number;
@@ -16,7 +16,11 @@ export function computeRevenue(records: DailyRecordFull[]): RevenueSummary {
     for (const d of r.driverSales) {
       rev += d.bags * d.pricePerBag + d.loadingFee;
     }
+    for (const t of r.truckDeliveries) {
+      rev += t.bags * r.factoryPricePerBag;
+    }
     exp += recordExpenseTotal(r);
+    exp += recordTruckDeliveryCostTotal(r);
   }
   return { gross: rev, expenses: exp, net: rev - exp };
 }

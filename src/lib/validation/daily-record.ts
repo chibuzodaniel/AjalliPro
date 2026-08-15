@@ -8,9 +8,15 @@ export const productionLineSchema = z.object({
 export const driverSaleSchema = z.object({
   driverId: z.string().min(1),
   bags: z.number().int().min(0),
-  pricePerBag: z.number().int().min(0),
-  loadingFee: z.number().int().min(0),
   customerId: z.string().min(1).nullable().optional(),
+});
+
+export const truckDeliverySchema = z.object({
+  customerId: z.string().min(1).nullable().optional(),
+  bags: z.number().int().min(0),
+  ownTruck: z.boolean(),
+  fuelCost: z.number().int().min(0),
+  hiredCost: z.number().int().min(0),
 });
 
 export const expenseItemSchema = z.object({
@@ -24,10 +30,12 @@ export const dailyRecordSchema = z.object({
   openingStockOverride: z.number().int().min(0).nullable().optional(),
   production: z.array(productionLineSchema),
   factoryBags: z.number().int().min(0),
+  factoryBagsFromLeakage: z.number().int().min(0),
   factoryPricePerBag: z.number().int().min(0),
   factoryCustomerId: z.string().min(1).nullable().optional(),
   pumpWaterAmount: z.number().int().min(0),
   driverSales: z.array(driverSaleSchema),
+  truckDeliveries: z.array(truckDeliverySchema),
   leakageBags: z.number().int().min(0),
   expenses: z.array(expenseItemSchema),
 });
