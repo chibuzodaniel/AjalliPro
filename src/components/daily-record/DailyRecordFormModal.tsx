@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/ui/Modal";
 import { createDailyRecord, updateDailyRecord } from "@/app/(app)/daily-record/actions";
@@ -48,6 +48,34 @@ let rowKeySeq = 0;
 function nextKey() {
   rowKeySeq += 1;
   return rowKeySeq;
+}
+function rekeyRows<T extends { key: number }>(rows: T[]): T[] {
+  return rows.map((r) => ({ ...r, key: nextKey() }));
+}
+
+interface DraftState {
+  date: string;
+  openingValue: string;
+  leakageOpeningValue: string;
+  production: ProductionRow[];
+  driverSales: DriverSaleRow[];
+  truckDeliveries: TruckDeliveryRow[];
+  factoryBags: string;
+  factoryBagsFromLeakage: string;
+  factoryPrice: string;
+  factoryCustomerId: string;
+  pumpWaterAmount: string;
+  leakageBags: string;
+  expenses: ExpenseRow[];
+}
+
+function readDraft(key: string): DraftState | null {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as DraftState) : null;
+  } catch {
+    return null;
+  }
 }
 
 export interface DailyRecordFormInitial {
@@ -137,27 +165,99 @@ export default function DailyRecordFormModal({
   canEditLeakageOpening?: boolean;
 }) {
   const router = useRouter();
-  const [date, setDate] = useState(initial.date);
-  const [openingValue, setOpeningValue] = useState(String(initial.openingStock));
-  const [leakageOpeningValue, setLeakageOpeningValue] = useState(String(leakageOpening));
-  const [production, setProduction] = useState<ProductionRow[]>(() => toProductionRows(initial.production));
+  const draftKey = mode === "create" ? "ajalli:daily-record-draft:create" : `ajalli:daily-record-draft:edit:${recordId}`;
+  const draft = useMemo(() => readDraft(draftKey), [draftKey]);
+  const [restoredDraft, setRestoredDraft] = useState(() => draft !== null);
+
+  const [date, setDate] = useState(draft?.date ?? initial.date);
+  const [openingValue, setOpeningValue] = useState(draft?.openingValue ?? String(initial.openingStock));
+  const [leakageOpeningValue, setLeakageOpeningValue] = useState(draft?.leakageOpeningValue ?? String(leakageOpening));
+  const [production, setProduction] = useState<ProductionRow[]>(() =>
+    draft ? rekeyRows(draft.production) : toProductionRows(initial.production)
+  );
   const [driverSales, setDriverSales] = useState<DriverSaleRow[]>(() =>
-    toDriverSaleRows(initial.driverSales, drivers[0]?.id ?? "")
+    draft ? rekeyRows(draft.driverSales) : toDriverSaleRows(initial.driverSales, drivers[0]?.id ?? "")
   );
   const [truckDeliveries, setTruckDeliveries] = useState<TruckDeliveryRow[]>(() =>
-    toTruckDeliveryRows(initial.truckDeliveries, customers[0]?.id ?? "")
+    draft ? rekeyRows(draft.truckDeliveries) : toTruckDeliveryRows(initial.truckDeliveries, customers[0]?.id ?? "")
   );
-  const [factoryBags, setFactoryBags] = useState(initial.factoryBags ? String(initial.factoryBags) : "");
+  const [factoryBags, setFactoryBags] = useState(
+    draft?.factoryBags ?? (initial.factoryBags ? String(initial.factoryBags) : "")
+  );
   const [factoryBagsFromLeakage, setFactoryBagsFromLeakage] = useState(
-    initial.factoryBagsFromLeakage ? String(initial.factoryBagsFromLeakage) : ""
+    draft?.factoryBagsFromLeakage ?? (initial.factoryBagsFromLeakage ? String(initial.factoryBagsFromLeakage) : "")
   );
-  const [factoryPrice, setFactoryPrice] = useState(String(initial.factoryPricePerBag));
-  const [factoryCustomerId, setFactoryCustomerId] = useState(initial.factoryCustomerId ?? "");
-  const [pumpWaterAmount, setPumpWaterAmount] = useState(initial.pumpWaterAmount ? String(initial.pumpWaterAmount) : "");
-  const [leakageBags, setLeakageBags] = useState(initial.leakageBags ? String(initial.leakageBags) : "");
-  const [expenses, setExpenses] = useState<ExpenseRow[]>(() => toExpenseRows(initial.expenses));
+  const [factoryPrice, setFactoryPrice] = useState(draft?.factoryPrice ?? String(initial.factoryPricePerBag));
+  const [factoryCustomerId, setFactoryCustomerId] = useState(draft?.factoryCustomerId ?? (initial.factoryCustomerId ?? ""));
+  const [pumpWaterAmount, setPumpWaterAmount] = useState(
+    draft?.pumpWaterAmount ?? (initial.pumpWaterAmount ? String(initial.pumpWaterAmount) : "")
+  );
+  const [leakageBags, setLeakageBags] = useState(draft?.leakageBags ?? (initial.leakageBags ? String(initial.leakageBags) : ""));
+  const [expenses, setExpenses] = useState<ExpenseRow[]>(() =>
+    draft ? rekeyRows(draft.expenses) : toExpenseRows(initial.expenses)
+  );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const toSave: DraftState = {
+      date,
+      openingValue,
+      leakageOpeningValue,
+      production,
+      driverSales,
+      truckDeliveries,
+      factoryBags,
+      factoryBagsFromLeakage,
+      factoryPrice,
+      factoryCustomerId,
+      pumpWaterAmount,
+      leakageBags,
+      expenses,
+    };
+    try {
+      localStorage.setItem(draftKey, JSON.stringify(toSave));
+    } catch {
+      // localStorage unavailable (e.g. private browsing quota) — draft persistence is a convenience, not critical
+    }
+  }, [
+    draftKey,
+    date,
+    openingValue,
+    leakageOpeningValue,
+    production,
+    driverSales,
+    truckDeliveries,
+    factoryBags,
+    factoryBagsFromLeakage,
+    factoryPrice,
+    factoryCustomerId,
+    pumpWaterAmount,
+    leakageBags,
+    expenses,
+  ]);
+
+  function discardDraft() {
+    try {
+      localStorage.removeItem(draftKey);
+    } catch {
+      // ignore
+    }
+    setRestoredDraft(false);
+    setDate(initial.date);
+    setOpeningValue(String(initial.openingStock));
+    setLeakageOpeningValue(String(leakageOpening));
+    setProduction(toProductionRows(initial.production));
+    setDriverSales(toDriverSaleRows(initial.driverSales, drivers[0]?.id ?? ""));
+    setTruckDeliveries(toTruckDeliveryRows(initial.truckDeliveries, customers[0]?.id ?? ""));
+    setFactoryBags(initial.factoryBags ? String(initial.factoryBags) : "");
+    setFactoryBagsFromLeakage(initial.factoryBagsFromLeakage ? String(initial.factoryBagsFromLeakage) : "");
+    setFactoryPrice(String(initial.factoryPricePerBag));
+    setFactoryCustomerId(initial.factoryCustomerId ?? "");
+    setPumpWaterAmount(initial.pumpWaterAmount ? String(initial.pumpWaterAmount) : "");
+    setLeakageBags(initial.leakageBags ? String(initial.leakageBags) : "");
+    setExpenses(toExpenseRows(initial.expenses));
+  }
 
   const driverById = useMemo(() => new Map(drivers.map((d) => [d.id, d])), [drivers]);
   const customerById = useMemo(() => new Map(customers.map((c) => [c.id, c])), [customers]);
@@ -181,6 +281,11 @@ export default function DailyRecordFormModal({
 
   const leakageOpeningNum = Number(leakageOpeningValue) || 0;
   const leakageClosingPreview = leakageOpeningNum + (Number(leakageBags) || 0) - (Number(factoryBagsFromLeakage) || 0);
+  const loadingFeeExpenseTotal = driverSales.reduce((s, d) => {
+    const driver = driverById.get(d.driverId);
+    const bags = Number(d.bags) || 0;
+    return s + bags * (driver?.loadingFee ?? 0);
+  }, 0);
   const factoryTotal = (Number(factoryBags) || 0) * (Number(factoryPrice) || 0);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -228,6 +333,11 @@ export default function DailyRecordFormModal({
       setError(result.error ?? "Could not save daily record");
       return;
     }
+    try {
+      localStorage.removeItem(draftKey);
+    } catch {
+      // ignore
+    }
     onClose();
     onSaved?.();
     router.refresh();
@@ -236,6 +346,14 @@ export default function DailyRecordFormModal({
   return (
     <Modal open={open} onClose={onClose} title={mode === "create" ? "New Daily Record" : `Edit Daily Record — ${initial.date}`} maxWidth={720}>
       <form onSubmit={handleSubmit}>
+        {restoredDraft && (
+          <div className="calc-box" style={{ marginBottom: 14, alignItems: "center" }}>
+            <span>Restored your unsaved entry from before you were logged out.</span>
+            <button type="button" className="btn btn-sm btn-ghost" onClick={discardDraft}>
+              Start fresh
+            </button>
+          </div>
+        )}
         <div className="form-grid">
           <div className="field">
             <label>Date{mode === "edit" ? " — not editable" : ""}</label>
@@ -381,7 +499,8 @@ export default function DailyRecordFormModal({
           const driver = driverById.get(row.driverId);
           const bags = Number(row.bags) || 0;
           const bonus = Number(row.bonusBags) || 0;
-          const total = bags * (driver?.pricePerBag ?? 0) + bags * (driver?.loadingFee ?? 0);
+          const total = bags * (driver?.pricePerBag ?? 0);
+          const loadingFeeExpense = bags * (driver?.loadingFee ?? 0);
           return (
             <div key={row.key}>
               <div className="repeater-row dr" style={{ gridTemplateColumns: "1.3fr .9fr .9fr auto" }}>
@@ -432,7 +551,10 @@ export default function DailyRecordFormModal({
               </div>
               <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: -6, marginBottom: 10 }}>
                 Instant incentive: +{bonus} bags (manual) · Total: {formatMoney(total)}
-                {driver ? ` (₦${driver.pricePerBag}/bag + ₦${driver.loadingFee}/bag loading)` : ""}
+                {driver ? ` (₦${driver.pricePerBag}/bag)` : ""}
+                {loadingFeeExpense > 0 && (
+                  <> · Loading fee: {formatMoney(loadingFeeExpense)} (auto-added as an expense, not part of this total)</>
+                )}
               </div>
             </div>
           );
@@ -573,6 +695,12 @@ export default function DailyRecordFormModal({
         </div>
 
         <div className="subhead">Expenses</div>
+        {loadingFeeExpenseTotal > 0 && (
+          <div className="calc-box" style={{ marginBottom: 14 }}>
+            <span>Loading fees (auto-added below)</span>
+            <b>{formatMoney(loadingFeeExpenseTotal)}</b>
+          </div>
+        )}
         {expenses.map((row) => (
           <div
             className="repeater-row"

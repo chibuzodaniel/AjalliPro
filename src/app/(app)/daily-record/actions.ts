@@ -17,6 +17,26 @@ import {
   recordTruckDeliveryBagsTotal,
 } from "@/lib/records";
 
+function buildLoadingFeeExpenses(
+  driverSales: { driverId: string; bags: number }[],
+  driverById: Map<string, { name: string; loadingFee: number }>
+) {
+  const expenses: { description: string; amount: number; paid: boolean; paidAt: null; paidById: null }[] = [];
+  for (const d of driverSales) {
+    if (d.bags <= 0) continue;
+    const driver = driverById.get(d.driverId);
+    if (!driver || driver.loadingFee <= 0) continue;
+    expenses.push({
+      description: `Loading fee — ${driver.name}`,
+      amount: d.bags * driver.loadingFee,
+      paid: false,
+      paidAt: null,
+      paidById: null,
+    });
+  }
+  return expenses;
+}
+
 export interface CreateDailyRecordResult {
   ok: boolean;
   error?: string;
@@ -129,13 +149,16 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
           }),
         },
         expenseItems: {
-          create: data.expenses.map((e) => ({
-            description: e.description,
-            amount: e.amount,
-            paid: e.paid,
-            paidAt: e.paid ? new Date() : null,
-            paidById: e.paid ? user.id : null,
-          })),
+          create: [
+            ...data.expenses.map((e) => ({
+              description: e.description,
+              amount: e.amount,
+              paid: e.paid,
+              paidAt: e.paid ? new Date() : null,
+              paidById: e.paid ? user.id : null,
+            })),
+            ...buildLoadingFeeExpenses(data.driverSales, driverById),
+          ],
         },
       },
     });
@@ -312,13 +335,16 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
           }),
         },
         expenseItems: {
-          create: data.expenses.map((e) => ({
-            description: e.description,
-            amount: e.amount,
-            paid: e.paid,
-            paidAt: e.paid ? new Date() : null,
-            paidById: e.paid ? user.id : null,
-          })),
+          create: [
+            ...data.expenses.map((e) => ({
+              description: e.description,
+              amount: e.amount,
+              paid: e.paid,
+              paidAt: e.paid ? new Date() : null,
+              paidById: e.paid ? user.id : null,
+            })),
+            ...buildLoadingFeeExpenses(data.driverSales, driverById),
+          ],
         },
       },
     });
