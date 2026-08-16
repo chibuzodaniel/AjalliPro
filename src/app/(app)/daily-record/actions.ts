@@ -35,7 +35,7 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
     return { ok: false, error: `A daily record for ${data.date} already exists.` };
   }
 
-  const [computedOpening, leakageOpening, fixedPricing, drivers, truckCustomers] = await Promise.all([
+  const [computedOpening, computedLeakageOpening, fixedPricing, drivers, truckCustomers] = await Promise.all([
     latestClosingStock(),
     latestLeakageClosing(),
     getPricingSettings(),
@@ -45,6 +45,13 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
     }),
   ]);
 
+  const opening =
+    user.role === "SUPER_ADMIN" && data.openingStockOverride != null ? data.openingStockOverride : computedOpening;
+  const leakageOpening =
+    user.role === "SUPER_ADMIN" && data.leakageOpeningOverride != null
+      ? data.leakageOpeningOverride
+      : computedLeakageOpening;
+
   if (data.factoryBagsFromLeakage > leakageOpening) {
     return {
       ok: false,
@@ -52,8 +59,6 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
     };
   }
 
-  const opening =
-    user.role === "SUPER_ADMIN" && data.openingStockOverride != null ? data.openingStockOverride : computedOpening;
   const prodTotal = data.production.reduce((s, p) => s + p.bags, 0);
   const driverBagsTotal = data.driverSales.reduce((s, d) => s + d.bags, 0);
   const driverBonusBagsTotal = data.driverSales.reduce((s, d) => s + d.bonusBags, 0);
@@ -213,13 +218,6 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
     return { ok: false, error: "You don't have permission to edit this record." };
   }
 
-  if (data.factoryBagsFromLeakage > existing.leakageOpening) {
-    return {
-      ok: false,
-      error: `Only ${existing.leakageOpening} bags are available in the leakage pile to rebag.`,
-    };
-  }
-
   const [fixedPricing, drivers, truckCustomers] = await Promise.all([
     getPricingSettings(),
     prisma.driver.findMany({ where: { id: { in: data.driverSales.map((d) => d.driverId) } } }),
@@ -232,6 +230,18 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
     user.role === "SUPER_ADMIN" && data.openingStockOverride != null
       ? data.openingStockOverride
       : existing.openingStock;
+  const leakageOpening =
+    user.role === "SUPER_ADMIN" && data.leakageOpeningOverride != null
+      ? data.leakageOpeningOverride
+      : existing.leakageOpening;
+
+  if (data.factoryBagsFromLeakage > leakageOpening) {
+    return {
+      ok: false,
+      error: `Only ${leakageOpening} bags are available in the leakage pile to rebag.`,
+    };
+  }
+
   const prodTotal = data.production.reduce((s, p) => s + p.bags, 0);
   const driverBagsTotal = data.driverSales.reduce((s, d) => s + d.bags, 0);
   const driverBonusBagsTotal = data.driverSales.reduce((s, d) => s + d.bonusBags, 0);
@@ -247,7 +257,7 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
     truckDeliveryBagsTotal,
     leakageBagsNew: data.leakageBags,
   });
-  const leakageClosing = computeLeakageClosing(existing.leakageOpening, data.leakageBags, data.factoryBagsFromLeakage);
+  const leakageClosing = computeLeakageClosing(leakageOpening, data.leakageBags, data.factoryBagsFromLeakage);
 
   const canEditFactoryPrice = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
   const factoryPricePerBag = canEditFactoryPrice ? data.factoryPricePerBag : fixedPricing.factoryPricePerBag;
@@ -270,6 +280,7 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
         factoryPricePerBag,
         factoryCustomerId: data.factoryCustomerId || null,
         pumpWaterAmount: data.pumpWaterAmount,
+        leakageOpening,
         leakageBags: data.leakageBags,
         leakageClosing,
         productionLines: {

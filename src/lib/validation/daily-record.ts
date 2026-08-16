@@ -28,6 +28,7 @@ export const expenseItemSchema = z.object({
 export const dailyRecordSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date"),
   openingStockOverride: z.number().int().min(0).nullable().optional(),
+  leakageOpeningOverride: z.number().int().min(0).nullable().optional(),
   production: z.array(productionLineSchema),
   factoryBags: z.number().int().min(0),
   factoryBagsFromLeakage: z.number().int().min(0),

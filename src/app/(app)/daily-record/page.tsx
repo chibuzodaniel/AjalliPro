@@ -44,6 +44,7 @@ export default async function DailyRecordPage() {
           canEditOpeningStock={user?.role === "SUPER_ADMIN"}
           factoryPricePerBag={pricing.factoryPricePerBag}
           canEditFactoryPrice={user?.role === "ADMIN" || user?.role === "SUPER_ADMIN"}
+          canEditLeakageOpening={user?.role === "SUPER_ADMIN"}
         />
       </div>
       <div className="card">
@@ -100,6 +101,7 @@ export default async function DailyRecordPage() {
                         customers={customers.map((c) => ({ id: c.id, name: c.name, pricePerBag: c.pricePerBag }))}
                         canEditOpeningStock={user?.role === "SUPER_ADMIN"}
                         canEditFactoryPrice={user?.role === "ADMIN" || user?.role === "SUPER_ADMIN"}
+                        canEditLeakageOpening={user?.role === "SUPER_ADMIN"}
                       />
                     )}
                     {approver && <DeleteDailyRecordButton id={r.id} date={r.date} status={r.status} />}

@@ -22,12 +22,14 @@ export default function EditDailyRecordButton({
   customers,
   canEditOpeningStock,
   canEditFactoryPrice,
+  canEditLeakageOpening,
 }: {
   record: DailyRecordFull;
   drivers: DriverOption[];
   customers: CustomerOption[];
   canEditOpeningStock?: boolean;
   canEditFactoryPrice?: boolean;
+  canEditLeakageOpening?: boolean;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -73,6 +75,7 @@ export default function EditDailyRecordButton({
           customers={customers}
           canEditOpeningStock={canEditOpeningStock}
           canEditFactoryPrice={canEditFactoryPrice}
+          canEditLeakageOpening={canEditLeakageOpening}
         />
       )}
     </>

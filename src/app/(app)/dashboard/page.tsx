@@ -4,7 +4,7 @@ import { isApprover } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { getApprovedRecordsSorted, recordSoldTotal } from "@/lib/records";
 import { computeRevenue } from "@/lib/revenue";
-import { computeIncentiveData } from "@/lib/incentives";
+import { computeIncentiveData, weeksQualifiedInYear, yearTotal } from "@/lib/incentives";
 import { currentWeekKey, todayISO, weekKeyOf } from "@/lib/week";
 import { formatMoney } from "@/lib/money";
 import { getWeeklyIncentiveSettings } from "@/lib/settings";
@@ -66,7 +66,7 @@ export default async function DashboardPage() {
   const topDrivers = [...driverTotals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
 
   // incentive watch
-  const { customerWeekly, driverWeekly } = computeIncentiveData(approvedRecords);
+  const { customerWeekly, driverWeekly, driverInstantWeekly, driverInstantYearly } = computeIncentiveData(approvedRecords);
   const watchItems: { label: string; bags: number; threshold: number }[] = [];
   for (const c of customers) {
     const b = customerWeekly.get(c.id)?.[wk] ?? 0;
@@ -77,6 +77,27 @@ export default async function DashboardPage() {
     const b = driverWeekly.get(d.id)?.[wk] ?? 0;
     if (b > 0 && b < weeklySettings.driverWeeklyThreshold)
       watchItems.push({ label: `${d.name} (driver)`, bags: b, threshold: weeklySettings.driverWeeklyThreshold });
+  }
+
+  // total incentive bags given out — never part of any sales/revenue total, tracked separately
+  const thisYear = new Date().getFullYear();
+  let incentiveWeekTotal = 0;
+  let incentiveYearTotal = 0;
+  for (const c of customers) {
+    const wkBags = customerWeekly.get(c.id)?.[wk] ?? 0;
+    if (wkBags >= weeklySettings.customerWeeklyThreshold) incentiveWeekTotal += weeklySettings.customerWeeklyBonus;
+    incentiveYearTotal +=
+      weeksQualifiedInYear(customerWeekly.get(c.id), weeklySettings.customerWeeklyThreshold, thisYear) *
+      weeklySettings.customerWeeklyBonus;
+  }
+  for (const d of drivers) {
+    const wkBags = driverWeekly.get(d.id)?.[wk] ?? 0;
+    incentiveWeekTotal += driverInstantWeekly.get(d.id)?.[wk] ?? 0;
+    incentiveYearTotal += yearTotal(driverInstantYearly.get(d.id), thisYear);
+    if (wkBags >= weeklySettings.driverWeeklyThreshold) incentiveWeekTotal += weeklySettings.driverWeeklyBonus;
+    incentiveYearTotal +=
+      weeksQualifiedInYear(driverWeekly.get(d.id), weeklySettings.driverWeeklyThreshold, thisYear) *
+      weeklySettings.driverWeeklyBonus;
   }
 
   const pendingTotal = pendingDailyCount + pendingDriverCount;
@@ -145,6 +166,22 @@ export default async function DashboardPage() {
           iconColor="var(--amber)"
           delta="needs review"
           deltaTone="neg"
+        />
+        <KpiCard
+          label="Total Incentives (This Week)"
+          value={`${incentiveWeekTotal} bags`}
+          icon="🎁"
+          iconBg="rgba(124,110,245,.15)"
+          iconColor="var(--accent)"
+          delta={<Link href="/incentives">Not part of sales — see breakdown →</Link>}
+        />
+        <KpiCard
+          label="Total Incentives (This Year)"
+          value={`${incentiveYearTotal} bags`}
+          icon="🎁"
+          iconBg="rgba(124,110,245,.15)"
+          iconColor="var(--accent)"
+          delta={<Link href="/incentives">Not part of sales — see breakdown →</Link>}
         />
       </div>
 

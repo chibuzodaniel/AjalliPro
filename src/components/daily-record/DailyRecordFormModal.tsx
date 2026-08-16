@@ -121,6 +121,7 @@ export default function DailyRecordFormModal({
   customers,
   canEditOpeningStock,
   canEditFactoryPrice,
+  canEditLeakageOpening,
 }: {
   mode: "create" | "edit";
   recordId?: string;
@@ -133,10 +134,12 @@ export default function DailyRecordFormModal({
   customers: CustomerOption[];
   canEditOpeningStock?: boolean;
   canEditFactoryPrice?: boolean;
+  canEditLeakageOpening?: boolean;
 }) {
   const router = useRouter();
   const [date, setDate] = useState(initial.date);
   const [openingValue, setOpeningValue] = useState(String(initial.openingStock));
+  const [leakageOpeningValue, setLeakageOpeningValue] = useState(String(leakageOpening));
   const [production, setProduction] = useState<ProductionRow[]>(() => toProductionRows(initial.production));
   const [driverSales, setDriverSales] = useState<DriverSaleRow[]>(() =>
     toDriverSaleRows(initial.driverSales, drivers[0]?.id ?? "")
@@ -176,7 +179,8 @@ export default function DailyRecordFormModal({
     );
   }, [production, driverSales, truckDeliveries, factoryBags, factoryBagsFromLeakage, leakageBags, openingValue]);
 
-  const leakageClosingPreview = leakageOpening + (Number(leakageBags) || 0) - (Number(factoryBagsFromLeakage) || 0);
+  const leakageOpeningNum = Number(leakageOpeningValue) || 0;
+  const leakageClosingPreview = leakageOpeningNum + (Number(leakageBags) || 0) - (Number(factoryBagsFromLeakage) || 0);
   const factoryTotal = (Number(factoryBags) || 0) * (Number(factoryPrice) || 0);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -185,6 +189,7 @@ export default function DailyRecordFormModal({
     setError(null);
     const payload = {
       openingStockOverride: canEditOpeningStock ? Number(openingValue) || 0 : null,
+      leakageOpeningOverride: canEditLeakageOpening ? leakageOpeningNum : null,
       production: production
         .filter((p) => (Number(p.bags) || 0) > 0)
         .map((p) => ({ packerName: p.packerName || "Unnamed", bags: Number(p.bags) || 0 })),
@@ -255,9 +260,16 @@ export default function DailyRecordFormModal({
             />
           </div>
         </div>
-        <div className="calc-box" style={{ marginBottom: 14 }}>
-          <span>Leakage balance carried forward</span>
-          <b>{leakageOpening} bags</b>
+        <div className="field">
+          <label>Leakage from previous day (bags){canEditLeakageOpening ? " — editable (Super Admin)" : ""}</label>
+          <input
+            type="number"
+            min={0}
+            placeholder="0"
+            value={leakageOpeningValue}
+            onChange={canEditLeakageOpening ? (e) => setLeakageOpeningValue(e.target.value) : undefined}
+            readOnly={!canEditLeakageOpening}
+          />
         </div>
 
         <div className="subhead">Production</div>
@@ -326,11 +338,11 @@ export default function DailyRecordFormModal({
           </div>
         </div>
         <div className="field">
-          <label>Of these, rebagged from leakage stock (bags — available: {leakageOpening})</label>
+          <label>Of these, rebagged from leakage stock (bags — available: {leakageOpeningNum})</label>
           <input
             type="number"
             min={0}
-            max={leakageOpening}
+            max={leakageOpeningNum}
             placeholder="0"
             value={factoryBagsFromLeakage}
             onChange={(e) => setFactoryBagsFromLeakage(e.target.value)}
@@ -438,7 +450,7 @@ export default function DailyRecordFormModal({
           + Add driver sale
         </button>
 
-        <div className="subhead">Truck deliveries (our own dispatch, not a hired driver)</div>
+        <div className="subhead">Truck deliveries (our own dispatch)</div>
         {truckDeliveries.map((row) => (
           <div key={row.key}>
             <div className="repeater-row" style={{ gridTemplateColumns: "1.2fr .8fr 1fr .8fr auto" }}>

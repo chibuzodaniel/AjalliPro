@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getApprovedRecordsSorted } from "@/lib/records";
-import { computeIncentiveData, weeksQualified } from "@/lib/incentives";
+import { computeIncentiveData, weeksQualified, weeksQualifiedInYear, yearTotal } from "@/lib/incentives";
 import { currentWeekKey } from "@/lib/week";
 import { getWeeklyIncentiveSettings } from "@/lib/settings";
 import KpiCard from "@/components/ui/KpiCard";
@@ -36,24 +36,46 @@ export default async function IncentivesPage({
     getApprovedRecordsSorted(),
     getWeeklyIncentiveSettings(),
   ]);
-  const { customerWeekly, driverWeekly, customerYearly } = computeIncentiveData(approvedRecords);
+  const { customerWeekly, driverWeekly, customerYearly, driverInstantWeekly, driverInstantYearly } =
+    computeIncentiveData(approvedRecords);
   const wk = currentWeekKey();
   const year = new Date().getFullYear();
   const { customerWeeklyThreshold, customerWeeklyBonus, driverWeeklyThreshold, driverWeeklyBonus } = weeklySettings;
 
   const custRows = customers.map((c) => {
     const wkBags = customerWeekly.get(c.id)?.[wk] ?? 0;
-    return { c, wkBags, qualifies: wkBags >= customerWeeklyThreshold };
+    const qualifies = wkBags >= customerWeeklyThreshold;
+    const yearBonusBags = weeksQualifiedInYear(customerWeekly.get(c.id), customerWeeklyThreshold, year) * customerWeeklyBonus;
+    return { c, wkBags, qualifies, weekBonusBags: qualifies ? customerWeeklyBonus : 0, yearBonusBags };
   });
   const custQualified = custRows.filter((r) => r.qualifies).length;
   const custAvg = custRows.length ? Math.round(custRows.reduce((s, r) => s + r.wkBags, 0) / custRows.length) : 0;
+  const custIncentiveWeekTotal = custRows.reduce((s, r) => s + r.weekBonusBags, 0);
+  const custIncentiveYearTotal = custRows.reduce((s, r) => s + r.yearBonusBags, 0);
 
   const drvRows = drivers.map((d) => {
     const wkBags = driverWeekly.get(d.id)?.[wk] ?? 0;
-    return { d, wkBags, qualifies: wkBags >= driverWeeklyThreshold };
+    const qualifies = wkBags >= driverWeeklyThreshold;
+    const instantWeek = driverInstantWeekly.get(d.id)?.[wk] ?? 0;
+    const instantYear = yearTotal(driverInstantYearly.get(d.id), year);
+    const weekBonusBags = qualifies ? driverWeeklyBonus : 0;
+    const yearBonusBags = weeksQualifiedInYear(driverWeekly.get(d.id), driverWeeklyThreshold, year) * driverWeeklyBonus;
+    return {
+      d,
+      wkBags,
+      qualifies,
+      instantWeek,
+      instantYear,
+      weekBonusBags,
+      yearBonusBags,
+      totalWeek: instantWeek + weekBonusBags,
+      totalYear: instantYear + yearBonusBags,
+    };
   });
   const drvQualified = drvRows.filter((r) => r.qualifies).length;
   const drvAvg = drvRows.length ? Math.round(drvRows.reduce((s, r) => s + r.wkBags, 0) / drvRows.length) : 0;
+  const drvIncentiveWeekTotal = drvRows.reduce((s, r) => s + r.totalWeek, 0);
+  const drvIncentiveYearTotal = drvRows.reduce((s, r) => s + r.totalYear, 0);
 
   return (
     <div>
@@ -62,7 +84,7 @@ export default async function IncentivesPage({
           <h1>Incentive Tracking</h1>
           <div className="sub">
             Weekly bag totals against customer ({customerWeeklyThreshold}) and driver ({driverWeeklyThreshold})
-            bonus thresholds
+            bonus thresholds — bonus bags are given free and are not part of any sales total
           </div>
         </div>
       </div>
@@ -78,10 +100,11 @@ export default async function IncentivesPage({
 
       {tab === "customers" ? (
         <div>
-          <div className="grid grid-3" style={{ marginBottom: 18 }}>
+          <div className="grid grid-4" style={{ marginBottom: 18 }}>
             <KpiCard label="Qualified This Week" value={custQualified} />
-            <KpiCard label="Bonus Bags This Week" value={custQualified * customerWeeklyBonus} />
             <KpiCard label="Avg Bags / Customer" value={custAvg} />
+            <KpiCard label="Incentive Bags — This Week" value={custIncentiveWeekTotal} />
+            <KpiCard label="Incentive Bags — This Year" value={custIncentiveYearTotal} />
           </div>
           <div className="card">
             <div className="section-title">
@@ -97,11 +120,12 @@ export default async function IncentivesPage({
                     <th>Progress</th>
                     <th>Status</th>
                     <th>Weeks qualified (all-time)</th>
-                    <th>Year-to-date</th>
+                    <th>Year-to-date bags</th>
+                    <th>Incentive bags (this year)</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {custRows.map(({ c, wkBags, qualifies }) => (
+                  {custRows.map(({ c, wkBags, qualifies, yearBonusBags }) => (
                     <tr key={c.id}>
                       <td>{c.name}</td>
                       <td>{wkBags} bags</td>
@@ -114,7 +138,8 @@ export default async function IncentivesPage({
                         )}
                       </td>
                       <td>{weeksQualified(customerWeekly.get(c.id), customerWeeklyThreshold)}</td>
-                      <td>{customerYearly.get(c.id)?.[year] ?? 0}</td>
+                      <td>{yearTotal(customerYearly.get(c.id), year)}</td>
+                      <td>{yearBonusBags}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -125,15 +150,16 @@ export default async function IncentivesPage({
         </div>
       ) : (
         <div>
-          <div className="grid grid-3" style={{ marginBottom: 18 }}>
+          <div className="grid grid-4" style={{ marginBottom: 18 }}>
             <KpiCard label="Qualified This Week" value={drvQualified} />
-            <KpiCard label="Bonus Bags This Week" value={drvQualified * driverWeeklyBonus} />
             <KpiCard label="Avg Bags / Driver" value={drvAvg} />
+            <KpiCard label="Incentive Bags — This Week" value={drvIncentiveWeekTotal} />
+            <KpiCard label="Incentive Bags — This Year" value={drvIncentiveYearTotal} />
           </div>
           <div className="card">
             <div className="section-title">
               Driver weekly incentive — {driverWeeklyThreshold} bags/week qualifies for +{driverWeeklyBonus} bonus
-              bags
+              bags. Instant incentives are entered manually per sale.
             </div>
             <div className="table-wrap">
               <table>
@@ -144,10 +170,13 @@ export default async function IncentivesPage({
                     <th>Progress</th>
                     <th>Status</th>
                     <th>Weeks qualified (all-time)</th>
+                    <th>Instant incentive (week)</th>
+                    <th>Instant incentive (year)</th>
+                    <th>Total incentives (year)</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {drvRows.map(({ d, wkBags, qualifies }) => (
+                  {drvRows.map(({ d, wkBags, qualifies, instantWeek, instantYear, totalYear }) => (
                     <tr key={d.id}>
                       <td>{d.name}</td>
                       <td>{wkBags} bags</td>
@@ -160,6 +189,9 @@ export default async function IncentivesPage({
                         )}
                       </td>
                       <td>{weeksQualified(driverWeekly.get(d.id), driverWeeklyThreshold)}</td>
+                      <td>{instantWeek}</td>
+                      <td>{instantYear}</td>
+                      <td>{totalYear}</td>
                     </tr>
                   ))}
                 </tbody>
