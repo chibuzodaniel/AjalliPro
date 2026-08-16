@@ -33,6 +33,7 @@ interface TruckDeliveryRow {
   key: number;
   customerId: string;
   bags: string;
+  bonusBags: string;
   ownTruck: boolean;
   fuelCost: string;
   hiredCost: string;
@@ -91,6 +92,7 @@ export interface DailyRecordFormInitial {
   truckDeliveries: {
     customerId: string | null;
     bags: number;
+    bonusBags: number;
     ownTruck: boolean;
     fuelCost: number;
     hiredCost: number;
@@ -120,6 +122,7 @@ function toTruckDeliveryRows(
     key: nextKey(),
     customerId: r.customerId ?? firstCustomerId,
     bags: String(r.bags),
+    bonusBags: r.bonusBags ? String(r.bonusBags) : "",
     ownTruck: r.ownTruck,
     fuelCost: String(r.fuelCost),
     hiredCost: String(r.hiredCost),
@@ -267,6 +270,7 @@ export default function DailyRecordFormModal({
     const driverBagsTotal = driverSales.reduce((s, d) => s + (Number(d.bags) || 0), 0);
     const driverBonusTotal = driverSales.reduce((s, d) => s + (Number(d.bonusBags) || 0), 0);
     const truckBagsTotal = truckDeliveries.reduce((s, t) => s + (Number(t.bags) || 0), 0);
+    const truckBonusTotal = truckDeliveries.reduce((s, t) => s + (Number(t.bonusBags) || 0), 0);
     const factoryBagsNet = (Number(factoryBags) || 0) - (Number(factoryBagsFromLeakage) || 0);
     return (
       (Number(openingValue) || 0) +
@@ -275,6 +279,7 @@ export default function DailyRecordFormModal({
       driverBagsTotal -
       driverBonusTotal -
       truckBagsTotal -
+      truckBonusTotal -
       (Number(leakageBags) || 0)
     );
   }, [production, driverSales, truckDeliveries, factoryBags, factoryBagsFromLeakage, leakageBags, openingValue]);
@@ -315,6 +320,7 @@ export default function DailyRecordFormModal({
         .map((t) => ({
           customerId: t.customerId,
           bags: Number(t.bags) || 0,
+          bonusBags: Number(t.bonusBags) || 0,
           ownTruck: t.ownTruck,
           fuelCost: Number(t.fuelCost) || 0,
           hiredCost: Number(t.hiredCost) || 0,
@@ -575,7 +581,7 @@ export default function DailyRecordFormModal({
         <div className="subhead">Truck deliveries (our own dispatch)</div>
         {truckDeliveries.map((row) => (
           <div key={row.key}>
-            <div className="repeater-row" style={{ gridTemplateColumns: "1.2fr .8fr 1fr .8fr auto" }}>
+            <div className="repeater-row" style={{ gridTemplateColumns: "1.1fr .7fr .8fr .9fr .8fr auto" }}>
               <div className="field" style={{ marginBottom: 0 }}>
                 <select
                   value={row.customerId}
@@ -601,6 +607,19 @@ export default function DailyRecordFormModal({
                   value={row.bags}
                   onChange={(e) =>
                     setTruckDeliveries((rows) => rows.map((r) => (r.key === row.key ? { ...r, bags: e.target.value } : r)))
+                  }
+                />
+              </div>
+              <div className="field" style={{ marginBottom: 0 }}>
+                <input
+                  type="number"
+                  placeholder="Instant incentive"
+                  min={0}
+                  value={row.bonusBags}
+                  onChange={(e) =>
+                    setTruckDeliveries((rows) =>
+                      rows.map((r) => (r.key === row.key ? { ...r, bonusBags: e.target.value } : r))
+                    )
                   }
                 />
               </div>
@@ -655,11 +674,13 @@ export default function DailyRecordFormModal({
             {(() => {
               const truckCustomer = row.customerId ? customerById.get(row.customerId) : undefined;
               const price = truckCustomer?.pricePerBag ?? 0;
+              const bonus = Number(row.bonusBags) || 0;
               return (
                 <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: -6, marginBottom: 10 }}>
                   Revenue: {formatMoney((Number(row.bags) || 0) * price)} (₦{price}/bag
                   {truckCustomer ? ` — ${truckCustomer.name}'s price` : ""})
                   {truckCustomer && price === 0 ? " — no price set for this customer yet" : ""}
+                  {bonus > 0 && <> · Instant incentive: +{bonus} bags (manual, not part of revenue)</>}
                 </div>
               );
             })()}
@@ -671,7 +692,15 @@ export default function DailyRecordFormModal({
           onClick={() =>
             setTruckDeliveries((rows) => [
               ...rows,
-              { key: nextKey(), customerId: customers[0]?.id ?? "", bags: "", ownTruck: true, fuelCost: "", hiredCost: "" },
+              {
+                key: nextKey(),
+                customerId: customers[0]?.id ?? "",
+                bags: "",
+                bonusBags: "",
+                ownTruck: true,
+                fuelCost: "",
+                hiredCost: "",
+              },
             ])
           }
         >

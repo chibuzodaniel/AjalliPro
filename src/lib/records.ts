@@ -47,6 +47,10 @@ export function recordTruckDeliveryBagsTotal(r: DailyRecordFull): number {
   return r.truckDeliveries.reduce((s, t) => s + t.bags, 0);
 }
 
+export function recordTruckDeliveryBonusBagsTotal(r: DailyRecordFull): number {
+  return r.truckDeliveries.reduce((s, t) => s + t.bonusBags, 0);
+}
+
 export function recordTruckDeliveryCostTotal(r: DailyRecordFull): number {
   return r.truckDeliveries.reduce((s, t) => s + (t.ownTruck ? t.fuelCost : t.hiredCost), 0);
 }

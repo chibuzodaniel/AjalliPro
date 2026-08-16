@@ -18,14 +18,16 @@ export interface ClosingStockInput {
   driverBagsTotal: number;
   driverBonusBagsTotal: number;
   truckDeliveryBagsTotal: number;
+  truckDeliveryBonusBagsTotal: number;
   leakageBagsNew: number;
 }
 
 /**
  * factoryBagsFromLeakage is excluded here — those bags already left "good"
  * stock the day they leaked, so subtracting them again here would double-count
- * the loss. Bonus bags handed out as an instant driver incentive still leave
- * the warehouse, so they count the same as a regular sale for stock purposes.
+ * the loss. Bonus bags handed out as an instant driver/customer incentive
+ * still leave the warehouse, so they count the same as a regular sale for
+ * stock purposes.
  */
 export function computeClosingStock(input: ClosingStockInput): number {
   return (
@@ -35,6 +37,7 @@ export function computeClosingStock(input: ClosingStockInput): number {
     input.driverBagsTotal -
     input.driverBonusBagsTotal -
     input.truckDeliveryBagsTotal -
+    input.truckDeliveryBonusBagsTotal -
     input.leakageBagsNew
   );
 }

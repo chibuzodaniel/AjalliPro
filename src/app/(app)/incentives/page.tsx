@@ -36,8 +36,15 @@ export default async function IncentivesPage({
     getApprovedRecordsSorted(),
     getWeeklyIncentiveSettings(),
   ]);
-  const { customerWeekly, driverWeekly, customerYearly, driverInstantWeekly, driverInstantYearly } =
-    computeIncentiveData(approvedRecords);
+  const {
+    customerWeekly,
+    driverWeekly,
+    customerYearly,
+    driverInstantWeekly,
+    driverInstantYearly,
+    customerInstantWeekly,
+    customerInstantYearly,
+  } = computeIncentiveData(approvedRecords);
   const wk = currentWeekKey();
   const year = new Date().getFullYear();
   const { customerWeeklyThreshold, customerWeeklyBonus, driverWeeklyThreshold, driverWeeklyBonus } = weeklySettings;
@@ -45,8 +52,13 @@ export default async function IncentivesPage({
   const custRows = customers.map((c) => {
     const wkBags = customerWeekly.get(c.id)?.[wk] ?? 0;
     const qualifies = wkBags >= customerWeeklyThreshold;
-    const yearBonusBags = weeksQualifiedInYear(customerWeekly.get(c.id), customerWeeklyThreshold, year) * customerWeeklyBonus;
-    return { c, wkBags, qualifies, weekBonusBags: qualifies ? customerWeeklyBonus : 0, yearBonusBags };
+    const thresholdBonusYear =
+      weeksQualifiedInYear(customerWeekly.get(c.id), customerWeeklyThreshold, year) * customerWeeklyBonus;
+    const instantWeek = customerInstantWeekly.get(c.id)?.[wk] ?? 0;
+    const instantYear = yearTotal(customerInstantYearly.get(c.id), year);
+    const weekBonusBags = (qualifies ? customerWeeklyBonus : 0) + instantWeek;
+    const yearBonusBags = thresholdBonusYear + instantYear;
+    return { c, wkBags, qualifies, instantWeek, instantYear, weekBonusBags, yearBonusBags };
   });
   const custQualified = custRows.filter((r) => r.qualifies).length;
   const custAvg = custRows.length ? Math.round(custRows.reduce((s, r) => s + r.wkBags, 0) / custRows.length) : 0;
@@ -109,7 +121,7 @@ export default async function IncentivesPage({
           <div className="card">
             <div className="section-title">
               Customer weekly incentive — {customerWeeklyThreshold} bags/week qualifies for +{customerWeeklyBonus}{" "}
-              bonus bags
+              bonus bags. Instant incentives are entered manually per truck delivery.
             </div>
             <div className="table-wrap">
               <table>
@@ -121,11 +133,13 @@ export default async function IncentivesPage({
                     <th>Status</th>
                     <th>Weeks qualified (all-time)</th>
                     <th>Year-to-date bags</th>
-                    <th>Incentive bags (this year)</th>
+                    <th>Instant incentive (week)</th>
+                    <th>Instant incentive (year)</th>
+                    <th>Total incentives (year)</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {custRows.map(({ c, wkBags, qualifies, yearBonusBags }) => (
+                  {custRows.map(({ c, wkBags, qualifies, instantWeek, instantYear, yearBonusBags }) => (
                     <tr key={c.id}>
                       <td>{c.name}</td>
                       <td>{wkBags} bags</td>
@@ -139,6 +153,8 @@ export default async function IncentivesPage({
                       </td>
                       <td>{weeksQualified(customerWeekly.get(c.id), customerWeeklyThreshold)}</td>
                       <td>{yearTotal(customerYearly.get(c.id), year)}</td>
+                      <td>{instantWeek}</td>
+                      <td>{instantYear}</td>
                       <td>{yearBonusBags}</td>
                     </tr>
                   ))}

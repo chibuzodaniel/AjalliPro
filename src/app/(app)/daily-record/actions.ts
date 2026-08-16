@@ -15,6 +15,7 @@ import {
   recordDriverBagsTotal,
   recordDriverBonusBagsTotal,
   recordTruckDeliveryBagsTotal,
+  recordTruckDeliveryBonusBagsTotal,
 } from "@/lib/records";
 
 function buildLoadingFeeExpenses(
@@ -83,6 +84,7 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
   const driverBagsTotal = data.driverSales.reduce((s, d) => s + d.bags, 0);
   const driverBonusBagsTotal = data.driverSales.reduce((s, d) => s + d.bonusBags, 0);
   const truckDeliveryBagsTotal = data.truckDeliveries.reduce((s, t) => s + t.bags, 0);
+  const truckDeliveryBonusBagsTotal = data.truckDeliveries.reduce((s, t) => s + t.bonusBags, 0);
 
   const closing = computeClosingStock({
     opening,
@@ -92,6 +94,7 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
     driverBagsTotal,
     driverBonusBagsTotal,
     truckDeliveryBagsTotal,
+    truckDeliveryBonusBagsTotal,
     leakageBagsNew: data.leakageBags,
   });
   const leakageClosing = computeLeakageClosing(leakageOpening, data.leakageBags, data.factoryBagsFromLeakage);
@@ -141,6 +144,7 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
             return {
               customerId: t.customerId,
               bags: t.bags,
+              bonusBags: t.bonusBags,
               pricePerBag: customer?.pricePerBag ?? 0,
               ownTruck: t.ownTruck,
               fuelCost: t.ownTruck ? t.fuelCost : 0,
@@ -209,6 +213,7 @@ async function cascadeRecalculate(
       driverBagsTotal: recordDriverBagsTotal(rec),
       driverBonusBagsTotal: recordDriverBonusBagsTotal(rec),
       truckDeliveryBagsTotal: recordTruckDeliveryBagsTotal(rec),
+      truckDeliveryBonusBagsTotal: recordTruckDeliveryBonusBagsTotal(rec),
       leakageBagsNew: rec.leakageBags,
     });
     const leakageClosing = computeLeakageClosing(leakageOpening, rec.leakageBags, rec.factoryBagsFromLeakage);
@@ -269,6 +274,7 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
   const driverBagsTotal = data.driverSales.reduce((s, d) => s + d.bags, 0);
   const driverBonusBagsTotal = data.driverSales.reduce((s, d) => s + d.bonusBags, 0);
   const truckDeliveryBagsTotal = data.truckDeliveries.reduce((s, t) => s + t.bags, 0);
+  const truckDeliveryBonusBagsTotal = data.truckDeliveries.reduce((s, t) => s + t.bonusBags, 0);
 
   const closing = computeClosingStock({
     opening,
@@ -278,6 +284,7 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
     driverBagsTotal,
     driverBonusBagsTotal,
     truckDeliveryBagsTotal,
+    truckDeliveryBonusBagsTotal,
     leakageBagsNew: data.leakageBags,
   });
   const leakageClosing = computeLeakageClosing(leakageOpening, data.leakageBags, data.factoryBagsFromLeakage);
@@ -327,6 +334,7 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
             return {
               customerId: t.customerId,
               bags: t.bags,
+              bonusBags: t.bonusBags,
               pricePerBag: customer?.pricePerBag ?? 0,
               ownTruck: t.ownTruck,
               fuelCost: t.ownTruck ? t.fuelCost : 0,

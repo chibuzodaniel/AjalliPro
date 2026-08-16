@@ -10,6 +10,9 @@ export interface IncentiveData {
   /** Manually-entered instant incentive bags given per driver sale (not paid for). */
   driverInstantWeekly: Map<string, WeeklyBagsMap>;
   driverInstantYearly: Map<string, Record<number, number>>;
+  /** Manually-entered instant incentive bags given per truck delivery (not paid for). */
+  customerInstantWeekly: Map<string, WeeklyBagsMap>;
+  customerInstantYearly: Map<string, Record<number, number>>;
 }
 
 /**
@@ -27,6 +30,8 @@ export function computeIncentiveData(records: DailyRecordFull[]): IncentiveData 
   const customerYearly = new Map<string, Record<number, number>>();
   const driverInstantWeekly = new Map<string, WeeklyBagsMap>();
   const driverInstantYearly = new Map<string, Record<number, number>>();
+  const customerInstantWeekly = new Map<string, WeeklyBagsMap>();
+  const customerInstantYearly = new Map<string, Record<number, number>>();
 
   function bumpWeekly(map: Map<string, WeeklyBagsMap>, id: string, weekKey: string, bags: number) {
     const existing = map.get(id) ?? {};
@@ -60,11 +65,23 @@ export function computeIncentiveData(records: DailyRecordFull[]): IncentiveData 
       if (t.customerId) {
         bumpWeekly(customerWeekly, t.customerId, weekKey, t.bags);
         bumpYearly(customerYearly, t.customerId, year, t.bags);
+        if (t.bonusBags > 0) {
+          bumpWeekly(customerInstantWeekly, t.customerId, weekKey, t.bonusBags);
+          bumpYearly(customerInstantYearly, t.customerId, year, t.bonusBags);
+        }
       }
     }
   }
 
-  return { driverWeekly, customerWeekly, customerYearly, driverInstantWeekly, driverInstantYearly };
+  return {
+    driverWeekly,
+    customerWeekly,
+    customerYearly,
+    driverInstantWeekly,
+    driverInstantYearly,
+    customerInstantWeekly,
+    customerInstantYearly,
+  };
 }
 
 export function weeksQualified(weeklyMap: WeeklyBagsMap | undefined, threshold: number): number {

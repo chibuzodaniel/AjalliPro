@@ -50,6 +50,7 @@ export default function EditDailyRecordButton({
     truckDeliveries: record.truckDeliveries.map((t) => ({
       customerId: t.customerId,
       bags: t.bags,
+      bonusBags: t.bonusBags,
       ownTruck: t.ownTruck,
       fuelCost: t.fuelCost,
       hiredCost: t.hiredCost,

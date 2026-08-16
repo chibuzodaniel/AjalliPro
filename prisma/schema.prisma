@@ -137,7 +137,8 @@ model TruckDelivery {
   customerId    String?
   customer      Customer?   @relation(fields: [customerId], references: [id])
   bags          Int
-  pricePerBag   Int         @default(0) // snapshot: the customer's set price if selected, else the day's factory price
+  bonusBags     Int         @default(0) // instant incentive bags given free to this customer, entered manually by the recorder
+  pricePerBag   Int         @default(0) // snapshot of the customer's set price at the time of this delivery
   ownTruck      Boolean     @default(true)
   fuelCost      Int         @default(0) // used when ownTruck = true
   hiredCost     Int         @default(0) // used when ownTruck = false (price paid to the hired truck)

@@ -66,7 +66,8 @@ export default async function DashboardPage() {
   const topDrivers = [...driverTotals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
 
   // incentive watch
-  const { customerWeekly, driverWeekly, driverInstantWeekly, driverInstantYearly } = computeIncentiveData(approvedRecords);
+  const { customerWeekly, driverWeekly, driverInstantWeekly, driverInstantYearly, customerInstantWeekly, customerInstantYearly } =
+    computeIncentiveData(approvedRecords);
   const watchItems: { label: string; bags: number; threshold: number }[] = [];
   for (const c of customers) {
     const b = customerWeekly.get(c.id)?.[wk] ?? 0;
@@ -85,6 +86,8 @@ export default async function DashboardPage() {
   let incentiveYearTotal = 0;
   for (const c of customers) {
     const wkBags = customerWeekly.get(c.id)?.[wk] ?? 0;
+    incentiveWeekTotal += customerInstantWeekly.get(c.id)?.[wk] ?? 0;
+    incentiveYearTotal += yearTotal(customerInstantYearly.get(c.id), thisYear);
     if (wkBags >= weeklySettings.customerWeeklyThreshold) incentiveWeekTotal += weeklySettings.customerWeeklyBonus;
     incentiveYearTotal +=
       weeksQualifiedInYear(customerWeekly.get(c.id), weeklySettings.customerWeeklyThreshold, thisYear) *

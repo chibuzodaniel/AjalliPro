@@ -14,6 +14,7 @@ export const driverSaleSchema = z.object({
 export const truckDeliverySchema = z.object({
   customerId: z.string().min(1, "Select a customer"),
   bags: z.number().int().min(0),
+  bonusBags: z.number().int().min(0),
   ownTruck: z.boolean(),
   fuelCost: z.number().int().min(0),
   hiredCost: z.number().int().min(0),
