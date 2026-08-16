@@ -2,6 +2,7 @@ import { getApprovedRecordsSorted, recordProdTotal } from "@/lib/records";
 import { filterRecordsByRange, parseRange, RANGE_OPTIONS, RANGE_LABEL } from "@/lib/ranges";
 import KpiCard from "@/components/ui/KpiCard";
 import RangeTabs from "@/components/ui/RangeTabs";
+import ViewAllModal from "@/components/ui/ViewAllModal";
 import { BarTrendChart } from "@/components/charts/TrendChart";
 
 export default async function ProductionPage({
@@ -31,6 +32,27 @@ export default async function ProductionPage({
 
   const labels = records.map((r) => r.date.slice(5));
   const series = records.map((r) => recordProdTotal(r));
+
+  const packerTable = (
+    <table>
+      <thead>
+        <tr>
+          <th>Packer</th>
+          <th>Bags packed</th>
+          <th>Share of total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {sortedPackers.map(([name, bags]) => (
+          <tr key={name}>
+            <td>{name}</td>
+            <td>{bags}</td>
+            <td>{total ? Math.round((bags / total) * 100) : 0}%</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
 
   return (
     <div>
@@ -67,27 +89,11 @@ export default async function ProductionPage({
         )}
       </div>
       <div className="card" style={{ marginTop: 16 }}>
-        <div className="section-title">Packer breakdown</div>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Packer</th>
-                <th>Bags packed</th>
-                <th>Share of total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedPackers.map(([name, bags]) => (
-                <tr key={name}>
-                  <td>{name}</td>
-                  <td>{bags}</td>
-                  <td>{total ? Math.round((bags / total) * 100) : 0}%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div className="section-title">Packer breakdown</div>
+          <ViewAllModal title="All Packers">{packerTable}</ViewAllModal>
         </div>
+        <div className="table-wrap">{packerTable}</div>
         {sortedPackers.length === 0 && <div className="empty">No production logged in this range.</div>}
       </div>
     </div>

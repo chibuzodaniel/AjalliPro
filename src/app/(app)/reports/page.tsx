@@ -12,6 +12,7 @@ import { filterRecordsByRange, parseRange, RANGE_OPTIONS, RANGE_LABEL } from "@/
 import { formatMoney } from "@/lib/money";
 import KpiCard from "@/components/ui/KpiCard";
 import RangeTabs from "@/components/ui/RangeTabs";
+import ViewAllModal from "@/components/ui/ViewAllModal";
 import { LineTrendChart } from "@/components/charts/TrendChart";
 import PrintButton from "@/components/shared/PrintButton";
 
@@ -38,6 +39,50 @@ export default async function ReportsPage({
 
   const labels = records.map((r) => r.date.slice(5));
   const series = records.map((r) => r.factoryBags + recordDriverBagsTotal(r) + recordTruckDeliveryBagsTotal(r));
+
+  const recordDetailTable = (
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Produced</th>
+          <th>Factory sales</th>
+          <th>Driver sales</th>
+          <th>Truck deliveries</th>
+          <th>Pump water</th>
+          <th>Leakages</th>
+          <th>Expenses</th>
+          <th>Closing stock</th>
+        </tr>
+      </thead>
+      <tbody>
+        {records.length === 0 ? (
+          <tr>
+            <td colSpan={9} style={{ textAlign: "center", color: "var(--text-faint)" }}>
+              No approved records in this range
+            </td>
+          </tr>
+        ) : (
+          records.map((r) => (
+            <tr key={r.id}>
+              <td>{r.date}</td>
+              <td>{recordProdTotal(r)}</td>
+              <td>
+                {r.factoryBags} @ {formatMoney(r.factoryPricePerBag)}
+                {r.factoryBagsFromLeakage > 0 ? ` (${r.factoryBagsFromLeakage} rebagged)` : ""}
+              </td>
+              <td>{recordDriverBagsTotal(r)} bags</td>
+              <td>{recordTruckDeliveryBagsTotal(r)} bags</td>
+              <td>{formatMoney(r.pumpWaterAmount)}</td>
+              <td>{r.leakageBags}</td>
+              <td>{formatMoney(recordExpenseTotal(r))}</td>
+              <td>{r.closingStock}</td>
+            </tr>
+          ))
+        )}
+      </tbody>
+    </table>
+  );
 
   return (
     <div>
@@ -66,50 +111,11 @@ export default async function ReportsPage({
         <LineTrendChart labels={labels} series={[{ label: "Bags sold", data: series, color: "#3FDE9A" }]} />
       </div>
       <div className="card" style={{ marginTop: 16 }}>
-        <div className="section-title">Record detail</div>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Produced</th>
-                <th>Factory sales</th>
-                <th>Driver sales</th>
-                <th>Truck deliveries</th>
-                <th>Pump water</th>
-                <th>Leakages</th>
-                <th>Expenses</th>
-                <th>Closing stock</th>
-              </tr>
-            </thead>
-            <tbody>
-              {records.length === 0 ? (
-                <tr>
-                  <td colSpan={9} style={{ textAlign: "center", color: "var(--text-faint)" }}>
-                    No approved records in this range
-                  </td>
-                </tr>
-              ) : (
-                records.map((r) => (
-                  <tr key={r.id}>
-                    <td>{r.date}</td>
-                    <td>{recordProdTotal(r)}</td>
-                    <td>
-                      {r.factoryBags} @ {formatMoney(r.factoryPricePerBag)}
-                      {r.factoryBagsFromLeakage > 0 ? ` (${r.factoryBagsFromLeakage} rebagged)` : ""}
-                    </td>
-                    <td>{recordDriverBagsTotal(r)} bags</td>
-                    <td>{recordTruckDeliveryBagsTotal(r)} bags</td>
-                    <td>{formatMoney(r.pumpWaterAmount)}</td>
-                    <td>{r.leakageBags}</td>
-                    <td>{formatMoney(recordExpenseTotal(r))}</td>
-                    <td>{r.closingStock}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div className="section-title">Record detail</div>
+          <ViewAllModal title="All Records — Detail">{recordDetailTable}</ViewAllModal>
         </div>
+        <div className="table-wrap">{recordDetailTable}</div>
       </div>
     </div>
   );

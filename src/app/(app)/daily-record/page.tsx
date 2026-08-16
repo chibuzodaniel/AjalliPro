@@ -15,6 +15,7 @@ import AddDailyRecordButton from "@/components/daily-record/AddDailyRecordButton
 import EditDailyRecordButton from "@/components/daily-record/EditDailyRecordButton";
 import DeleteDailyRecordButton from "@/components/daily-record/DeleteDailyRecordButton";
 import ApproveRejectButtons from "@/components/shared/ApproveRejectButtons";
+import ViewAllModal from "@/components/ui/ViewAllModal";
 import { approveDailyRecord } from "../approvals/actions";
 
 export default async function DailyRecordPage() {
@@ -28,6 +29,70 @@ export default async function DailyRecordPage() {
     getPricingSettings(),
   ]);
   const approver = user ? isApprover(user.role) : false;
+
+  const recordsTable = (
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Opening</th>
+          <th>Produced</th>
+          <th>Sold</th>
+          <th>Truck bags</th>
+          <th>Pump water</th>
+          <th>Leakages</th>
+          <th>Leakage balance</th>
+          <th>Closing</th>
+          <th>Status</th>
+          <th>By</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {records.map((r) => (
+          <tr key={r.id}>
+            <td>{r.date}</td>
+            <td>{r.openingStock}</td>
+            <td>{recordProdTotal(r)}</td>
+            <td>{recordSoldTotal(r)}</td>
+            <td>{recordTruckDeliveryBagsTotal(r)}</td>
+            <td>{formatMoney(r.pumpWaterAmount)}</td>
+            <td>{r.leakageBags}</td>
+            <td>{r.leakageClosing}</td>
+            <td>{r.closingStock}</td>
+            <td>
+              <Pill status={r.status}>{r.status.toLowerCase()}</Pill>
+            </td>
+            <td>
+              {r.createdBy.name}
+              {roleLabel(r.createdByRole) && (
+                <>
+                  <br />
+                  <span className="badge-role">{roleLabel(r.createdByRole)}</span>
+                </>
+              )}
+            </td>
+            <td style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              {approver && r.status === "PENDING" && (
+                <ApproveRejectButtons id={r.id} onApprove={approveDailyRecord} approveOnly />
+              )}
+              {user && (approver || (r.createdById === user.id && r.status === "PENDING")) && (
+                <EditDailyRecordButton
+                  record={r}
+                  drivers={drivers.map((d) => ({ id: d.id, name: d.name, pricePerBag: d.pricePerBag, loadingFee: d.loadingFee }))}
+                  customers={customers.map((c) => ({ id: c.id, name: c.name, pricePerBag: c.pricePerBag }))}
+                  canEditOpeningStock={user?.role === "SUPER_ADMIN"}
+                  canEditFactoryPrice={user?.role === "ADMIN" || user?.role === "SUPER_ADMIN"}
+                  canEditLeakageOpening={user?.role === "SUPER_ADMIN"}
+                />
+              )}
+              {approver && <DeleteDailyRecordButton id={r.id} date={r.date} status={r.status} />}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
 
   return (
     <div>
@@ -48,69 +113,10 @@ export default async function DailyRecordPage() {
         />
       </div>
       <div className="card">
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Opening</th>
-                <th>Produced</th>
-                <th>Sold</th>
-                <th>Truck bags</th>
-                <th>Pump water</th>
-                <th>Leakages</th>
-                <th>Leakage balance</th>
-                <th>Closing</th>
-                <th>Status</th>
-                <th>By</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {records.map((r) => (
-                <tr key={r.id}>
-                  <td>{r.date}</td>
-                  <td>{r.openingStock}</td>
-                  <td>{recordProdTotal(r)}</td>
-                  <td>{recordSoldTotal(r)}</td>
-                  <td>{recordTruckDeliveryBagsTotal(r)}</td>
-                  <td>{formatMoney(r.pumpWaterAmount)}</td>
-                  <td>{r.leakageBags}</td>
-                  <td>{r.leakageClosing}</td>
-                  <td>{r.closingStock}</td>
-                  <td>
-                    <Pill status={r.status}>{r.status.toLowerCase()}</Pill>
-                  </td>
-                  <td>
-                    {r.createdBy.name}
-                    {roleLabel(r.createdByRole) && (
-                      <>
-                        <br />
-                        <span className="badge-role">{roleLabel(r.createdByRole)}</span>
-                      </>
-                    )}
-                  </td>
-                  <td style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    {approver && r.status === "PENDING" && (
-                      <ApproveRejectButtons id={r.id} onApprove={approveDailyRecord} approveOnly />
-                    )}
-                    {user && (approver || (r.createdById === user.id && r.status === "PENDING")) && (
-                      <EditDailyRecordButton
-                        record={r}
-                        drivers={drivers.map((d) => ({ id: d.id, name: d.name, pricePerBag: d.pricePerBag, loadingFee: d.loadingFee }))}
-                        customers={customers.map((c) => ({ id: c.id, name: c.name, pricePerBag: c.pricePerBag }))}
-                        canEditOpeningStock={user?.role === "SUPER_ADMIN"}
-                        canEditFactoryPrice={user?.role === "ADMIN" || user?.role === "SUPER_ADMIN"}
-                        canEditLeakageOpening={user?.role === "SUPER_ADMIN"}
-                      />
-                    )}
-                    {approver && <DeleteDailyRecordButton id={r.id} date={r.date} status={r.status} />}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+          <ViewAllModal title="All Daily Records">{recordsTable}</ViewAllModal>
         </div>
+        <div className="table-wrap">{recordsTable}</div>
         {records.length === 0 && (
           <div className="empty">No daily records yet. Click &quot;New daily entry&quot; to log today&apos;s activity.</div>
         )}

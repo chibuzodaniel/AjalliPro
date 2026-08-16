@@ -12,6 +12,7 @@ import DriverPricingEditor from "@/components/drivers/DriverPricingEditor";
 import DriverNameDetail from "@/components/drivers/DriverNameDetail";
 import DeleteDriverButton from "@/components/drivers/DeleteDriverButton";
 import ApproveRejectButtons from "@/components/shared/ApproveRejectButtons";
+import ViewAllModal from "@/components/ui/ViewAllModal";
 import { approveDriver, rejectDriver } from "./actions";
 
 export default async function DriversPage() {
@@ -27,6 +28,65 @@ export default async function DriversPage() {
   const canSetPricing = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
   const canDelete = user?.role === "SUPER_ADMIN";
 
+  const driversTable = (
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Phone</th>
+          <th>Price/bag &amp; loading fee/bag</th>
+          <th>Weekly bags</th>
+          <th>Status</th>
+          <th>Added by</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {drivers.map((d) => {
+          const wkBags = driverWeekly.get(d.id)?.[wk] ?? 0;
+          return (
+            <tr key={d.id}>
+              <td>
+                <DriverNameDetail
+                  name={d.name}
+                  phone={d.phone}
+                  pricePerBag={d.pricePerBag}
+                  loadingFee={d.loadingFee}
+                  status={d.status}
+                  weeklyBags={wkBags}
+                />
+              </td>
+              <td>{d.phone || "—"}</td>
+              <td>
+                {canSetPricing ? (
+                  <DriverPricingEditor driverId={d.id} pricePerBag={d.pricePerBag} loadingFee={d.loadingFee} />
+                ) : (
+                  <span>
+                    {formatMoney(d.pricePerBag)}/bag + {formatMoney(d.loadingFee)}/bag loading
+                  </span>
+                )}
+              </td>
+              <td>
+                {wkBags}
+                {wkBags >= weeklySettings.driverWeeklyThreshold ? ` 🎉 +${weeklySettings.driverWeeklyBonus} bonus` : ""}
+              </td>
+              <td>
+                <Pill status={d.status}>{d.status.toLowerCase()}</Pill>
+              </td>
+              <td>{d.createdBy.name}</td>
+              <td style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                {approver && d.status === "PENDING" && (
+                  <ApproveRejectButtons id={d.id} onApprove={approveDriver} onReject={rejectDriver} />
+                )}
+                {canDelete && <DeleteDriverButton id={d.id} name={d.name} />}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+
   return (
     <div>
       <div className="topbar">
@@ -37,66 +97,10 @@ export default async function DriversPage() {
         {user && canManageDrivers(user.role) && <AddDriverButton canSetPricing={canSetPricing} />}
       </div>
       <div className="card">
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Phone</th>
-                <th>Price/bag &amp; loading fee/bag</th>
-                <th>Weekly bags</th>
-                <th>Status</th>
-                <th>Added by</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {drivers.map((d) => {
-                const wkBags = driverWeekly.get(d.id)?.[wk] ?? 0;
-                return (
-                  <tr key={d.id}>
-                    <td>
-                      <DriverNameDetail
-                        name={d.name}
-                        phone={d.phone}
-                        pricePerBag={d.pricePerBag}
-                        loadingFee={d.loadingFee}
-                        status={d.status}
-                        weeklyBags={wkBags}
-                      />
-                    </td>
-                    <td>{d.phone || "—"}</td>
-                    <td>
-                      {canSetPricing ? (
-                        <DriverPricingEditor driverId={d.id} pricePerBag={d.pricePerBag} loadingFee={d.loadingFee} />
-                      ) : (
-                        <span>
-                          {formatMoney(d.pricePerBag)}/bag + {formatMoney(d.loadingFee)}/bag loading
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      {wkBags}
-                      {wkBags >= weeklySettings.driverWeeklyThreshold
-                        ? ` 🎉 +${weeklySettings.driverWeeklyBonus} bonus`
-                        : ""}
-                    </td>
-                    <td>
-                      <Pill status={d.status}>{d.status.toLowerCase()}</Pill>
-                    </td>
-                    <td>{d.createdBy.name}</td>
-                    <td style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                      {approver && d.status === "PENDING" && (
-                        <ApproveRejectButtons id={d.id} onApprove={approveDriver} onReject={rejectDriver} />
-                      )}
-                      {canDelete && <DeleteDriverButton id={d.id} name={d.name} />}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+          <ViewAllModal title="All Drivers">{driversTable}</ViewAllModal>
         </div>
+        <div className="table-wrap">{driversTable}</div>
         {drivers.length === 0 && <div className="empty">No drivers added yet.</div>}
       </div>
     </div>

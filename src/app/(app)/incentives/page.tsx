@@ -5,6 +5,7 @@ import { currentWeekKey } from "@/lib/week";
 import { getWeeklyIncentiveSettings } from "@/lib/settings";
 import KpiCard from "@/components/ui/KpiCard";
 import RangeTabs from "@/components/ui/RangeTabs";
+import ViewAllModal from "@/components/ui/ViewAllModal";
 
 function ProgressBar({ bags, threshold, qualifies }: { bags: number; threshold: number; qualifies: boolean }) {
   const pct = Math.min(100, (bags / threshold) * 100);
@@ -89,6 +90,82 @@ export default async function IncentivesPage({
   const drvIncentiveWeekTotal = drvRows.reduce((s, r) => s + r.totalWeek, 0);
   const drvIncentiveYearTotal = drvRows.reduce((s, r) => s + r.totalYear, 0);
 
+  const customersTable = (
+    <table>
+      <thead>
+        <tr>
+          <th>Customer</th>
+          <th>This week</th>
+          <th>Progress</th>
+          <th>Status</th>
+          <th>Weeks qualified (all-time)</th>
+          <th>Year-to-date bags</th>
+          <th>Instant incentive (week)</th>
+          <th>Instant incentive (year)</th>
+          <th>Total incentives (year)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {custRows.map(({ c, wkBags, qualifies, instantWeek, instantYear, yearBonusBags }) => (
+          <tr key={c.id}>
+            <td>{c.name}</td>
+            <td>{wkBags} bags</td>
+            <ProgressBar bags={wkBags} threshold={customerWeeklyThreshold} qualifies={qualifies} />
+            <td>
+              {qualifies ? (
+                <span className="pill approved">+{customerWeeklyBonus} bonus qualified</span>
+              ) : (
+                <span className="pill pending">in progress</span>
+              )}
+            </td>
+            <td>{weeksQualified(customerWeekly.get(c.id), customerWeeklyThreshold)}</td>
+            <td>{yearTotal(customerYearly.get(c.id), year)}</td>
+            <td>{instantWeek}</td>
+            <td>{instantYear}</td>
+            <td>{yearBonusBags}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+
+  const driversTable = (
+    <table>
+      <thead>
+        <tr>
+          <th>Driver</th>
+          <th>This week</th>
+          <th>Progress</th>
+          <th>Status</th>
+          <th>Weeks qualified (all-time)</th>
+          <th>Instant incentive (week)</th>
+          <th>Instant incentive (year)</th>
+          <th>Total incentives (year)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {drvRows.map(({ d, wkBags, qualifies, instantWeek, instantYear, totalYear }) => (
+          <tr key={d.id}>
+            <td>{d.name}</td>
+            <td>{wkBags} bags</td>
+            <ProgressBar bags={wkBags} threshold={driverWeeklyThreshold} qualifies={qualifies} />
+            <td>
+              {qualifies ? (
+                <span className="pill approved">+{driverWeeklyBonus} bonus qualified</span>
+              ) : (
+                <span className="pill pending">in progress</span>
+              )}
+            </td>
+            <td>{weeksQualified(driverWeekly.get(d.id), driverWeeklyThreshold)}</td>
+            <td>{instantWeek}</td>
+            <td>{instantYear}</td>
+            <td>{totalYear}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+
   return (
     <div>
       <div className="topbar">
@@ -119,48 +196,14 @@ export default async function IncentivesPage({
             <KpiCard label="Incentive Bags — This Year" value={custIncentiveYearTotal} />
           </div>
           <div className="card">
-            <div className="section-title">
-              Customer weekly incentive — {customerWeeklyThreshold} bags/week qualifies for +{customerWeeklyBonus}{" "}
-              bonus bags. Instant incentives are entered manually per truck delivery.
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div className="section-title">
+                Customer weekly incentive — {customerWeeklyThreshold} bags/week qualifies for +{customerWeeklyBonus}{" "}
+                bonus bags. Instant incentives are entered manually per truck delivery.
+              </div>
+              <ViewAllModal title="All Customers — Incentive Detail">{customersTable}</ViewAllModal>
             </div>
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Customer</th>
-                    <th>This week</th>
-                    <th>Progress</th>
-                    <th>Status</th>
-                    <th>Weeks qualified (all-time)</th>
-                    <th>Year-to-date bags</th>
-                    <th>Instant incentive (week)</th>
-                    <th>Instant incentive (year)</th>
-                    <th>Total incentives (year)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {custRows.map(({ c, wkBags, qualifies, instantWeek, instantYear, yearBonusBags }) => (
-                    <tr key={c.id}>
-                      <td>{c.name}</td>
-                      <td>{wkBags} bags</td>
-                      <ProgressBar bags={wkBags} threshold={customerWeeklyThreshold} qualifies={qualifies} />
-                      <td>
-                        {qualifies ? (
-                          <span className="pill approved">+{customerWeeklyBonus} bonus qualified</span>
-                        ) : (
-                          <span className="pill pending">in progress</span>
-                        )}
-                      </td>
-                      <td>{weeksQualified(customerWeekly.get(c.id), customerWeeklyThreshold)}</td>
-                      <td>{yearTotal(customerYearly.get(c.id), year)}</td>
-                      <td>{instantWeek}</td>
-                      <td>{instantYear}</td>
-                      <td>{yearBonusBags}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <div className="table-wrap">{customersTable}</div>
             {custRows.length === 0 && <div className="empty">No customers yet.</div>}
           </div>
         </div>
@@ -173,46 +216,14 @@ export default async function IncentivesPage({
             <KpiCard label="Incentive Bags — This Year" value={drvIncentiveYearTotal} />
           </div>
           <div className="card">
-            <div className="section-title">
-              Driver weekly incentive — {driverWeeklyThreshold} bags/week qualifies for +{driverWeeklyBonus} bonus
-              bags. Instant incentives are entered manually per sale.
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div className="section-title">
+                Driver weekly incentive — {driverWeeklyThreshold} bags/week qualifies for +{driverWeeklyBonus} bonus
+                bags. Instant incentives are entered manually per sale.
+              </div>
+              <ViewAllModal title="All Drivers — Incentive Detail">{driversTable}</ViewAllModal>
             </div>
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Driver</th>
-                    <th>This week</th>
-                    <th>Progress</th>
-                    <th>Status</th>
-                    <th>Weeks qualified (all-time)</th>
-                    <th>Instant incentive (week)</th>
-                    <th>Instant incentive (year)</th>
-                    <th>Total incentives (year)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {drvRows.map(({ d, wkBags, qualifies, instantWeek, instantYear, totalYear }) => (
-                    <tr key={d.id}>
-                      <td>{d.name}</td>
-                      <td>{wkBags} bags</td>
-                      <ProgressBar bags={wkBags} threshold={driverWeeklyThreshold} qualifies={qualifies} />
-                      <td>
-                        {qualifies ? (
-                          <span className="pill approved">+{driverWeeklyBonus} bonus qualified</span>
-                        ) : (
-                          <span className="pill pending">in progress</span>
-                        )}
-                      </td>
-                      <td>{weeksQualified(driverWeekly.get(d.id), driverWeeklyThreshold)}</td>
-                      <td>{instantWeek}</td>
-                      <td>{instantYear}</td>
-                      <td>{totalYear}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <div className="table-wrap">{driversTable}</div>
             {drvRows.length === 0 && <div className="empty">No drivers yet.</div>}
           </div>
         </div>
