@@ -10,6 +10,7 @@ import Pill from "@/components/ui/Pill";
 import AddDriverButton from "@/components/drivers/AddDriverButton";
 import DriverPricingEditor from "@/components/drivers/DriverPricingEditor";
 import DriverNameDetail from "@/components/drivers/DriverNameDetail";
+import DeleteDriverButton from "@/components/drivers/DeleteDriverButton";
 import ApproveRejectButtons from "@/components/shared/ApproveRejectButtons";
 import { approveDriver, rejectDriver } from "./actions";
 
@@ -24,6 +25,7 @@ export default async function DriversPage() {
   const wk = currentWeekKey();
   const approver = user ? isApprover(user.role) : false;
   const canSetPricing = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
+  const canDelete = user?.role === "SUPER_ADMIN";
 
   return (
     <div>
@@ -41,7 +43,7 @@ export default async function DriversPage() {
               <tr>
                 <th>Name</th>
                 <th>Phone</th>
-                <th>Price/bag &amp; loading fee</th>
+                <th>Price/bag &amp; loading fee/bag</th>
                 <th>Weekly bags</th>
                 <th>Status</th>
                 <th>Added by</th>
@@ -69,7 +71,7 @@ export default async function DriversPage() {
                         <DriverPricingEditor driverId={d.id} pricePerBag={d.pricePerBag} loadingFee={d.loadingFee} />
                       ) : (
                         <span>
-                          {formatMoney(d.pricePerBag)}/bag + {formatMoney(d.loadingFee)}
+                          {formatMoney(d.pricePerBag)}/bag + {formatMoney(d.loadingFee)}/bag loading
                         </span>
                       )}
                     </td>
@@ -83,10 +85,11 @@ export default async function DriversPage() {
                       <Pill status={d.status}>{d.status.toLowerCase()}</Pill>
                     </td>
                     <td>{d.createdBy.name}</td>
-                    <td>
+                    <td style={{ display: "flex", gap: 6, alignItems: "center" }}>
                       {approver && d.status === "PENDING" && (
                         <ApproveRejectButtons id={d.id} onApprove={approveDriver} onReject={rejectDriver} />
                       )}
+                      {canDelete && <DeleteDriverButton id={d.id} name={d.name} />}
                     </td>
                   </tr>
                 );

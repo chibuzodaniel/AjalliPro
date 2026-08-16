@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 import { logActivity } from "@/lib/activity";
-import { customerSchema } from "@/lib/validation/customer";
+import { customerSchema, customerPricingSchema } from "@/lib/validation/customer";
 import { getApprovedRecordsSorted } from "@/lib/records";
 import { computeIncentiveData } from "@/lib/incentives";
 import { currentWeekKey } from "@/lib/week";
@@ -17,18 +17,72 @@ export async function createCustomer(input: unknown) {
   if (!parsed.success) {
     return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
+  const canSetPricing = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
   const customer = await prisma.customer.create({
     data: {
       name: parsed.data.name,
       email: parsed.data.email || null,
       phone: parsed.data.phone || null,
       address: parsed.data.address || null,
+      pricePerBag: canSetPricing ? parsed.data.pricePerBag ?? 0 : 0,
       createdById: user.id,
     },
   });
   await logActivity(`${user.name} added customer "${customer.name}".`, user.id);
   revalidatePath("/", "layout");
   return { ok: true as const };
+}
+
+export interface UpdateCustomerPricingResult {
+  ok: boolean;
+  error?: string;
+}
+
+export async function updateCustomerPricing(id: string, input: unknown): Promise<UpdateCustomerPricingResult> {
+  const user = await requireRole(["ADMIN", "SUPER_ADMIN"]);
+  const parsed = customerPricingSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+  const customer = await prisma.customer.update({
+    where: { id },
+    data: { pricePerBag: parsed.data.pricePerBag },
+  });
+  await logActivity(`${user.name} set "${customer.name}"'s price to ₦${parsed.data.pricePerBag}/bag.`, user.id);
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export interface DeleteCustomerResult {
+  ok: boolean;
+  error?: string;
+}
+
+export async function deleteCustomer(id: string): Promise<DeleteCustomerResult> {
+  const user = await requireRole(["SUPER_ADMIN"]);
+  const customer = await prisma.customer.findUnique({ where: { id } });
+  if (!customer) {
+    return { ok: false, error: "Customer not found." };
+  }
+
+  const [factorySales, driverSales, truckDeliveries] = await Promise.all([
+    prisma.dailyRecord.count({ where: { factoryCustomerId: id } }),
+    prisma.driverSale.count({ where: { customerId: id } }),
+    prisma.truckDelivery.count({ where: { customerId: id } }),
+  ]);
+  const linked = factorySales + driverSales + truckDeliveries;
+  if (linked > 0) {
+    return {
+      ok: false,
+      error: `Can't delete "${customer.name}" — linked to ${linked} sale${linked === 1 ? "" : "s"}. Remove or edit those daily records first.`,
+    };
+  }
+
+  await prisma.mailLog.deleteMany({ where: { customerId: id } });
+  await prisma.customer.delete({ where: { id } });
+  await logActivity(`${user.name} deleted customer "${customer.name}".`, user.id);
+  revalidatePath("/", "layout");
+  return { ok: true };
 }
 
 export interface MailPreviewEntry {

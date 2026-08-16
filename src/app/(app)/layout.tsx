@@ -1,6 +1,6 @@
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
-import { isApprover } from "@/lib/roles";
+import { isApprover, roleLabel } from "@/lib/roles";
 import AppShell from "@/components/shell/AppShell";
 import NotificationBell, { type NotifItem } from "@/components/shell/NotificationBell";
 import InactivityLogout from "@/components/shell/InactivityLogout";
@@ -31,9 +31,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     pendingApprovalCount = pendingRecords.length + pendingDrivers.length;
 
     for (const r of pendingRecords) {
+      const label = roleLabel(r.createdByRole);
       items.push({
         title: `Daily record awaiting approval — ${r.date}`,
-        sub: `Submitted by ${r.createdBy.name} (${r.createdByRole})`,
+        sub: `Submitted by ${r.createdBy.name}${label ? ` (${label})` : ""}`,
         pending: true,
         href: "/approvals",
       });

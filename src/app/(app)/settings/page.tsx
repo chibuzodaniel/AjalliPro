@@ -1,8 +1,6 @@
-import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { latestClosingStock } from "@/lib/stock";
 import { getWeeklyIncentiveSettings, getEmailTemplateSettings, getPricingSettings } from "@/lib/settings";
-import IncentiveTierEditor from "@/components/settings/IncentiveTierEditor";
 import WeeklyIncentiveEditor from "@/components/settings/WeeklyIncentiveEditor";
 import EmailTemplateEditor from "@/components/settings/EmailTemplateEditor";
 import FactoryPriceEditor from "@/components/settings/FactoryPriceEditor";
@@ -12,8 +10,7 @@ export default async function SettingsPage() {
   const user = await getCurrentUser();
   const isSuperAdmin = user?.role === "SUPER_ADMIN";
 
-  const [tiers, stock, weeklySettings, emailTemplate, pricing] = await Promise.all([
-    prisma.incentiveTier.findMany({ orderBy: { min: "asc" } }),
+  const [stock, weeklySettings, emailTemplate, pricing] = await Promise.all([
     latestClosingStock(),
     getWeeklyIncentiveSettings(),
     getEmailTemplateSettings(),
@@ -27,7 +24,7 @@ export default async function SettingsPage() {
           <h1>Settings</h1>
           <div className="sub">
             {isSuperAdmin
-              ? "Incentive tiers & production requirement — Super Admin only editing"
+              ? "Weekly incentives & production requirement — Super Admin only editing"
               : "Factory sale pricing — Admin editing"}
           </div>
         </div>
@@ -51,11 +48,6 @@ export default async function SettingsPage() {
               same for drivers, with their own threshold/bonus.
             </div>
             <WeeklyIncentiveEditor initial={weeklySettings} />
-          </div>
-          <div className="card" style={{ marginTop: 16 }}>
-            <div className="section-title">Customer incentive tiers</div>
-            <div className="section-sub">Bonus bags awarded based on bags bought in a single sale.</div>
-            <IncentiveTierEditor initialTiers={tiers.map((t) => ({ min: t.min, max: t.max, bonus: t.bonus }))} />
           </div>
           <div className="card" style={{ marginTop: 16 }}>
             <div className="section-title">Weekly mail email template</div>

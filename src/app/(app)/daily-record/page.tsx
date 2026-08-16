@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/lib/auth-helpers";
-import { isApprover } from "@/lib/roles";
+import { isApprover, roleLabel } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import {
   getAllRecordsSorted,
@@ -12,19 +12,20 @@ import { getPricingSettings } from "@/lib/settings";
 import { formatMoney } from "@/lib/money";
 import Pill from "@/components/ui/Pill";
 import AddDailyRecordButton from "@/components/daily-record/AddDailyRecordButton";
+import EditDailyRecordButton from "@/components/daily-record/EditDailyRecordButton";
+import DeleteDailyRecordButton from "@/components/daily-record/DeleteDailyRecordButton";
 import ApproveRejectButtons from "@/components/shared/ApproveRejectButtons";
 import { approveDailyRecord } from "../approvals/actions";
 
 export default async function DailyRecordPage() {
   const user = await getCurrentUser();
-  const [records, drivers, customers, opening, leakageOpening, pricing, tiers] = await Promise.all([
+  const [records, drivers, customers, opening, leakageOpening, pricing] = await Promise.all([
     getAllRecordsSorted(),
     prisma.driver.findMany({ where: { status: "APPROVED" }, orderBy: { name: "asc" } }),
     prisma.customer.findMany({ orderBy: { name: "asc" } }),
     latestClosingStock(),
     latestLeakageClosing(),
     getPricingSettings(),
-    prisma.incentiveTier.findMany({ orderBy: { min: "asc" } }),
   ]);
   const approver = user ? isApprover(user.role) : false;
 
@@ -39,8 +40,7 @@ export default async function DailyRecordPage() {
           openingStock={opening}
           leakageOpening={leakageOpening}
           drivers={drivers.map((d) => ({ id: d.id, name: d.name, pricePerBag: d.pricePerBag, loadingFee: d.loadingFee }))}
-          customers={customers.map((c) => ({ id: c.id, name: c.name }))}
-          incentiveTiers={tiers.map((t) => ({ min: t.min, max: t.max, bonus: t.bonus }))}
+          customers={customers.map((c) => ({ id: c.id, name: c.name, pricePerBag: c.pricePerBag }))}
           canEditOpeningStock={user?.role === "SUPER_ADMIN"}
           factoryPricePerBag={pricing.factoryPricePerBag}
           canEditFactoryPrice={user?.role === "ADMIN" || user?.role === "SUPER_ADMIN"}
@@ -82,13 +82,27 @@ export default async function DailyRecordPage() {
                   </td>
                   <td>
                     {r.createdBy.name}
-                    <br />
-                    <span className="badge-role">{r.createdByRole}</span>
+                    {roleLabel(r.createdByRole) && (
+                      <>
+                        <br />
+                        <span className="badge-role">{roleLabel(r.createdByRole)}</span>
+                      </>
+                    )}
                   </td>
-                  <td>
+                  <td style={{ display: "flex", gap: 6, alignItems: "center" }}>
                     {approver && r.status === "PENDING" && (
                       <ApproveRejectButtons id={r.id} onApprove={approveDailyRecord} approveOnly />
                     )}
+                    {user && (approver || (r.createdById === user.id && r.status === "PENDING")) && (
+                      <EditDailyRecordButton
+                        record={r}
+                        drivers={drivers.map((d) => ({ id: d.id, name: d.name, pricePerBag: d.pricePerBag, loadingFee: d.loadingFee }))}
+                        customers={customers.map((c) => ({ id: c.id, name: c.name, pricePerBag: c.pricePerBag }))}
+                        canEditOpeningStock={user?.role === "SUPER_ADMIN"}
+                        canEditFactoryPrice={user?.role === "ADMIN" || user?.role === "SUPER_ADMIN"}
+                      />
+                    )}
+                    {approver && <DeleteDailyRecordButton id={r.id} date={r.date} status={r.status} />}
                   </td>
                 </tr>
               ))}

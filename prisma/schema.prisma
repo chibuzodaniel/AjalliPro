@@ -101,7 +101,7 @@ model Driver {
   name         String
   phone        String?
   pricePerBag  Int            @default(0) // fixed by Admin/Super Admin, applied automatically on each sale
-  loadingFee   Int            @default(0) // fixed by Admin/Super Admin, applied automatically on each sale
+  loadingFee   Int            @default(0) // per-bag rate fixed by Admin/Super Admin, multiplied by bags on each sale
   status       ApprovalStatus @default(PENDING)
   createdById  String
   createdBy    User           @relation("DriverCreatedBy", fields: [createdById], references: [id])
@@ -121,9 +121,9 @@ model DriverSale {
   customerId    String?
   customer      Customer?   @relation("DriverSaleCustomer", fields: [customerId], references: [id])
   bags          Int
-  pricePerBag   Int // snapshot of the driver's fixed price at the time of this sale
-  loadingFee    Int         @default(0) // snapshot of the driver's fixed loading fee at the time of this sale
-  bonusBags     Int         @default(0) // instant per-sale incentive, from the IncentiveTier table at the time of this sale
+  pricePerBag   Int // snapshot of the driver's fixed price/bag at the time of this sale
+  loadingFee    Int         @default(0) // snapshot of the driver's fixed loading fee/bag at the time of this sale
+  bonusBags     Int         @default(0) // instant incentive bags, entered manually by the recorder
 
   @@index([dailyRecordId])
   @@index([driverId])
@@ -137,6 +137,7 @@ model TruckDelivery {
   customerId    String?
   customer      Customer?   @relation(fields: [customerId], references: [id])
   bags          Int
+  pricePerBag   Int         @default(0) // snapshot: the customer's set price if selected, else the day's factory price
   ownTruck      Boolean     @default(true)
   fuelCost      Int         @default(0) // used when ownTruck = true
   hiredCost     Int         @default(0) // used when ownTruck = false (price paid to the hired truck)
@@ -151,6 +152,7 @@ model Customer {
   email       String?
   phone       String?
   address     String?
+  pricePerBag Int      @default(0) // fixed by Admin/Super Admin, used for truck delivery revenue when this customer is selected
   createdById String
   createdBy   User     @relation(fields: [createdById], references: [id])
   createdAt   DateTime @default(now())

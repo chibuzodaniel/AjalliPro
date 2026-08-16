@@ -66,14 +66,3 @@ export function weeksQualified(weeklyMap: WeeklyBagsMap | undefined, threshold: 
   if (!weeklyMap) return 0;
   return Object.values(weeklyMap).filter((b) => b >= threshold).length;
 }
-
-export interface IncentiveTierLike {
-  min: number;
-  max: number;
-  bonus: number;
-}
-
-export function bonusForBags(bags: number, tiers: IncentiveTierLike[]): number {
-  const tier = tiers.find((t) => bags >= t.min && bags <= t.max);
-  return tier ? tier.bonus : 0;
-}

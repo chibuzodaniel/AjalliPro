@@ -8,11 +8,11 @@ export const productionLineSchema = z.object({
 export const driverSaleSchema = z.object({
   driverId: z.string().min(1),
   bags: z.number().int().min(0),
-  customerId: z.string().min(1).nullable().optional(),
+  bonusBags: z.number().int().min(0),
 });
 
 export const truckDeliverySchema = z.object({
-  customerId: z.string().min(1).nullable().optional(),
+  customerId: z.string().min(1, "Select a customer"),
   bags: z.number().int().min(0),
   ownTruck: z.boolean(),
   fuelCost: z.number().int().min(0),
@@ -41,3 +41,7 @@ export const dailyRecordSchema = z.object({
 });
 
 export type DailyRecordInput = z.infer<typeof dailyRecordSchema>;
+
+export const dailyRecordEditSchema = dailyRecordSchema.omit({ date: true });
+
+export type DailyRecordEditInput = z.infer<typeof dailyRecordEditSchema>;

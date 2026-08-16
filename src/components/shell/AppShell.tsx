@@ -12,6 +12,7 @@ interface ShellUser {
 }
 
 function roleLabel(role: string) {
+  if (role === "SUPER_ADMIN") return "";
   return role
     .split("_")
     .map((w) => w[0] + w.slice(1).toLowerCase())
@@ -102,7 +103,7 @@ export default function AppShell({
             <div className="avatar">{initials}</div>
             <div className="sb-user-info">
               <div className="nm">{user.name}</div>
-              <div className="rl">{roleLabel(user.role)}</div>
+              {roleLabel(user.role) && <div className="rl">{roleLabel(user.role)}</div>}
             </div>
             <button className="logout-btn" onClick={handleLogout} title="Log out">
               🚪

@@ -14,10 +14,10 @@ export function computeRevenue(records: DailyRecordFull[]): RevenueSummary {
     rev += r.factoryBags * r.factoryPricePerBag;
     rev += r.pumpWaterAmount;
     for (const d of r.driverSales) {
-      rev += d.bags * d.pricePerBag + d.loadingFee;
+      rev += d.bags * d.pricePerBag + d.bags * d.loadingFee;
     }
     for (const t of r.truckDeliveries) {
-      rev += t.bags * r.factoryPricePerBag;
+      rev += t.bags * t.pricePerBag;
     }
     exp += recordExpenseTotal(r);
     exp += recordTruckDeliveryCostTotal(r);

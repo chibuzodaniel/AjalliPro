@@ -65,7 +65,7 @@ export default function AddDriverButton({ canSetPricing }: { canSetPricing?: boo
                 <input type="number" min={0} placeholder="0" value={price} onChange={(e) => setPrice(e.target.value)} />
               </div>
               <div className="field">
-                <label>Standard loading fee (₦)</label>
+                <label>Standard loading fee (₦/bag)</label>
                 <input
                   type="number"
                   min={0}

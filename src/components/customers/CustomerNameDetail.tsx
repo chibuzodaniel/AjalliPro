@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import Modal from "@/components/ui/Modal";
+import { formatMoney } from "@/lib/money";
 
 export default function CustomerNameDetail({
   name,
   email,
   phone,
   address,
+  pricePerBag,
   weeklyBags,
   yearlyBags,
 }: {
@@ -15,6 +17,7 @@ export default function CustomerNameDetail({
   email: string | null;
   phone: string | null;
   address: string | null;
+  pricePerBag: number;
   weeklyBags: number;
   yearlyBags: number;
 }) {
@@ -47,6 +50,10 @@ export default function CustomerNameDetail({
               Email
             </div>
             <div>{email || "Not available"}</div>
+          </div>
+          <div className="calc-box">
+            <span>Price / bag (truck deliveries)</span>
+            <b>{pricePerBag > 0 ? formatMoney(pricePerBag) : "Not set — uses factory price"}</b>
           </div>
           <div className="calc-box">
             <span>This week / year-to-date</span>

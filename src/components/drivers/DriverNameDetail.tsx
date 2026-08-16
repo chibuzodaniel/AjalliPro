@@ -44,7 +44,7 @@ export default function DriverNameDetail({
             <div>{status.toLowerCase()}</div>
           </div>
           <div className="calc-box">
-            <span>Price / bag + loading fee</span>
+            <span>Price / bag + loading fee / bag</span>
             <b>
               {formatMoney(pricePerBag)} + {formatMoney(loadingFee)}
             </b>

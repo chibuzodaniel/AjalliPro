@@ -45,11 +45,37 @@ export async function updateDriverPricing(id: string, input: unknown) {
     data: { pricePerBag: parsed.data.pricePerBag, loadingFee: parsed.data.loadingFee },
   });
   await logActivity(
-    `${user.name} set "${driver.name}"'s price to ₦${parsed.data.pricePerBag}/bag and loading fee to ₦${parsed.data.loadingFee}.`,
+    `${user.name} set "${driver.name}"'s price to ₦${parsed.data.pricePerBag}/bag and loading fee to ₦${parsed.data.loadingFee}/bag.`,
     user.id
   );
   revalidatePath("/", "layout");
   return { ok: true as const };
+}
+
+export interface DeleteDriverResult {
+  ok: boolean;
+  error?: string;
+}
+
+export async function deleteDriver(id: string): Promise<DeleteDriverResult> {
+  const user = await requireRole(["SUPER_ADMIN"]);
+  const driver = await prisma.driver.findUnique({ where: { id } });
+  if (!driver) {
+    return { ok: false, error: "Driver not found." };
+  }
+
+  const salesCount = await prisma.driverSale.count({ where: { driverId: id } });
+  if (salesCount > 0) {
+    return {
+      ok: false,
+      error: `Can't delete "${driver.name}" — has ${salesCount} recorded sale${salesCount === 1 ? "" : "s"}. Remove those daily records first.`,
+    };
+  }
+
+  await prisma.driver.delete({ where: { id } });
+  await logActivity(`${user.name} deleted driver "${driver.name}".`, user.id);
+  revalidatePath("/", "layout");
+  return { ok: true };
 }
 
 export async function approveDriver(id: string) {

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { recordSoldTotal, recordProdTotal, dailyRecordInclude } from "@/lib/records";
+import { roleLabel } from "@/lib/roles";
 import ApproveRejectButtons from "@/components/shared/ApproveRejectButtons";
 import { approveDailyRecord, rejectDailyRecord } from "./actions";
 import { approveDriver, rejectDriver } from "../drivers/actions";
@@ -48,7 +49,7 @@ export default async function ApprovalsPage() {
                     <td>{r.date}</td>
                     <td>{r.createdBy.name}</td>
                     <td>
-                      <span className="badge-role">{r.createdByRole}</span>
+                      {roleLabel(r.createdByRole) && <span className="badge-role">{roleLabel(r.createdByRole)}</span>}
                     </td>
                     <td>
                       {net >= 0 ? "+" : ""}

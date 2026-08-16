@@ -5,6 +5,13 @@ export const customerSchema = z.object({
   email: z.email("Enter a valid email").optional().or(z.literal("")),
   phone: z.string().trim().optional(),
   address: z.string().trim().optional(),
+  pricePerBag: z.number().int().min(0).optional(),
 });
 
 export type CustomerInput = z.infer<typeof customerSchema>;
+
+export const customerPricingSchema = z.object({
+  pricePerBag: z.number().int().min(0),
+});
+
+export type CustomerPricingInput = z.infer<typeof customerPricingSchema>;

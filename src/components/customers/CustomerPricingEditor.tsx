@@ -2,21 +2,18 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { updateDriverPricing } from "@/app/(app)/drivers/actions";
+import { updateCustomerPricing } from "@/app/(app)/customers/actions";
 
-export default function DriverPricingEditor({
-  driverId,
+export default function CustomerPricingEditor({
+  customerId,
   pricePerBag,
-  loadingFee,
 }: {
-  driverId: string;
+  customerId: string;
   pricePerBag: number;
-  loadingFee: number;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [price, setPrice] = useState(String(pricePerBag));
-  const [fee, setFee] = useState(String(loadingFee));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,10 +28,7 @@ export default function DriverPricingEditor({
   async function handleSave() {
     setLoading(true);
     setError(null);
-    const result = await updateDriverPricing(driverId, {
-      pricePerBag: Number(price) || 0,
-      loadingFee: Number(fee) || 0,
-    });
+    const result = await updateCustomerPricing(customerId, { pricePerBag: Number(price) || 0 });
     setLoading(false);
     if (!result.ok) {
       setError(result.error ?? "Could not save");
@@ -52,15 +46,7 @@ export default function DriverPricingEditor({
         value={price}
         onChange={(e) => setPrice(e.target.value)}
         style={{ width: 70 }}
-        title="Price per bag (₦)"
-      />
-      <input
-        type="number"
-        min={0}
-        value={fee}
-        onChange={(e) => setFee(e.target.value)}
-        style={{ width: 70 }}
-        title="Loading fee per bag (₦)"
+        title="Price per bag for truck deliveries (₦)"
       />
       <button className="btn btn-sm btn-approve" disabled={loading} onClick={handleSave}>
         Save
