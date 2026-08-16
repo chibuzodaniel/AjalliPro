@@ -28,6 +28,7 @@ export default async function DashboardPage() {
 
   const stock = approvedRecords.length ? approvedRecords[approvedRecords.length - 1].closingStock : 0;
   const today = todayISO();
+  const isSunday = new Date(today + "T00:00:00").getDay() === 0;
   const todayRec = approvedRecords.find((r) => r.date === today);
   const soldToday = todayRec ? recordSoldTotal(todayRec) : 0;
   const producedToday = todayRec ? todayRec.productionLines.reduce((s, p) => s + p.bags, 0) : null;
@@ -141,8 +142,8 @@ export default async function DashboardPage() {
           icon="🏭"
           iconBg="rgba(255,193,85,.15)"
           iconColor="var(--amber)"
-          delta={producedToday !== null ? "Live" : "Not logged yet"}
-          deltaTone={producedToday !== null ? "pos" : "neg"}
+          delta={producedToday !== null ? "Live" : isSunday ? "Closed — Sunday" : "Not logged yet"}
+          deltaTone={producedToday !== null || isSunday ? "pos" : "neg"}
         />
         <KpiCard
           label="Total Produced (This Week)"
