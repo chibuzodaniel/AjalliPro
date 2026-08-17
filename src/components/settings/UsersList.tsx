@@ -125,7 +125,7 @@ export default function UsersList({
             <th>Email</th>
             <th>Role</th>
             <th>Joined</th>
-            <th>Approves daily records</th>
+            {canAssign && <th>Approves daily records</th>}
             {canAssign && <th></th>}
           </tr>
         </thead>
@@ -142,11 +142,11 @@ export default function UsersList({
                 )}
               </td>
               <td>{fmtDate(u.createdAt)}</td>
-              <td>
-                {u.role === "SUPER_ADMIN" ? (
-                  <span style={{ color: "var(--text-faint)", fontSize: 12.5 }}>always (Super Admin)</span>
-                ) : u.role === "ADMIN" ? (
-                  canAssign ? (
+              {canAssign && (
+                <td>
+                  {u.role === "SUPER_ADMIN" ? (
+                    <span style={{ color: "var(--text-faint)", fontSize: 12.5 }}>always (Super Admin)</span>
+                  ) : u.role === "ADMIN" ? (
                     <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: loadingId === u.id ? "wait" : "pointer" }}>
                       <input
                         type="checkbox"
@@ -157,14 +157,10 @@ export default function UsersList({
                       <span style={{ fontSize: 12.5, color: "var(--text-dim)" }}>assigned</span>
                     </label>
                   ) : (
-                    <span style={{ color: "var(--text-faint)", fontSize: 12.5 }}>
-                      {u.dailyRecordApprover ? "assigned" : "not assigned"}
-                    </span>
-                  )
-                ) : (
-                  <span style={{ color: "var(--text-faint)", fontSize: 12.5 }}>—</span>
-                )}
-              </td>
+                    <span style={{ color: "var(--text-faint)", fontSize: 12.5 }}>—</span>
+                  )}
+                </td>
+              )}
               {canAssign && (
                 <td>
                   {u.role === "SUPER_ADMIN" ? (
