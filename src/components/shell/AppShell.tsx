@@ -5,6 +5,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { NAV_SECTIONS } from "./nav";
+import PushSubscribeButton from "./PushSubscribeButton";
+import PushToastListener from "./PushToastListener";
 
 interface ShellUser {
   name: string;
@@ -23,13 +25,20 @@ function isApprover(role: string) {
   return role === "ADMIN" || role === "SUPER_ADMIN";
 }
 
+function canReview(role: string) {
+  // Editor disabled for now — was: role === "EDITOR" || isApprover(role)
+  return isApprover(role);
+}
+
 export default function AppShell({
   user,
   pendingApprovalCount,
+  pushEnabled,
   children,
 }: {
   user: ShellUser;
   pendingApprovalCount: number;
+  pushEnabled?: boolean;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -51,6 +60,7 @@ export default function AppShell({
 
   return (
     <>
+      {pushEnabled && <PushToastListener />}
       <div className="mobile-header">
         <div className="mh-brand">
           <div className="logo">CI</div>
@@ -75,6 +85,7 @@ export default function AppShell({
             const visibleItems = section.items.filter((item) => {
               if (item.superAdminOnly) return user.role === "SUPER_ADMIN";
               if (item.approverOnly) return isApprover(user.role);
+              if (item.reviewerOnly) return canReview(user.role);
               return true;
             });
             if (!visibleItems.length) return null;
@@ -98,6 +109,12 @@ export default function AppShell({
               </div>
             );
           })}
+
+          {pushEnabled && (
+            <div style={{ marginBottom: 4 }}>
+              <PushSubscribeButton />
+            </div>
+          )}
 
           <div className="sb-user">
             <div className="avatar">{initials}</div>

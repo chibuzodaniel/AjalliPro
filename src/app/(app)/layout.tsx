@@ -1,6 +1,7 @@
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
-import { isApprover, roleLabel } from "@/lib/roles";
+import { isApprover, roleLabel, canApproveDailyRecords } from "@/lib/roles";
+import { isPushConfigured } from "@/lib/push";
 import AppShell from "@/components/shell/AppShell";
 import NotificationBell, { type NotifItem } from "@/components/shell/NotificationBell";
 import InactivityLogout from "@/components/shell/InactivityLogout";
@@ -16,12 +17,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   let pendingApprovalCount = 0;
 
   if (isApprover(user.role)) {
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id }, select: { dailyRecordApprover: true } });
+    const canSeeDailyRecords = canApproveDailyRecords(user.role, dbUser?.dailyRecordApprover ?? false);
+
     const [pendingRecords, pendingDrivers] = await Promise.all([
-      prisma.dailyRecord.findMany({
-        where: { status: "PENDING" },
-        include: { createdBy: true },
-        orderBy: { createdAt: "desc" },
-      }),
+      canSeeDailyRecords
+        ? prisma.dailyRecord.findMany({
+            where: { status: "PENDING" },
+            include: { createdBy: true },
+            orderBy: { createdAt: "desc" },
+          })
+        : Promise.resolve([]),
       prisma.driver.findMany({
         where: { status: "PENDING" },
         include: { createdBy: true },
@@ -61,7 +67,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <>
       <InactivityLogout />
       <NotificationBell items={items} />
-      <AppShell user={{ name: user.name ?? "", role: user.role }} pendingApprovalCount={pendingApprovalCount}>
+      <AppShell
+        user={{ name: user.name ?? "", role: user.role }}
+        pendingApprovalCount={pendingApprovalCount}
+        pushEnabled={isPushConfigured()}
+      >
         {children}
       </AppShell>
     </>

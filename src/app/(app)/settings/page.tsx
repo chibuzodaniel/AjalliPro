@@ -1,20 +1,29 @@
 import { getCurrentUser } from "@/lib/auth-helpers";
+import { prisma } from "@/lib/prisma";
 import { latestClosingStock } from "@/lib/stock";
 import { getWeeklyIncentiveSettings, getEmailTemplateSettings, getPricingSettings } from "@/lib/settings";
 import WeeklyIncentiveEditor from "@/components/settings/WeeklyIncentiveEditor";
 import EmailTemplateEditor from "@/components/settings/EmailTemplateEditor";
 import FactoryPriceEditor from "@/components/settings/FactoryPriceEditor";
 import ProductionCalculator from "@/components/settings/ProductionCalculator";
+import DailyRecordApproverEditor from "@/components/settings/DailyRecordApproverEditor";
 
 export default async function SettingsPage() {
   const user = await getCurrentUser();
   const isSuperAdmin = user?.role === "SUPER_ADMIN";
 
-  const [stock, weeklySettings, emailTemplate, pricing] = await Promise.all([
+  const [stock, weeklySettings, emailTemplate, pricing, admins] = await Promise.all([
     latestClosingStock(),
     getWeeklyIncentiveSettings(),
     getEmailTemplateSettings(),
     getPricingSettings(),
+    isSuperAdmin
+      ? prisma.user.findMany({
+          where: { role: "ADMIN" },
+          orderBy: { name: "asc" },
+          select: { id: true, name: true, email: true, dailyRecordApprover: true },
+        })
+      : Promise.resolve([]),
   ]);
 
   return (
@@ -48,6 +57,15 @@ export default async function SettingsPage() {
               same for drivers, with their own threshold/bonus.
             </div>
             <WeeklyIncentiveEditor initial={weeklySettings} />
+          </div>
+          <div className="card" style={{ marginTop: 16 }}>
+            <div className="section-title">Daily record approval notifications</div>
+            <div className="section-sub">
+              Super Admin always gets notified when a daily record needs approval. Choose which Admin(s) should also
+              be notified — other Admins won&apos;t be pinged, though any Admin can still approve from the Approvals
+              page.
+            </div>
+            <DailyRecordApproverEditor admins={admins} />
           </div>
           <div className="card" style={{ marginTop: 16 }}>
             <div className="section-title">Weekly mail email template</div>

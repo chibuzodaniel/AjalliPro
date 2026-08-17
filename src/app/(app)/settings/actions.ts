@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 import { logActivity } from "@/lib/activity";
 import { weeklyIncentiveSettingsSchema } from "@/lib/validation/weekly-incentive";
@@ -43,6 +44,22 @@ export async function updateEmailTemplate(input: unknown): Promise<UpdateEmailTe
 
   await saveEmailTemplateSettings(parsed.data);
   await logActivity(`${user.name} updated the weekly customer mail template.`, user.id);
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
+export interface SetDailyRecordApproverResult {
+  ok: boolean;
+  error?: string;
+}
+
+export async function setDailyRecordApprover(userId: string, value: boolean): Promise<SetDailyRecordApproverResult> {
+  const admin = await requireRole(["SUPER_ADMIN"]);
+  const target = await prisma.user.update({ where: { id: userId }, data: { dailyRecordApprover: value } });
+  await logActivity(
+    `${admin.name} ${value ? "assigned" : "unassigned"} "${target.name}" ${value ? "to" : "from"} daily record approval notifications.`,
+    admin.id
+  );
   revalidatePath("/settings");
   return { ok: true };
 }

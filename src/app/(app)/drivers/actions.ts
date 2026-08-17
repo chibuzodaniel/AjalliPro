@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 import { needsApproval } from "@/lib/roles";
 import { logActivity } from "@/lib/activity";
+import { notifyReviewers, sendPushToUsers } from "@/lib/push";
 import { driverSchema, driverPricingSchema } from "@/lib/validation/driver";
 
 export async function createDriver(input: unknown) {
@@ -30,6 +31,16 @@ export async function createDriver(input: unknown) {
     `${user.name} added driver "${driver.name}" (${pending ? "pending" : "approved"}).`,
     user.id
   );
+  if (pending) {
+    await notifyReviewers(
+      {
+        title: "New driver awaiting approval",
+        body: `${user.name} added "${driver.name}".`,
+        url: "/approvals",
+      },
+      user.id
+    );
+  }
   revalidatePath("/", "layout");
   return { ok: true as const };
 }
@@ -85,6 +96,11 @@ export async function approveDriver(id: string) {
     data: { status: "APPROVED", approvedById: user.id },
   });
   await logActivity(`${user.name} approved driver "${driver.name}".`, user.id);
+  await sendPushToUsers([driver.createdById], {
+    title: "Driver approved",
+    body: `${user.name} approved "${driver.name}".`,
+    url: "/drivers",
+  });
   revalidatePath("/", "layout");
 }
 
@@ -95,5 +111,10 @@ export async function rejectDriver(id: string) {
     data: { status: "REJECTED", approvedById: user.id },
   });
   await logActivity(`${user.name} rejected driver "${driver.name}".`, user.id);
+  await sendPushToUsers([driver.createdById], {
+    title: "Driver rejected",
+    body: `${user.name} rejected "${driver.name}".`,
+    url: "/drivers",
+  });
   revalidatePath("/", "layout");
 }

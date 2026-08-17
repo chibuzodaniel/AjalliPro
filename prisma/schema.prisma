@@ -10,7 +10,7 @@ datasource db {
 
 enum Role {
   SALES_STAFF
-  EDITOR
+  // EDITOR // disabled for now — not an assignable role, no users currently hold it
   ADMIN_STAFF
   ADMIN
   SUPER_ADMIN
@@ -28,15 +28,29 @@ model User {
   email        String   @unique
   passwordHash String
   role         Role     @default(SALES_STAFF)
+  dailyRecordApprover Boolean @default(false) // Admin explicitly assigned by Super Admin to be notified about daily records awaiting approval (Super Admin is always notified regardless)
   createdAt    DateTime @default(now())
 
-  dailyRecordsCreated  DailyRecord[] @relation("DailyRecordCreatedBy")
-  dailyRecordsApproved DailyRecord[] @relation("DailyRecordApprovedBy")
-  driversCreated       Driver[]      @relation("DriverCreatedBy")
-  driversApproved      Driver[]      @relation("DriverApprovedBy")
+  dailyRecordsCreated  DailyRecord[]      @relation("DailyRecordCreatedBy")
+  dailyRecordsApproved DailyRecord[]      @relation("DailyRecordApprovedBy")
+  driversCreated       Driver[]           @relation("DriverCreatedBy")
+  driversApproved      Driver[]           @relation("DriverApprovedBy")
   customersCreated     Customer[]
   activityLogs         ActivityLog[]
-  expensesMarkedPaid   ExpenseItem[] @relation("ExpensePaidBy")
+  expensesMarkedPaid   ExpenseItem[]      @relation("ExpensePaidBy")
+  pushSubscriptions    PushSubscription[]
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model DailyRecord {

@@ -17,6 +17,27 @@ export function needsApproval(role: Role): boolean {
 }
 
 /**
+ * Daily record approvals are further restricted beyond isApprover: Super
+ * Admin always has access; a plain Admin only does if Super Admin has
+ * specifically assigned them (User.dailyRecordApprover). Callers must pass
+ * a freshly-fetched dailyRecordApprover value — it isn't in the JWT session
+ * since Super Admin can toggle it at any time and the effect should be
+ * immediate, not wait for re-login.
+ */
+export function canApproveDailyRecords(role: Role, dailyRecordApprover: boolean): boolean {
+  return role === "SUPER_ADMIN" || (role === "ADMIN" && dailyRecordApprover);
+}
+
+/**
+ * Same audience as isApprover for now. Originally also included Editor
+ * (visibility without action rights) but that role is disabled for now —
+ * re-add `role === "EDITOR" ||` below if it comes back.
+ */
+export function canReview(role: Role): boolean {
+  return isApprover(role);
+}
+
+/**
  * Super Admin is a hidden role — never shown in the UI, so the person
  * just reads as themselves by name, not tagged with a role.
  */

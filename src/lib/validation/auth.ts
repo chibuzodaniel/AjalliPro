@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-export const SELECTABLE_ROLES = ["SALES_STAFF", "EDITOR", "ADMIN_STAFF", "ADMIN"] as const;
+export const SELECTABLE_ROLES = [
+  "SALES_STAFF",
+  // "EDITOR", // disabled for now
+  "ADMIN_STAFF",
+  "ADMIN",
+] as const;
 
 export const registerSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),

@@ -7,7 +7,7 @@ import { registerUser } from "@/app/register/actions";
 
 const ROLE_OPTIONS = [
   { value: "SALES_STAFF", label: "Sales Staff" },
-  { value: "EDITOR", label: "Editor" },
+  // { value: "EDITOR", label: "Editor" }, // disabled for now
   { value: "ADMIN_STAFF", label: "Admin Staff" },
   { value: "ADMIN", label: "Admin" },
 ];

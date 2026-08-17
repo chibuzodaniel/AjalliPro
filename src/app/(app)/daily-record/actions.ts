@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole, requireUser } from "@/lib/auth-helpers";
 import { needsApproval, isApprover } from "@/lib/roles";
 import { logActivity } from "@/lib/activity";
+import { notifyDailyRecordApprovers } from "@/lib/push";
 import { dailyRecordSchema, dailyRecordEditSchema } from "@/lib/validation/daily-record";
 import { latestClosingStock, latestLeakageClosing, computeClosingStock, computeLeakageClosing } from "@/lib/stock";
 import { getPricingSettings } from "@/lib/settings";
@@ -44,7 +45,13 @@ export interface CreateDailyRecordResult {
 }
 
 export async function createDailyRecord(input: unknown): Promise<CreateDailyRecordResult> {
-  const user = await requireRole(["SALES_STAFF", "EDITOR", "ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
+  const user = await requireRole([
+    "SALES_STAFF",
+    // "EDITOR", // disabled for now
+    "ADMIN_STAFF",
+    "ADMIN",
+    "SUPER_ADMIN",
+  ]);
   const parsed = dailyRecordSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -171,6 +178,16 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
       `${user.name} logged the daily record for ${record.date} (${pending ? "pending" : "approved"}).`,
       user.id
     );
+    if (pending) {
+      await notifyDailyRecordApprovers(
+        {
+          title: "New daily record awaiting approval",
+          body: `${user.name} logged the record for ${record.date}.`,
+          url: "/approvals",
+        },
+        user.id
+      );
+    }
     revalidatePath("/", "layout");
     return { ok: true };
   } catch (e) {
