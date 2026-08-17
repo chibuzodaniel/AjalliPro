@@ -1,30 +1,34 @@
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
+import { isApprover } from "@/lib/roles";
+import { SUPER_ADMIN_EMAIL } from "@/lib/auth";
 import { latestClosingStock } from "@/lib/stock";
 import { getWeeklyIncentiveSettings, getEmailTemplateSettings, getPricingSettings } from "@/lib/settings";
 import WeeklyIncentiveEditor from "@/components/settings/WeeklyIncentiveEditor";
 import EmailTemplateEditor from "@/components/settings/EmailTemplateEditor";
 import FactoryPriceEditor from "@/components/settings/FactoryPriceEditor";
 import ProductionCalculator from "@/components/settings/ProductionCalculator";
-import DailyRecordApproverEditor from "@/components/settings/DailyRecordApproverEditor";
+import UsersList from "@/components/settings/UsersList";
 
 export default async function SettingsPage() {
   const user = await getCurrentUser();
   const isSuperAdmin = user?.role === "SUPER_ADMIN";
+  const isSeniorAdmin = (user?.email ?? "").toLowerCase() === SUPER_ADMIN_EMAIL;
+  const canSeeUsers = user ? isApprover(user.role) : false;
 
-  const [stock, weeklySettings, emailTemplate, pricing, admins] = await Promise.all([
+  const [stock, weeklySettings, emailTemplate, pricing, usersRaw] = await Promise.all([
     latestClosingStock(),
     getWeeklyIncentiveSettings(),
     getEmailTemplateSettings(),
     getPricingSettings(),
-    isSuperAdmin
+    canSeeUsers
       ? prisma.user.findMany({
-          where: { role: "ADMIN" },
-          orderBy: { name: "asc" },
-          select: { id: true, name: true, email: true, dailyRecordApprover: true },
+          orderBy: [{ role: "asc" }, { name: "asc" }],
+          select: { id: true, name: true, email: true, role: true, dailyRecordApprover: true, createdAt: true },
         })
       : Promise.resolve([]),
   ]);
+  const allUsers = usersRaw.map((u) => ({ ...u, isPrimary: u.email.toLowerCase() === SUPER_ADMIN_EMAIL }));
 
   return (
     <div>
@@ -48,6 +52,18 @@ export default async function SettingsPage() {
         <FactoryPriceEditor initial={pricing.factoryPricePerBag} />
       </div>
 
+      {canSeeUsers && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <div className="section-title">Users</div>
+          <div className="section-sub">
+            Everyone with an account. Super Admin always sees and approves daily records; an Admin only sees and
+            approves them once Super Admin assigns them here — unassigned Admins won&apos;t see that section at all
+            on the Approvals page.
+          </div>
+          <UsersList users={allUsers} canAssign={isSuperAdmin} isSeniorAdmin={isSeniorAdmin} />
+        </div>
+      )}
+
       {isSuperAdmin && (
         <>
           <div className="card" style={{ marginTop: 16 }}>
@@ -57,15 +73,6 @@ export default async function SettingsPage() {
               same for drivers, with their own threshold/bonus.
             </div>
             <WeeklyIncentiveEditor initial={weeklySettings} />
-          </div>
-          <div className="card" style={{ marginTop: 16 }}>
-            <div className="section-title">Daily record approval notifications</div>
-            <div className="section-sub">
-              Super Admin always gets notified when a daily record needs approval. Choose which Admin(s) should also
-              be notified — other Admins won&apos;t be pinged, though any Admin can still approve from the Approvals
-              page.
-            </div>
-            <DailyRecordApproverEditor admins={admins} />
           </div>
           <div className="card" style={{ marginTop: 16 }}>
             <div className="section-title">Weekly mail email template</div>
