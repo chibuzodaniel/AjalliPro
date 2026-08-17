@@ -3,7 +3,7 @@ import { filterRecordsByRange, parseRange, RANGE_OPTIONS, RANGE_LABEL } from "@/
 import KpiCard from "@/components/ui/KpiCard";
 import RangeTabs from "@/components/ui/RangeTabs";
 import ViewAllModal from "@/components/ui/ViewAllModal";
-import { BarTrendChart } from "@/components/charts/TrendChart";
+import { BarTrendChart } from "@/components/charts/DynamicTrendChart";
 
 export default async function ProductionPage({
   searchParams,

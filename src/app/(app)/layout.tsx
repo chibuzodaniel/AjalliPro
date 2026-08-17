@@ -15,25 +15,35 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const items: NotifItem[] = [];
   let pendingApprovalCount = 0;
+  const approverRole = isApprover(user.role);
 
-  if (isApprover(user.role)) {
-    const dbUser = await prisma.user.findUnique({ where: { id: user.id }, select: { dailyRecordApprover: true } });
+  const [dbUser, pendingRecordsRaw, pendingDrivers, activity] = await Promise.all([
+    approverRole
+      ? prisma.user.findUnique({ where: { id: user.id }, select: { dailyRecordApprover: true } })
+      : Promise.resolve(null),
+    approverRole
+      ? prisma.dailyRecord.findMany({
+          where: { status: "PENDING" },
+          include: { createdBy: true },
+          orderBy: { createdAt: "desc" },
+        })
+      : Promise.resolve([]),
+    approverRole
+      ? prisma.driver.findMany({
+          where: { status: "PENDING" },
+          include: { createdBy: true },
+          orderBy: { createdAt: "desc" },
+        })
+      : Promise.resolve([]),
+    prisma.activityLog.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 8,
+    }),
+  ]);
+
+  if (approverRole) {
     const canSeeDailyRecords = canApproveDailyRecords(user.role, dbUser?.dailyRecordApprover ?? false);
-
-    const [pendingRecords, pendingDrivers] = await Promise.all([
-      canSeeDailyRecords
-        ? prisma.dailyRecord.findMany({
-            where: { status: "PENDING" },
-            include: { createdBy: true },
-            orderBy: { createdAt: "desc" },
-          })
-        : Promise.resolve([]),
-      prisma.driver.findMany({
-        where: { status: "PENDING" },
-        include: { createdBy: true },
-        orderBy: { createdAt: "desc" },
-      }),
-    ]);
+    const pendingRecords = canSeeDailyRecords ? pendingRecordsRaw : [];
     pendingApprovalCount = pendingRecords.length + pendingDrivers.length;
 
     for (const r of pendingRecords) {
@@ -55,10 +65,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     }
   }
 
-  const activity = await prisma.activityLog.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 8,
-  });
   for (const a of activity) {
     items.push({ title: a.text, pending: false, time: fmtTime(a.createdAt) });
   }

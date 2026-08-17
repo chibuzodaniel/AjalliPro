@@ -13,7 +13,7 @@ import { formatMoney } from "@/lib/money";
 import KpiCard from "@/components/ui/KpiCard";
 import RangeTabs from "@/components/ui/RangeTabs";
 import ViewAllModal from "@/components/ui/ViewAllModal";
-import { LineTrendChart } from "@/components/charts/TrendChart";
+import { LineTrendChart } from "@/components/charts/DynamicTrendChart";
 import PrintButton from "@/components/shared/PrintButton";
 
 export default async function ReportsPage({

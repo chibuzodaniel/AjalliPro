@@ -9,7 +9,7 @@ import { currentWeekKey, todayISO, weekKeyOf } from "@/lib/week";
 import { formatMoney } from "@/lib/money";
 import { getWeeklyIncentiveSettings } from "@/lib/settings";
 import KpiCard from "@/components/ui/KpiCard";
-import { LineTrendChart, BarTrendChart } from "@/components/charts/TrendChart";
+import { LineTrendChart, BarTrendChart } from "@/components/charts/DynamicTrendChart";
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
