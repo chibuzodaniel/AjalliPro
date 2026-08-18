@@ -4,7 +4,7 @@ import { recordSoldTotal, recordProdTotal, dailyRecordInclude } from "@/lib/reco
 import { roleLabel, isApprover, canApproveDailyRecords } from "@/lib/roles";
 import ApproveRejectButtons from "@/components/shared/ApproveRejectButtons";
 import ViewAllModal from "@/components/ui/ViewAllModal";
-import PendingRecordDetail from "@/components/approvals/PendingRecordDetail";
+import DailyRecordDetail from "@/components/daily-record/DailyRecordDetail";
 import PendingDriverDetail from "@/components/approvals/PendingDriverDetail";
 import { approveDailyRecord, rejectDailyRecord } from "./actions";
 import { approveDriver, rejectDriver } from "../drivers/actions";
@@ -48,7 +48,7 @@ export default async function ApprovalsPage() {
           return (
             <tr key={r.id}>
               <td>
-                <PendingRecordDetail record={r} />
+                <DailyRecordDetail record={r} />
               </td>
               <td>{r.createdBy.name}</td>
               <td>{roleLabel(r.createdByRole) && <span className="badge-role">{roleLabel(r.createdByRole)}</span>}</td>

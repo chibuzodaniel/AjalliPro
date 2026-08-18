@@ -28,6 +28,7 @@ interface DriverSaleRow {
   driverId: string;
   bags: string;
   bonusBags: string;
+  loadingFeeWaived: boolean;
 }
 interface TruckDeliveryRow {
   key: number;
@@ -89,7 +90,7 @@ export interface DailyRecordFormInitial {
   factoryPricePerBag: number;
   factoryCustomerId: string | null;
   pumpWaterAmount: number;
-  driverSales: { driverId: string; bags: number; bonusBags: number }[];
+  driverSales: { driverId: string; bags: number; bonusBags: number; loadingFeeWaived: boolean }[];
   truckDeliveries: {
     customerId: string | null;
     bags: number;
@@ -108,12 +109,14 @@ function toProductionRows(rows: DailyRecordFormInitial["production"]): Productio
   return rows.map((r) => ({ key: nextKey(), packerName: r.packerName, bags: String(r.bags) }));
 }
 function toDriverSaleRows(rows: DailyRecordFormInitial["driverSales"], firstDriverId: string): DriverSaleRow[] {
-  if (rows.length === 0) return [{ key: nextKey(), driverId: firstDriverId, bags: "", bonusBags: "" }];
+  if (rows.length === 0)
+    return [{ key: nextKey(), driverId: firstDriverId, bags: "", bonusBags: "", loadingFeeWaived: false }];
   return rows.map((r) => ({
     key: nextKey(),
     driverId: r.driverId,
     bags: String(r.bags),
     bonusBags: r.bonusBags ? String(r.bonusBags) : "",
+    loadingFeeWaived: r.loadingFeeWaived,
   }));
 }
 function toTruckDeliveryRows(
@@ -174,7 +177,11 @@ export default function DailyRecordFormModal({
   const draft = useMemo(() => readDraft(draftKey), [draftKey]);
   const [restoredDraft, setRestoredDraft] = useState(() => draft !== null);
 
-  const [date, setDate] = useState(draft?.date ?? initial.date);
+  // In create mode, always start on today's date even if a draft is restored — the draft
+  // key isn't scoped per-day, so a forgotten entry from days ago would otherwise silently
+  // pre-fill an old date and make a fresh "New daily entry" collide with a date that
+  // already has a real record.
+  const [date, setDate] = useState(mode === "create" ? initial.date : (draft?.date ?? initial.date));
   const [openingValue, setOpeningValue] = useState(draft?.openingValue ?? String(initial.openingStock));
   const [leakageOpeningValue, setLeakageOpeningValue] = useState(draft?.leakageOpeningValue ?? String(leakageOpening));
   const [production, setProduction] = useState<ProductionRow[]>(() =>
@@ -299,6 +306,7 @@ export default function DailyRecordFormModal({
     (Number(factoryBagsFromLeakage) || 0) -
     (Number(leakageWasteBags) || 0);
   const loadingFeeExpenseTotal = driverSales.reduce((s, d) => {
+    if (d.loadingFeeWaived) return s;
     const driver = driverById.get(d.driverId);
     const bags = Number(d.bags) || 0;
     return s + bags * (driver?.loadingFee ?? 0);
@@ -327,6 +335,7 @@ export default function DailyRecordFormModal({
           driverId: d.driverId,
           bags: Number(d.bags) || 0,
           bonusBags: Number(d.bonusBags) || 0,
+          loadingFeeWaived: d.loadingFeeWaived,
         })),
       truckDeliveries: truckDeliveries
         .filter((t) => (Number(t.bags) || 0) > 0 && t.customerId)
@@ -570,11 +579,28 @@ export default function DailyRecordFormModal({
                   ✕
                 </button>
               </div>
-              <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: -6, marginBottom: 10 }}>
-                Instant incentive: +{bonus} bags (manual) · Total: {formatMoney(total)}
-                {driver ? ` (₦${driver.pricePerBag}/bag)` : ""}
-                {loadingFeeExpense > 0 && (
-                  <> · Loading fee: {formatMoney(loadingFeeExpense)} (auto-added as an expense, not part of this total)</>
+              <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: -6, marginBottom: 10, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <span>
+                  Instant incentive: +{bonus} bags (manual) · Total: {formatMoney(total)}
+                  {driver ? ` (₦${driver.pricePerBag}/bag)` : ""}
+                  {driver && driver.loadingFee > 0 && !row.loadingFeeWaived && (
+                    <> · Loading fee: {formatMoney(loadingFeeExpense)} (auto-added as an expense, not part of this total)</>
+                  )}
+                  {driver && driver.loadingFee > 0 && row.loadingFeeWaived && <> · Loading fee: not applicable</>}
+                </span>
+                {driver && driver.loadingFee > 0 && (
+                  <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={row.loadingFeeWaived}
+                      onChange={(e) =>
+                        setDriverSales((rows) =>
+                          rows.map((r) => (r.key === row.key ? { ...r, loadingFeeWaived: e.target.checked } : r))
+                        )
+                      }
+                    />
+                    Loading fee not applicable
+                  </label>
                 )}
               </div>
             </div>
@@ -586,7 +612,7 @@ export default function DailyRecordFormModal({
           onClick={() =>
             setDriverSales((rows) => [
               ...rows,
-              { key: nextKey(), driverId: drivers[0]?.id ?? "", bags: "", bonusBags: "" },
+              { key: nextKey(), driverId: drivers[0]?.id ?? "", bags: "", bonusBags: "", loadingFeeWaived: false },
             ])
           }
         >
@@ -806,7 +832,7 @@ export default function DailyRecordFormModal({
 
         {error && <div className="field-error">{error}</div>}
         <button className="btn btn-primary" style={{ width: "100%", marginTop: 16 }} type="submit" disabled={loading}>
-          {loading ? "Saving…" : mode === "create" ? "Save daily record" : "Save changes"}
+          {loading ? (mode === "create" ? "Saving…" : "Updating…") : mode === "create" ? "Save daily record" : "Update record"}
         </button>
       </form>
     </Modal>

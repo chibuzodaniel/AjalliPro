@@ -9,6 +9,7 @@ export const driverSaleSchema = z.object({
   driverId: z.string().min(1),
   bags: z.number().int().min(0),
   bonusBags: z.number().int().min(0),
+  loadingFeeWaived: z.boolean(),
 });
 
 export const truckDeliverySchema = z.object({

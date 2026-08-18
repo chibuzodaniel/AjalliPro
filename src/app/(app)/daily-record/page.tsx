@@ -12,6 +12,7 @@ import { getPricingSettings } from "@/lib/settings";
 import { formatMoney } from "@/lib/money";
 import Pill from "@/components/ui/Pill";
 import AddDailyRecordButton from "@/components/daily-record/AddDailyRecordButton";
+import DailyRecordDetail from "@/components/daily-record/DailyRecordDetail";
 import EditDailyRecordButton from "@/components/daily-record/EditDailyRecordButton";
 import DeleteDailyRecordButton from "@/components/daily-record/DeleteDailyRecordButton";
 import ApproveRejectButtons from "@/components/shared/ApproveRejectButtons";
@@ -51,7 +52,9 @@ export default async function DailyRecordPage() {
       <tbody>
         {records.map((r) => (
           <tr key={r.id}>
-            <td>{r.date}</td>
+            <td>
+              <DailyRecordDetail record={r} />
+            </td>
             <td>{r.openingStock}</td>
             <td>{recordProdTotal(r)}</td>
             <td>{recordSoldTotal(r)}</td>

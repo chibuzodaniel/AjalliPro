@@ -46,6 +46,7 @@ export default function EditDailyRecordButton({
       driverId: d.driverId,
       bags: d.bags,
       bonusBags: d.bonusBags,
+      loadingFeeWaived: d.loadingFeeWaived,
     })),
     truckDeliveries: record.truckDeliveries.map((t) => ({
       customerId: t.customerId,

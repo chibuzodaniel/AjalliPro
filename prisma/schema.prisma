@@ -138,6 +138,7 @@ model DriverSale {
   bags          Int
   pricePerBag   Int // snapshot of the driver's fixed price/bag at the time of this sale
   loadingFee    Int         @default(0) // snapshot of the driver's fixed loading fee/bag at the time of this sale
+  loadingFeeWaived Boolean  @default(false) // marked not applicable for this sale — no loading fee expense is generated
   bonusBags     Int         @default(0) // instant incentive bags, entered manually by the recorder
 
   @@index([dailyRecordId])

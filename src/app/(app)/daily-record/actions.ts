@@ -20,12 +20,12 @@ import {
 } from "@/lib/records";
 
 function buildLoadingFeeExpenses(
-  driverSales: { driverId: string; bags: number }[],
+  driverSales: { driverId: string; bags: number; loadingFeeWaived: boolean }[],
   driverById: Map<string, { name: string; loadingFee: number }>
 ) {
   const expenses: { description: string; amount: number; paid: boolean; paidAt: null; paidById: null }[] = [];
   for (const d of driverSales) {
-    if (d.bags <= 0) continue;
+    if (d.bags <= 0 || d.loadingFeeWaived) continue;
     const driver = driverById.get(d.driverId);
     if (!driver || driver.loadingFee <= 0) continue;
     expenses.push({
@@ -147,6 +147,7 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
               bags: d.bags,
               pricePerBag: driver?.pricePerBag ?? 0,
               loadingFee: driver?.loadingFee ?? 0,
+              loadingFeeWaived: d.loadingFeeWaived,
               bonusBags: d.bonusBags,
             };
           }),
@@ -384,6 +385,7 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
                   bags: d.bags,
                   pricePerBag: driver?.pricePerBag ?? 0,
                   loadingFee: driver?.loadingFee ?? 0,
+                  loadingFeeWaived: d.loadingFeeWaived,
                   bonusBags: d.bonusBags,
                 };
               }),
