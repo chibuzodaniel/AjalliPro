@@ -80,10 +80,10 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
       ? data.leakageOpeningOverride
       : computedLeakageOpening;
 
-  if (data.factoryBagsFromLeakage > leakageOpening) {
+  if (data.factoryBagsFromLeakage + data.leakageWasteBags > leakageOpening) {
     return {
       ok: false,
-      error: `Only ${leakageOpening} bags are available in the leakage pile to rebag.`,
+      error: `Only ${leakageOpening} bags are available in the leakage pile to rebag or waste.`,
     };
   }
 
@@ -104,7 +104,12 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
     truckDeliveryBonusBagsTotal,
     leakageBagsNew: data.leakageBags,
   });
-  const leakageClosing = computeLeakageClosing(leakageOpening, data.leakageBags, data.factoryBagsFromLeakage);
+  const leakageClosing = computeLeakageClosing(
+    leakageOpening,
+    data.leakageBags,
+    data.factoryBagsFromLeakage,
+    data.leakageWasteBags
+  );
   const pending = needsApproval(user.role);
 
   const canEditFactoryPrice = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
@@ -125,6 +130,7 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
         pumpWaterAmount: data.pumpWaterAmount,
         leakageOpening,
         leakageBags: data.leakageBags,
+        leakageWasteBags: data.leakageWasteBags,
         leakageClosing,
         status: pending ? "PENDING" : "APPROVED",
         createdById: user.id,
@@ -207,7 +213,8 @@ async function cascadeRecalculate(
   tx: Prisma.TransactionClient,
   fromDate: string,
   startingClosingStock: number,
-  startingLeakageClosing: number
+  startingLeakageClosing: number,
+  excludeId?: string
 ) {
   const forward = await tx.dailyRecord.findMany({
     where: { status: "APPROVED", date: { gt: fromDate } },
@@ -219,6 +226,13 @@ async function cascadeRecalculate(
   let runningLeakageClosing = startingLeakageClosing;
 
   for (const rec of forward) {
+    if (rec.id === excludeId) {
+      // Its opening/closing were already set explicitly (e.g. a Super Admin override) —
+      // don't recompute it, just carry its already-saved closing forward.
+      runningClosing = rec.closingStock;
+      runningLeakageClosing = rec.leakageClosing;
+      continue;
+    }
     const opening = runningClosing;
     const leakageOpening = runningLeakageClosing;
 
@@ -233,7 +247,7 @@ async function cascadeRecalculate(
       truckDeliveryBonusBagsTotal: recordTruckDeliveryBonusBagsTotal(rec),
       leakageBagsNew: rec.leakageBags,
     });
-    const leakageClosing = computeLeakageClosing(leakageOpening, rec.leakageBags, rec.factoryBagsFromLeakage);
+    const leakageClosing = computeLeakageClosing(leakageOpening, rec.leakageBags, rec.factoryBagsFromLeakage, rec.leakageWasteBags);
 
     await tx.dailyRecord.update({
       where: { id: rec.id },
@@ -263,27 +277,47 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
     return { ok: false, error: "You don't have permission to edit this record." };
   }
 
-  const [fixedPricing, drivers, truckCustomers] = await Promise.all([
+  const dateChanged = data.date !== existing.date;
+  if (dateChanged) {
+    const conflict = await prisma.dailyRecord.findUnique({ where: { date: data.date } });
+    if (conflict && conflict.id !== id) {
+      return { ok: false, error: `A daily record for ${data.date} already exists.` };
+    }
+  }
+
+  const [fixedPricing, drivers, truckCustomers, prevApprovedForNewDate] = await Promise.all([
     getPricingSettings(),
     prisma.driver.findMany({ where: { id: { in: data.driverSales.map((d) => d.driverId) } } }),
     prisma.customer.findMany({
       where: { id: { in: data.truckDeliveries.map((t) => t.customerId) } },
     }),
+    dateChanged
+      ? prisma.dailyRecord.findFirst({
+          where: { status: "APPROVED", date: { lt: data.date }, id: { not: id } },
+          orderBy: { date: "desc" },
+        })
+      : Promise.resolve(null),
   ]);
 
+  const overrideApplied =
+    user.role === "SUPER_ADMIN" && (data.openingStockOverride != null || data.leakageOpeningOverride != null);
   const opening =
     user.role === "SUPER_ADMIN" && data.openingStockOverride != null
       ? data.openingStockOverride
-      : existing.openingStock;
+      : dateChanged
+        ? (prevApprovedForNewDate?.closingStock ?? 0)
+        : existing.openingStock;
   const leakageOpening =
     user.role === "SUPER_ADMIN" && data.leakageOpeningOverride != null
       ? data.leakageOpeningOverride
-      : existing.leakageOpening;
+      : dateChanged
+        ? (prevApprovedForNewDate?.leakageClosing ?? 0)
+        : existing.leakageOpening;
 
-  if (data.factoryBagsFromLeakage > leakageOpening) {
+  if (data.factoryBagsFromLeakage + data.leakageWasteBags > leakageOpening) {
     return {
       ok: false,
-      error: `Only ${leakageOpening} bags are available in the leakage pile to rebag.`,
+      error: `Only ${leakageOpening} bags are available in the leakage pile to rebag or waste.`,
     };
   }
 
@@ -304,82 +338,119 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
     truckDeliveryBonusBagsTotal,
     leakageBagsNew: data.leakageBags,
   });
-  const leakageClosing = computeLeakageClosing(leakageOpening, data.leakageBags, data.factoryBagsFromLeakage);
+  const leakageClosing = computeLeakageClosing(
+    leakageOpening,
+    data.leakageBags,
+    data.factoryBagsFromLeakage,
+    data.leakageWasteBags
+  );
 
   const canEditFactoryPrice = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
   const factoryPricePerBag = canEditFactoryPrice ? data.factoryPricePerBag : fixedPricing.factoryPricePerBag;
   const driverById = new Map(drivers.map((d) => [d.id, d]));
   const truckCustomerById = new Map(truckCustomers.map((c) => [c.id, c]));
 
-  await prisma.$transaction(async (tx) => {
-    await tx.productionLine.deleteMany({ where: { dailyRecordId: id } });
-    await tx.driverSale.deleteMany({ where: { dailyRecordId: id } });
-    await tx.truckDelivery.deleteMany({ where: { dailyRecordId: id } });
-    await tx.expenseItem.deleteMany({ where: { dailyRecordId: id } });
+  try {
+    await prisma.$transaction(
+      async (tx) => {
+        await tx.productionLine.deleteMany({ where: { dailyRecordId: id } });
+        await tx.driverSale.deleteMany({ where: { dailyRecordId: id } });
+        await tx.truckDelivery.deleteMany({ where: { dailyRecordId: id } });
+        await tx.expenseItem.deleteMany({ where: { dailyRecordId: id } });
 
-    await tx.dailyRecord.update({
-      where: { id },
-      data: {
-        openingStock: opening,
-        closingStock: closing,
-        factoryBags: data.factoryBags,
-        factoryBagsFromLeakage: data.factoryBagsFromLeakage,
-        factoryPricePerBag,
-        factoryCustomerId: data.factoryCustomerId || null,
-        pumpWaterAmount: data.pumpWaterAmount,
-        leakageOpening,
-        leakageBags: data.leakageBags,
-        leakageClosing,
-        productionLines: {
-          create: data.production.map((p) => ({ packerName: p.packerName, bags: p.bags })),
-        },
-        driverSales: {
-          create: data.driverSales.map((d) => {
-            const driver = driverById.get(d.driverId);
-            return {
-              driverId: d.driverId,
-              bags: d.bags,
-              pricePerBag: driver?.pricePerBag ?? 0,
-              loadingFee: driver?.loadingFee ?? 0,
-              bonusBags: d.bonusBags,
-            };
-          }),
-        },
-        truckDeliveries: {
-          create: data.truckDeliveries.map((t) => {
-            const customer = truckCustomerById.get(t.customerId);
-            return {
-              customerId: t.customerId,
-              bags: t.bags,
-              bonusBags: t.bonusBags,
-              pricePerBag: customer?.pricePerBag ?? 0,
-              ownTruck: t.ownTruck,
-              fuelCost: t.ownTruck ? t.fuelCost : 0,
-              hiredCost: t.ownTruck ? 0 : t.hiredCost,
-            };
-          }),
-        },
-        expenseItems: {
-          create: [
-            ...data.expenses.map((e) => ({
-              description: e.description,
-              amount: e.amount,
-              paid: e.paid,
-              paidAt: e.paid ? new Date() : null,
-              paidById: e.paid ? user.id : null,
-            })),
-            ...buildLoadingFeeExpenses(data.driverSales, driverById),
-          ],
-        },
+        await tx.dailyRecord.update({
+          where: { id },
+          data: {
+            date: data.date,
+            openingStock: opening,
+            closingStock: closing,
+            factoryBags: data.factoryBags,
+            factoryBagsFromLeakage: data.factoryBagsFromLeakage,
+            factoryPricePerBag,
+            factoryCustomerId: data.factoryCustomerId || null,
+            pumpWaterAmount: data.pumpWaterAmount,
+            leakageOpening,
+            leakageBags: data.leakageBags,
+            leakageWasteBags: data.leakageWasteBags,
+            leakageClosing,
+            productionLines: {
+              create: data.production.map((p) => ({ packerName: p.packerName, bags: p.bags })),
+            },
+            driverSales: {
+              create: data.driverSales.map((d) => {
+                const driver = driverById.get(d.driverId);
+                return {
+                  driverId: d.driverId,
+                  bags: d.bags,
+                  pricePerBag: driver?.pricePerBag ?? 0,
+                  loadingFee: driver?.loadingFee ?? 0,
+                  bonusBags: d.bonusBags,
+                };
+              }),
+            },
+            truckDeliveries: {
+              create: data.truckDeliveries.map((t) => {
+                const customer = truckCustomerById.get(t.customerId);
+                return {
+                  customerId: t.customerId,
+                  bags: t.bags,
+                  bonusBags: t.bonusBags,
+                  pricePerBag: customer?.pricePerBag ?? 0,
+                  ownTruck: t.ownTruck,
+                  fuelCost: t.ownTruck ? t.fuelCost : 0,
+                  hiredCost: t.ownTruck ? 0 : t.hiredCost,
+                };
+              }),
+            },
+            expenseItems: {
+              create: [
+                ...data.expenses.map((e) => ({
+                  description: e.description,
+                  amount: e.amount,
+                  paid: e.paid,
+                  paidAt: e.paid ? new Date() : null,
+                  paidById: e.paid ? user.id : null,
+                })),
+                ...buildLoadingFeeExpenses(data.driverSales, driverById),
+              ],
+            },
+          },
+        });
+
+        if (existing.status === "APPROVED") {
+          if (dateChanged) {
+            const boundaryDate = existing.date < data.date ? existing.date : data.date;
+            const anchor = await tx.dailyRecord.findFirst({
+              where: { status: "APPROVED", date: { lt: boundaryDate }, id: { not: id } },
+              orderBy: { date: "desc" },
+            });
+            await cascadeRecalculate(
+              tx,
+              anchor?.date ?? "",
+              anchor?.closingStock ?? 0,
+              anchor?.leakageClosing ?? 0,
+              overrideApplied ? id : undefined
+            );
+          } else {
+            await cascadeRecalculate(tx, existing.date, closing, leakageClosing);
+          }
+        }
       },
-    });
-
-    if (existing.status === "APPROVED") {
-      await cascadeRecalculate(tx, existing.date, closing, leakageClosing);
+      { timeout: 20000 }
+    );
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return { ok: false, error: `A daily record for ${data.date} already exists.` };
     }
-  }, { timeout: 20000 });
+    throw e;
+  }
 
-  await logActivity(`${user.name} edited the daily record for ${existing.date}.`, user.id);
+  await logActivity(
+    dateChanged
+      ? `${user.name} edited the daily record and moved its date from ${existing.date} to ${data.date}.`
+      : `${user.name} edited the daily record for ${existing.date}.`,
+    user.id
+  );
   revalidatePath("/", "layout");
   return { ok: true };
 }

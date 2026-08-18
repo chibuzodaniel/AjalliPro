@@ -66,7 +66,8 @@ model DailyRecord {
   pumpWaterAmount    Int            @default(0)
   leakageOpening     Int            @default(0) // leakage pile balance carried from the previous approved record
   leakageBags        Int            @default(0) // NEW leakage logged today, added to the pile
-  leakageClosing     Int            @default(0) // leakageOpening + leakageBags - factoryBagsFromLeakage
+  leakageWasteBags   Int            @default(0) // bags lost/spoiled while rebagging leakage stock — not sellable, not carried forward
+  leakageClosing     Int            @default(0) // leakageOpening + leakageBags - factoryBagsFromLeakage - leakageWasteBags
   status             ApprovalStatus @default(PENDING)
   createdById        String
   createdBy          User           @relation("DailyRecordCreatedBy", fields: [createdById], references: [id])

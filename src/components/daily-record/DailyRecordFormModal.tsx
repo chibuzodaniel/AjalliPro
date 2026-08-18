@@ -67,6 +67,7 @@ interface DraftState {
   factoryCustomerId: string;
   pumpWaterAmount: string;
   leakageBags: string;
+  leakageWasteBags: string;
   expenses: ExpenseRow[];
 }
 
@@ -98,6 +99,7 @@ export interface DailyRecordFormInitial {
     hiredCost: number;
   }[];
   leakageBags: number;
+  leakageWasteBags: number;
   expenses: { description: string; amount: number; paid: boolean }[];
 }
 
@@ -196,6 +198,9 @@ export default function DailyRecordFormModal({
     draft?.pumpWaterAmount ?? (initial.pumpWaterAmount ? String(initial.pumpWaterAmount) : "")
   );
   const [leakageBags, setLeakageBags] = useState(draft?.leakageBags ?? (initial.leakageBags ? String(initial.leakageBags) : ""));
+  const [leakageWasteBags, setLeakageWasteBags] = useState(
+    draft?.leakageWasteBags ?? (initial.leakageWasteBags ? String(initial.leakageWasteBags) : "")
+  );
   const [expenses, setExpenses] = useState<ExpenseRow[]>(() =>
     draft ? rekeyRows(draft.expenses) : toExpenseRows(initial.expenses)
   );
@@ -216,6 +221,7 @@ export default function DailyRecordFormModal({
       factoryCustomerId,
       pumpWaterAmount,
       leakageBags,
+      leakageWasteBags,
       expenses,
     };
     try {
@@ -237,6 +243,7 @@ export default function DailyRecordFormModal({
     factoryCustomerId,
     pumpWaterAmount,
     leakageBags,
+    leakageWasteBags,
     expenses,
   ]);
 
@@ -259,6 +266,7 @@ export default function DailyRecordFormModal({
     setFactoryCustomerId(initial.factoryCustomerId ?? "");
     setPumpWaterAmount(initial.pumpWaterAmount ? String(initial.pumpWaterAmount) : "");
     setLeakageBags(initial.leakageBags ? String(initial.leakageBags) : "");
+    setLeakageWasteBags(initial.leakageWasteBags ? String(initial.leakageWasteBags) : "");
     setExpenses(toExpenseRows(initial.expenses));
   }
 
@@ -285,7 +293,11 @@ export default function DailyRecordFormModal({
   }, [production, driverSales, truckDeliveries, factoryBags, factoryBagsFromLeakage, leakageBags, openingValue]);
 
   const leakageOpeningNum = Number(leakageOpeningValue) || 0;
-  const leakageClosingPreview = leakageOpeningNum + (Number(leakageBags) || 0) - (Number(factoryBagsFromLeakage) || 0);
+  const leakageClosingPreview =
+    leakageOpeningNum +
+    (Number(leakageBags) || 0) -
+    (Number(factoryBagsFromLeakage) || 0) -
+    (Number(leakageWasteBags) || 0);
   const loadingFeeExpenseTotal = driverSales.reduce((s, d) => {
     const driver = driverById.get(d.driverId);
     const bags = Number(d.bags) || 0;
@@ -298,6 +310,7 @@ export default function DailyRecordFormModal({
     setLoading(true);
     setError(null);
     const payload = {
+      date,
       openingStockOverride: canEditOpeningStock ? Number(openingValue) || 0 : null,
       leakageOpeningOverride: canEditLeakageOpening ? leakageOpeningNum : null,
       production: production
@@ -326,14 +339,12 @@ export default function DailyRecordFormModal({
           hiredCost: Number(t.hiredCost) || 0,
         })),
       leakageBags: Number(leakageBags) || 0,
+      leakageWasteBags: Number(leakageWasteBags) || 0,
       expenses: expenses
         .filter((e) => e.description.trim().length > 0 && (Number(e.amount) || 0) > 0)
         .map((e) => ({ description: e.description.trim(), amount: Number(e.amount) || 0, paid: e.paid })),
     };
-    const result =
-      mode === "create"
-        ? await createDailyRecord({ date, ...payload })
-        : await updateDailyRecord(recordId!, payload);
+    const result = mode === "create" ? await createDailyRecord(payload) : await updateDailyRecord(recordId!, payload);
     setLoading(false);
     if (!result.ok) {
       setError(result.error ?? "Could not save daily record");
@@ -362,15 +373,8 @@ export default function DailyRecordFormModal({
         )}
         <div className="form-grid">
           <div className="field">
-            <label>Date{mode === "edit" ? " — not editable" : ""}</label>
-            <input
-              type="date"
-              value={date}
-              onChange={mode === "create" ? (e) => setDate(e.target.value) : undefined}
-              readOnly={mode === "edit"}
-              disabled={mode === "edit"}
-              required
-            />
+            <label>Date</label>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
           </div>
           <div className="field">
             <label>Opening stock (bags){canEditOpeningStock ? " — editable (Super Admin)" : ""}</label>
@@ -470,6 +474,17 @@ export default function DailyRecordFormModal({
             placeholder="0"
             value={factoryBagsFromLeakage}
             onChange={(e) => setFactoryBagsFromLeakage(e.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label>Wasted while rebagging (bags — lost, not sellable)</label>
+          <input
+            type="number"
+            min={0}
+            max={leakageOpeningNum}
+            placeholder="0"
+            value={leakageWasteBags}
+            onChange={(e) => setLeakageWasteBags(e.target.value)}
           />
         </div>
         <div className="calc-box" style={{ marginTop: -4, marginBottom: 14 }}>

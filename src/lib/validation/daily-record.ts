@@ -39,11 +39,12 @@ export const dailyRecordSchema = z.object({
   driverSales: z.array(driverSaleSchema),
   truckDeliveries: z.array(truckDeliverySchema),
   leakageBags: z.number().int().min(0),
+  leakageWasteBags: z.number().int().min(0),
   expenses: z.array(expenseItemSchema),
 });
 
 export type DailyRecordInput = z.infer<typeof dailyRecordSchema>;
 
-export const dailyRecordEditSchema = dailyRecordSchema.omit({ date: true });
+export const dailyRecordEditSchema = dailyRecordSchema;
 
 export type DailyRecordEditInput = z.infer<typeof dailyRecordEditSchema>;

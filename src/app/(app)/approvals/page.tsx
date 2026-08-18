@@ -4,6 +4,8 @@ import { recordSoldTotal, recordProdTotal, dailyRecordInclude } from "@/lib/reco
 import { roleLabel, isApprover, canApproveDailyRecords } from "@/lib/roles";
 import ApproveRejectButtons from "@/components/shared/ApproveRejectButtons";
 import ViewAllModal from "@/components/ui/ViewAllModal";
+import PendingRecordDetail from "@/components/approvals/PendingRecordDetail";
+import PendingDriverDetail from "@/components/approvals/PendingDriverDetail";
 import { approveDailyRecord, rejectDailyRecord } from "./actions";
 import { approveDriver, rejectDriver } from "../drivers/actions";
 
@@ -45,7 +47,9 @@ export default async function ApprovalsPage() {
           const net = recordProdTotal(r) - r.leakageBags - recordSoldTotal(r);
           return (
             <tr key={r.id}>
-              <td>{r.date}</td>
+              <td>
+                <PendingRecordDetail record={r} />
+              </td>
               <td>{r.createdBy.name}</td>
               <td>{roleLabel(r.createdByRole) && <span className="badge-role">{roleLabel(r.createdByRole)}</span>}</td>
               <td>
@@ -75,7 +79,18 @@ export default async function ApprovalsPage() {
       <tbody>
         {pendingDrivers.map((d) => (
           <tr key={d.id}>
-            <td>{d.name}</td>
+            <td>
+              <PendingDriverDetail
+                driver={{
+                  name: d.name,
+                  phone: d.phone,
+                  pricePerBag: d.pricePerBag,
+                  loadingFee: d.loadingFee,
+                  createdAt: d.createdAt,
+                  createdByName: d.createdBy.name,
+                }}
+              />
+            </td>
             <td>{d.phone || "—"}</td>
             <td>{d.createdBy.name}</td>
             <td>

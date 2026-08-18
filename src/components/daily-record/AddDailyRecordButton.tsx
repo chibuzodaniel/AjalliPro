@@ -50,6 +50,7 @@ export default function AddDailyRecordButton({
     driverSales: [],
     truckDeliveries: [],
     leakageBags: 0,
+    leakageWasteBags: 0,
     expenses: [],
   };
 

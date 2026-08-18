@@ -45,7 +45,8 @@ export function computeClosingStock(input: ClosingStockInput): number {
 export function computeLeakageClosing(
   leakageOpening: number,
   leakageBagsNew: number,
-  factoryBagsFromLeakage: number
+  factoryBagsFromLeakage: number,
+  leakageWasteBags: number
 ): number {
-  return leakageOpening + leakageBagsNew - factoryBagsFromLeakage;
+  return leakageOpening + leakageBagsNew - factoryBagsFromLeakage - leakageWasteBags;
 }

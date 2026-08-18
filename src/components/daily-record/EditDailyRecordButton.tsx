@@ -56,6 +56,7 @@ export default function EditDailyRecordButton({
       hiredCost: t.hiredCost,
     })),
     leakageBags: record.leakageBags,
+    leakageWasteBags: record.leakageWasteBags,
     expenses: record.expenseItems.map((e) => ({ description: e.description, amount: e.amount, paid: e.paid })),
   };
 
