@@ -2,7 +2,7 @@ import { prisma } from "./prisma";
 import type { Prisma } from "@prisma/client";
 
 export const dailyRecordInclude = {
-  productionLines: true,
+  productionLines: { include: { packer: true } },
   driverSales: { include: { driver: true, customer: true } },
   truckDeliveries: { include: { customer: true } },
   expenseItems: { include: { paidBy: true } },

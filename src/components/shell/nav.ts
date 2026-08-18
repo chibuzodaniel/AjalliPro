@@ -23,6 +23,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: "/daily-record", label: "Daily Record", icon: "📝" },
       { href: "/production", label: "Total Produced", icon: "🏭" },
+      { href: "/packers", label: "Packers", icon: "📦" },
       { href: "/drivers", label: "Drivers", icon: "🚚" },
       { href: "/customers", label: "Customers", icon: "👥" },
       { href: "/incentives", label: "Incentive Tracking", icon: "🎁" },

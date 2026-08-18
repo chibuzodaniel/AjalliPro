@@ -24,7 +24,7 @@ export default async function ProductionPage({
   const packerTotals = new Map<string, number>();
   for (const r of records) {
     for (const p of r.productionLines) {
-      packerTotals.set(p.packerName, (packerTotals.get(p.packerName) ?? 0) + p.bags);
+      packerTotals.set(p.packer.name, (packerTotals.get(p.packer.name) ?? 0) + p.bags);
     }
   }
   const sortedPackers = [...packerTotals.entries()].sort((a, b) => b[1] - a[1]);

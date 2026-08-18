@@ -17,7 +17,6 @@ interface CustomerOption {
   name: string;
   pricePerBag: number;
 }
-
 interface ProductionRow {
   key: number;
   packerName: string;
@@ -185,7 +184,9 @@ export default function DailyRecordFormModal({
   const [openingValue, setOpeningValue] = useState(draft?.openingValue ?? String(initial.openingStock));
   const [leakageOpeningValue, setLeakageOpeningValue] = useState(draft?.leakageOpeningValue ?? String(leakageOpening));
   const [production, setProduction] = useState<ProductionRow[]>(() =>
-    draft ? rekeyRows(draft.production) : toProductionRows(initial.production)
+    draft
+      ? rekeyRows(draft.production).map((r) => ({ ...r, packerName: r.packerName ?? "" }))
+      : toProductionRows(initial.production)
   );
   const [driverSales, setDriverSales] = useState<DriverSaleRow[]>(() =>
     draft

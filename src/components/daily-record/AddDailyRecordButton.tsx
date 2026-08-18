@@ -15,7 +15,6 @@ interface CustomerOption {
   name: string;
   pricePerBag: number;
 }
-
 export default function AddDailyRecordButton({
   openingStock,
   leakageOpening,

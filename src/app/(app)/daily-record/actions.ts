@@ -39,6 +39,58 @@ function buildLoadingFeeExpenses(
   return expenses;
 }
 
+/**
+ * Packers are entered as free text on the daily record form, same as before —
+ * there's no separate "add packer" step. Matching an existing name (case-
+ * insensitively) reuses that packer's id and pay rate; an unrecognized name
+ * creates a new Packer record on the spot so Admin/Super Admin has something
+ * to set a rate on later.
+ */
+async function resolvePackers(
+  names: string[],
+  createdById: string
+): Promise<Map<string, { id: string; name: string; pricePerBag: number }>> {
+  const trimmedNames = [...new Set(names.map((n) => n.trim()).filter(Boolean))];
+  const result = new Map<string, { id: string; name: string; pricePerBag: number }>();
+  for (const name of trimmedNames) {
+    const key = name.toLowerCase();
+    let packer = await prisma.packer.findFirst({ where: { name: { equals: name, mode: "insensitive" } } });
+    if (!packer) {
+      packer = await prisma.packer.create({ data: { name, createdById } });
+    }
+    result.set(key, packer);
+  }
+  return result;
+}
+
+function buildPackerPayExpenses(
+  production: { packerName: string; bags: number }[],
+  packerByName: Map<string, { id: string; name: string; pricePerBag: number }>
+) {
+  const expenses: {
+    description: string;
+    amount: number;
+    paid: boolean;
+    paidAt: null;
+    paidById: null;
+    packerId: string;
+  }[] = [];
+  for (const p of production) {
+    if (p.bags <= 0) continue;
+    const packer = packerByName.get(p.packerName.trim().toLowerCase());
+    if (!packer || packer.pricePerBag <= 0) continue;
+    expenses.push({
+      description: `Packer pay — ${packer.name}`,
+      amount: p.bags * packer.pricePerBag,
+      paid: false,
+      paidAt: null,
+      paidById: null,
+      packerId: packer.id,
+    });
+  }
+  return expenses;
+}
+
 export interface CreateDailyRecordResult {
   ok: boolean;
   error?: string;
@@ -63,15 +115,20 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
     return { ok: false, error: `A daily record for ${data.date} already exists.` };
   }
 
-  const [computedOpening, computedLeakageOpening, fixedPricing, drivers, truckCustomers] = await Promise.all([
-    latestClosingStock(),
-    latestLeakageClosing(),
-    getPricingSettings(),
-    prisma.driver.findMany({ where: { id: { in: data.driverSales.map((d) => d.driverId) } } }),
-    prisma.customer.findMany({
-      where: { id: { in: data.truckDeliveries.map((t) => t.customerId) } },
-    }),
-  ]);
+  const [computedOpening, computedLeakageOpening, fixedPricing, drivers, truckCustomers, packerByName] =
+    await Promise.all([
+      latestClosingStock(),
+      latestLeakageClosing(),
+      getPricingSettings(),
+      prisma.driver.findMany({ where: { id: { in: data.driverSales.map((d) => d.driverId) } } }),
+      prisma.customer.findMany({
+        where: { id: { in: data.truckDeliveries.map((t) => t.customerId) } },
+      }),
+      resolvePackers(
+        data.production.map((p) => p.packerName),
+        user.id
+      ),
+    ]);
 
   const opening =
     user.role === "SUPER_ADMIN" && data.openingStockOverride != null ? data.openingStockOverride : computedOpening;
@@ -137,7 +194,10 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
         createdByRole: user.role,
         approvedById: pending ? null : user.id,
         productionLines: {
-          create: data.production.map((p) => ({ packerName: p.packerName, bags: p.bags })),
+          create: data.production.map((p) => {
+            const packer = packerByName.get(p.packerName.trim().toLowerCase());
+            return { packerId: packer!.id, bags: p.bags, pricePerBag: packer!.pricePerBag };
+          }),
         },
         driverSales: {
           create: data.driverSales.map((d) => {
@@ -176,6 +236,7 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
               paidById: e.paid ? user.id : null,
             })),
             ...buildLoadingFeeExpenses(data.driverSales, driverById),
+            ...buildPackerPayExpenses(data.production, packerByName),
           ],
         },
       },
@@ -286,12 +347,16 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
     }
   }
 
-  const [fixedPricing, drivers, truckCustomers, prevApprovedForNewDate] = await Promise.all([
+  const [fixedPricing, drivers, truckCustomers, packerByName, prevApprovedForNewDate] = await Promise.all([
     getPricingSettings(),
     prisma.driver.findMany({ where: { id: { in: data.driverSales.map((d) => d.driverId) } } }),
     prisma.customer.findMany({
       where: { id: { in: data.truckDeliveries.map((t) => t.customerId) } },
     }),
+    resolvePackers(
+      data.production.map((p) => p.packerName),
+      user.id
+    ),
     dateChanged
       ? prisma.dailyRecord.findFirst({
           where: { status: "APPROVED", date: { lt: data.date }, id: { not: id } },
@@ -375,7 +440,10 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
             leakageWasteBags: data.leakageWasteBags,
             leakageClosing,
             productionLines: {
-              create: data.production.map((p) => ({ packerName: p.packerName, bags: p.bags })),
+              create: data.production.map((p) => {
+                const packer = packerByName.get(p.packerName.trim().toLowerCase());
+                return { packerId: packer!.id, bags: p.bags, pricePerBag: packer!.pricePerBag };
+              }),
             },
             driverSales: {
               create: data.driverSales.map((d) => {
@@ -414,6 +482,7 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
                   paidById: e.paid ? user.id : null,
                 })),
                 ...buildLoadingFeeExpenses(data.driverSales, driverById),
+                ...buildPackerPayExpenses(data.production, packerByName),
               ],
             },
           },

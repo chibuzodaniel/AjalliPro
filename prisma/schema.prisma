@@ -36,6 +36,7 @@ model User {
   driversCreated       Driver[]           @relation("DriverCreatedBy")
   driversApproved      Driver[]           @relation("DriverApprovedBy")
   customersCreated     Customer[]
+  packersCreated       Packer[]           @relation("PackerCreatedBy")
   activityLogs         ActivityLog[]
   expensesMarkedPaid   ExpenseItem[]      @relation("ExpensePaidBy")
   pushSubscriptions    PushSubscription[]
@@ -96,19 +97,38 @@ model ExpenseItem {
   paidAt        DateTime?
   paidById      String?
   paidBy        User?       @relation("ExpensePaidBy", fields: [paidById], references: [id])
+  packerId      String?
+  packer        Packer?     @relation(fields: [packerId], references: [id])
 
   @@index([dailyRecordId])
   @@index([paid])
+  @@index([packerId])
 }
 
 model ProductionLine {
   id            String      @id @default(cuid())
   dailyRecordId String
   dailyRecord   DailyRecord @relation(fields: [dailyRecordId], references: [id], onDelete: Cascade)
-  packerName    String
+  packerId      String
+  packer        Packer      @relation(fields: [packerId], references: [id])
   bags          Int
+  pricePerBag   Int         @default(0) // snapshot of the packer's fixed rate at the time of this production line
 
   @@index([dailyRecordId])
+  @@index([packerId])
+}
+
+model Packer {
+  id          String   @id @default(cuid())
+  name        String
+  phone       String?
+  pricePerBag Int      @default(0) // fixed by Admin/Super Admin, applied automatically per bag packed
+  createdById String
+  createdBy   User     @relation("PackerCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  productionLines ProductionLine[]
+  expenseItems    ExpenseItem[]
 }
 
 model Driver {

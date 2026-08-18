@@ -15,7 +15,6 @@ interface CustomerOption {
   name: string;
   pricePerBag: number;
 }
-
 export default function EditDailyRecordButton({
   record,
   drivers,
@@ -36,7 +35,7 @@ export default function EditDailyRecordButton({
   const initial: DailyRecordFormInitial = {
     date: record.date,
     openingStock: record.openingStock,
-    production: record.productionLines.map((p) => ({ packerName: p.packerName, bags: p.bags })),
+    production: record.productionLines.map((p) => ({ packerName: p.packer.name, bags: p.bags })),
     factoryBags: record.factoryBags,
     factoryBagsFromLeakage: record.factoryBagsFromLeakage,
     factoryPricePerBag: record.factoryPricePerBag,

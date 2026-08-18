@@ -43,7 +43,7 @@ function printDailyRecordPdf(record: DailyRecordFull) {
   const prodTotal = record.productionLines.reduce((s, p) => s + p.bags, 0);
 
   const productionRows = record.productionLines.length
-    ? record.productionLines.map((p) => `<tr><td>${esc(p.packerName)}</td><td class="num">${p.bags} bags</td></tr>`).join("")
+    ? record.productionLines.map((p) => `<tr><td>${esc(p.packer.name)}</td><td class="num">${p.bags} bags</td></tr>`).join("")
     : `<tr><td colspan="2" class="empty">None logged</td></tr>`;
 
   const driverRows = record.driverSales.length
@@ -209,7 +209,7 @@ export default function DailyRecordDetail({ record }: { record: DailyRecordFull 
             {record.productionLines.length === 0 ? (
               <div className="empty">None logged</div>
             ) : (
-              record.productionLines.map((p) => <Row key={p.id} left={p.packerName} right={`${p.bags} bags`} />)
+              record.productionLines.map((p) => <Row key={p.id} left={p.packer.name} right={`${p.bags} bags`} />)
             )}
           </Section>
 
