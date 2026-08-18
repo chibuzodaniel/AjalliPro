@@ -1,16 +1,17 @@
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { getApprovedRecordsSorted } from "@/lib/records";
+import { getPricingSettings } from "@/lib/settings";
 import { formatMoney } from "@/lib/money";
-import PackerPricingEditor from "@/components/packers/PackerPricingEditor";
 import DeletePackerButton from "@/components/packers/DeletePackerButton";
 import ViewAllModal from "@/components/ui/ViewAllModal";
 
 export default async function PackersPage() {
   const user = await getCurrentUser();
-  const [packers, approvedRecords, paidAgg, owingAgg] = await Promise.all([
+  const [packers, approvedRecords, pricing, paidAgg, owingAgg] = await Promise.all([
     prisma.packer.findMany({ orderBy: { createdAt: "desc" } }),
     getApprovedRecordsSorted(),
+    getPricingSettings(),
     prisma.expenseItem.groupBy({
       by: ["packerId"],
       where: { packerId: { not: null }, paid: true },
@@ -23,7 +24,6 @@ export default async function PackersPage() {
     }),
   ]);
 
-  const canSetPricing = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
   const canDelete = user?.role === "SUPER_ADMIN";
 
   const bagsByPacker = new Map<string, number>();
@@ -40,7 +40,6 @@ export default async function PackersPage() {
       <thead>
         <tr>
           <th>Name</th>
-          <th>Pay/bag</th>
           <th>Bags packed</th>
           <th>Amount owing</th>
           <th>Amount paid</th>
@@ -55,13 +54,6 @@ export default async function PackersPage() {
           return (
             <tr key={p.id}>
               <td>{p.name}</td>
-              <td>
-                {canSetPricing ? (
-                  <PackerPricingEditor packerId={p.id} pricePerBag={p.pricePerBag} />
-                ) : (
-                  <span>{formatMoney(p.pricePerBag)}/bag</span>
-                )}
-              </td>
               <td>{bags}</td>
               <td>
                 <span style={{ color: owing > 0 ? "var(--red)" : "var(--text-faint)" }}>{formatMoney(owing)}</span>
@@ -81,8 +73,8 @@ export default async function PackersPage() {
         <div>
           <h1>Packers</h1>
           <div className="sub">
-            Recognized automatically from names entered on daily records — set the pay per bag here as Admin/Super
-            Admin, and it applies from that point on
+            Recognized automatically from names entered on daily records. Everyone is paid{" "}
+            {formatMoney(pricing.packerPricePerBag)}/bag — change it on the Settings page.
           </div>
         </div>
       </div>

@@ -67,22 +67,32 @@ export async function saveEmailTemplateSettings(input: EmailTemplateSettings): P
 
 export interface PricingSettings {
   factoryPricePerBag: number;
+  packerPricePerBag: number;
 }
 
 export const DEFAULT_PRICING_SETTINGS: PricingSettings = {
   factoryPricePerBag: 0,
+  packerPricePerBag: 0,
 };
 
 export async function getPricingSettings(): Promise<PricingSettings> {
   const row = await prisma.pricingSetting.findUnique({ where: { id: SETTINGS_ID } });
   if (!row) return DEFAULT_PRICING_SETTINGS;
-  return { factoryPricePerBag: row.factoryPricePerBag };
+  return { factoryPricePerBag: row.factoryPricePerBag, packerPricePerBag: row.packerPricePerBag };
 }
 
-export async function savePricingSettings(input: PricingSettings): Promise<void> {
+export async function savePricingSettings(input: { factoryPricePerBag: number }): Promise<void> {
   await prisma.pricingSetting.upsert({
     where: { id: SETTINGS_ID },
     create: { id: SETTINGS_ID, ...input },
     update: input,
+  });
+}
+
+export async function savePackerPriceSetting(packerPricePerBag: number): Promise<void> {
+  await prisma.pricingSetting.upsert({
+    where: { id: SETTINGS_ID },
+    create: { id: SETTINGS_ID, packerPricePerBag },
+    update: { packerPricePerBag },
   });
 }

@@ -42,16 +42,16 @@ function buildLoadingFeeExpenses(
 /**
  * Packers are entered as free text on the daily record form, same as before —
  * there's no separate "add packer" step. Matching an existing name (case-
- * insensitively) reuses that packer's id and pay rate; an unrecognized name
- * creates a new Packer record on the spot so Admin/Super Admin has something
- * to set a rate on later.
+ * insensitively) reuses that packer's id and history; an unrecognized name
+ * creates a new Packer record on the spot. Pay is a single ₦/bag rate that
+ * applies to every packer (set on Settings), not a per-packer rate.
  */
 async function resolvePackers(
   names: string[],
   createdById: string
-): Promise<Map<string, { id: string; name: string; pricePerBag: number }>> {
+): Promise<Map<string, { id: string; name: string }>> {
   const trimmedNames = [...new Set(names.map((n) => n.trim()).filter(Boolean))];
-  const result = new Map<string, { id: string; name: string; pricePerBag: number }>();
+  const result = new Map<string, { id: string; name: string }>();
   for (const name of trimmedNames) {
     const key = name.toLowerCase();
     let packer = await prisma.packer.findFirst({ where: { name: { equals: name, mode: "insensitive" } } });
@@ -65,7 +65,8 @@ async function resolvePackers(
 
 function buildPackerPayExpenses(
   production: { packerName: string; bags: number }[],
-  packerByName: Map<string, { id: string; name: string; pricePerBag: number }>
+  packerByName: Map<string, { id: string; name: string }>,
+  packerPricePerBag: number
 ) {
   const expenses: {
     description: string;
@@ -75,13 +76,14 @@ function buildPackerPayExpenses(
     paidById: null;
     packerId: string;
   }[] = [];
+  if (packerPricePerBag <= 0) return expenses;
   for (const p of production) {
     if (p.bags <= 0) continue;
     const packer = packerByName.get(p.packerName.trim().toLowerCase());
-    if (!packer || packer.pricePerBag <= 0) continue;
+    if (!packer) continue;
     expenses.push({
       description: `Packer pay — ${packer.name}`,
-      amount: p.bags * packer.pricePerBag,
+      amount: p.bags * packerPricePerBag,
       paid: false,
       paidAt: null,
       paidById: null,
@@ -196,7 +198,7 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
         productionLines: {
           create: data.production.map((p) => {
             const packer = packerByName.get(p.packerName.trim().toLowerCase());
-            return { packerId: packer!.id, bags: p.bags, pricePerBag: packer!.pricePerBag };
+            return { packerId: packer!.id, bags: p.bags, pricePerBag: fixedPricing.packerPricePerBag };
           }),
         },
         driverSales: {
@@ -236,7 +238,7 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
               paidById: e.paid ? user.id : null,
             })),
             ...buildLoadingFeeExpenses(data.driverSales, driverById),
-            ...buildPackerPayExpenses(data.production, packerByName),
+            ...buildPackerPayExpenses(data.production, packerByName, fixedPricing.packerPricePerBag),
           ],
         },
       },
@@ -442,7 +444,7 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
             productionLines: {
               create: data.production.map((p) => {
                 const packer = packerByName.get(p.packerName.trim().toLowerCase());
-                return { packerId: packer!.id, bags: p.bags, pricePerBag: packer!.pricePerBag };
+                return { packerId: packer!.id, bags: p.bags, pricePerBag: fixedPricing.packerPricePerBag };
               }),
             },
             driverSales: {
@@ -482,7 +484,7 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
                   paidById: e.paid ? user.id : null,
                 })),
                 ...buildLoadingFeeExpenses(data.driverSales, driverById),
-                ...buildPackerPayExpenses(data.production, packerByName),
+                ...buildPackerPayExpenses(data.production, packerByName, fixedPricing.packerPricePerBag),
               ],
             },
           },

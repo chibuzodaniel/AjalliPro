@@ -122,7 +122,6 @@ model Packer {
   id          String   @id @default(cuid())
   name        String
   phone       String?
-  pricePerBag Int      @default(0) // fixed by Admin/Super Admin, applied automatically per bag packed
   createdById String
   createdBy   User     @relation("PackerCreatedBy", fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
@@ -221,6 +220,7 @@ model IncentiveTier {
 model PricingSetting {
   id                 String   @id @default("singleton")
   factoryPricePerBag Int      @default(0)
+  packerPricePerBag  Int      @default(0) // single rate applied to every packer, fixed by Admin/Super Admin
   updatedAt          DateTime @updatedAt
 }
 

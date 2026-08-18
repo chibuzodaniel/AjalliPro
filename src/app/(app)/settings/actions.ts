@@ -7,8 +7,13 @@ import { SUPER_ADMIN_EMAIL } from "@/lib/auth";
 import { logActivity } from "@/lib/activity";
 import { weeklyIncentiveSettingsSchema } from "@/lib/validation/weekly-incentive";
 import { emailTemplateSettingsSchema } from "@/lib/validation/email-template";
-import { pricingSettingsSchema } from "@/lib/validation/pricing";
-import { saveWeeklyIncentiveSettings, saveEmailTemplateSettings, savePricingSettings } from "@/lib/settings";
+import { pricingSettingsSchema, packerPriceSettingSchema } from "@/lib/validation/pricing";
+import {
+  saveWeeklyIncentiveSettings,
+  saveEmailTemplateSettings,
+  savePricingSettings,
+  savePackerPriceSetting,
+} from "@/lib/settings";
 
 export interface UpdateWeeklyIncentiveResult {
   ok: boolean;
@@ -171,6 +176,19 @@ export async function updatePricingSettings(input: unknown): Promise<UpdatePrici
 
   await savePricingSettings(parsed.data);
   await logActivity(`${user.name} set the factory sale price to ₦${parsed.data.factoryPricePerBag}/bag.`, user.id);
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function updatePackerPriceSetting(input: unknown): Promise<UpdatePricingResult> {
+  const user = await requireRole(["ADMIN", "SUPER_ADMIN"]);
+  const parsed = packerPriceSettingSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid value" };
+  }
+
+  await savePackerPriceSetting(parsed.data.packerPricePerBag);
+  await logActivity(`${user.name} set the packer pay rate to ₦${parsed.data.packerPricePerBag}/bag.`, user.id);
   revalidatePath("/", "layout");
   return { ok: true };
 }

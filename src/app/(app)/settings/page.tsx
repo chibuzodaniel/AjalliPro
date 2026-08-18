@@ -7,6 +7,7 @@ import { getWeeklyIncentiveSettings, getEmailTemplateSettings, getPricingSetting
 import WeeklyIncentiveEditor from "@/components/settings/WeeklyIncentiveEditor";
 import EmailTemplateEditor from "@/components/settings/EmailTemplateEditor";
 import FactoryPriceEditor from "@/components/settings/FactoryPriceEditor";
+import PackerPriceEditor from "@/components/settings/PackerPriceEditor";
 import ProductionCalculator from "@/components/settings/ProductionCalculator";
 import UsersList from "@/components/settings/UsersList";
 
@@ -50,6 +51,15 @@ export default async function SettingsPage() {
           price read-only when logging a sale; only Admin/Super Admin can change it here.
         </div>
         <FactoryPriceEditor initial={pricing.factoryPricePerBag} />
+      </div>
+
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="section-title">Packer pay rate</div>
+        <div className="section-sub">
+          One ₦/bag rate applied to every packer, wherever their name is typed on the Daily Record form. Changing it
+          only affects production logged from now on — past entries keep the rate that applied at the time.
+        </div>
+        <PackerPriceEditor initial={pricing.packerPricePerBag} />
       </div>
 
       {canSeeUsers && (
