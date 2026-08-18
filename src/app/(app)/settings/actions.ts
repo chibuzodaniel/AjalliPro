@@ -106,6 +106,57 @@ export async function revokeSuperAdmin(userId: string): Promise<PromoteSuperAdmi
   return { ok: true };
 }
 
+export interface DeleteUserResult {
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * Only removes accounts with no recorded activity — anyone who has ever
+ * created/approved a daily record or driver, added a customer, or marked an
+ * expense paid can't be deleted, since their id is referenced all over the
+ * data those actions produced. Mirrors the same "can't delete, has X" guard
+ * used for drivers/customers.
+ */
+export async function deleteUser(userId: string): Promise<DeleteUserResult> {
+  const admin = await requireRole(["SUPER_ADMIN"]);
+  if (userId === admin.id) {
+    return { ok: false, error: "You can't delete your own account." };
+  }
+
+  const target = await prisma.user.findUnique({ where: { id: userId } });
+  if (!target) return { ok: false, error: "User not found" };
+  if (target.email.toLowerCase() === SUPER_ADMIN_EMAIL) {
+    return { ok: false, error: "This is the primary Super Admin account and can't be deleted." };
+  }
+
+  const [recordsCreated, recordsApproved, driversCreated, driversApproved, customersCreated, expensesMarkedPaid] =
+    await Promise.all([
+      prisma.dailyRecord.count({ where: { createdById: userId } }),
+      prisma.dailyRecord.count({ where: { approvedById: userId } }),
+      prisma.driver.count({ where: { createdById: userId } }),
+      prisma.driver.count({ where: { approvedById: userId } }),
+      prisma.customer.count({ where: { createdById: userId } }),
+      prisma.expenseItem.count({ where: { paidById: userId } }),
+    ]);
+  const activityCount =
+    recordsCreated + recordsApproved + driversCreated + driversApproved + customersCreated + expensesMarkedPaid;
+  if (activityCount > 0) {
+    return {
+      ok: false,
+      error: `Can't delete "${target.name}" — this account has ${activityCount} recorded action${
+        activityCount === 1 ? "" : "s"
+      } (records, drivers, customers, or expenses) tied to it.`,
+    };
+  }
+
+  await prisma.activityLog.deleteMany({ where: { userId } });
+  await prisma.user.delete({ where: { id: userId } });
+  await logActivity(`${admin.name} deleted the unused account "${target.name}" (${target.email}).`, admin.id);
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
 export interface UpdatePricingResult {
   ok: boolean;
   error?: string;

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { setDailyRecordApprover, promoteSuperAdmin, revokeSuperAdmin } from "@/app/(app)/settings/actions";
+import { setDailyRecordApprover, promoteSuperAdmin, revokeSuperAdmin, deleteUser } from "@/app/(app)/settings/actions";
 import { roleLabel } from "@/lib/roles";
 import Modal from "@/components/ui/Modal";
 import type { Role } from "@prisma/client";
@@ -93,14 +93,73 @@ function SuperAdminAction({
   );
 }
 
+function DeleteUserAction({ user, onDone }: { user: UserRow; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function confirm() {
+    setLoading(true);
+    setError(null);
+    const result = await deleteUser(user.id);
+    setLoading(false);
+    if (!result.ok) {
+      setError(result.error ?? "Something went wrong");
+      return;
+    }
+    setOpen(false);
+    onDone();
+  }
+
+  return (
+    <>
+      <button
+        className="icon-btn no-print"
+        title="Delete this account"
+        onClick={() => setOpen(true)}
+        style={{ display: "inline-flex", alignItems: "center" }}
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="3 6 5 6 21 6" />
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+          <line x1="10" y1="11" x2="10" y2="17" />
+          <line x1="14" y1="11" x2="14" y2="17" />
+        </svg>
+      </button>
+      {open && (
+        <Modal open={open} onClose={() => setOpen(false)} title="Delete account?">
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, fontSize: 13.5 }}>
+            <p style={{ margin: 0 }}>
+              This will <b>permanently delete</b> the account for <b>{user.name}</b> ({user.email}). This only works
+              if the account has no daily records, drivers, customers, or expenses tied to it — otherwise it&apos;ll
+              be blocked. This cannot be undone.
+            </p>
+            {error && <div className="field-error">{error}</div>}
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 4 }}>
+              <button className="btn btn-ghost" onClick={() => setOpen(false)} disabled={loading}>
+                Cancel
+              </button>
+              <button className="btn btn-sm btn-reject" style={{ padding: "10px 18px" }} onClick={confirm} disabled={loading}>
+                {loading ? "Deleting…" : "Delete permanently"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
+  );
+}
+
 export default function UsersList({
   users,
   canAssign,
   isSeniorAdmin,
+  currentUserId,
 }: {
   users: UserRow[];
   canAssign: boolean;
   isSeniorAdmin: boolean;
+  currentUserId: string;
 }) {
   const router = useRouter();
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -162,13 +221,16 @@ export default function UsersList({
                 </td>
               )}
               {canAssign && (
-                <td>
+                <td style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   {u.role === "SUPER_ADMIN" ? (
                     isSeniorAdmin && !u.isPrimary ? (
                       <SuperAdminAction user={u} mode="revoke" onDone={() => router.refresh()} />
                     ) : null
                   ) : (
                     <SuperAdminAction user={u} mode="promote" onDone={() => router.refresh()} />
+                  )}
+                  {!u.isPrimary && u.id !== currentUserId && (
+                    <DeleteUserAction user={u} onDone={() => router.refresh()} />
                   )}
                 </td>
               )}

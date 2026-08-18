@@ -60,7 +60,7 @@ export default async function SettingsPage() {
             approves them once Super Admin assigns them here — unassigned Admins won&apos;t see that section at all
             on the Approvals page.
           </div>
-          <UsersList users={allUsers} canAssign={isSuperAdmin} isSeniorAdmin={isSeniorAdmin} />
+          <UsersList users={allUsers} canAssign={isSuperAdmin} isSeniorAdmin={isSeniorAdmin} currentUserId={user?.id ?? ""} />
         </div>
       )}
 

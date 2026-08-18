@@ -188,7 +188,9 @@ export default function DailyRecordFormModal({
     draft ? rekeyRows(draft.production) : toProductionRows(initial.production)
   );
   const [driverSales, setDriverSales] = useState<DriverSaleRow[]>(() =>
-    draft ? rekeyRows(draft.driverSales) : toDriverSaleRows(initial.driverSales, drivers[0]?.id ?? "")
+    draft
+      ? rekeyRows(draft.driverSales).map((r) => ({ ...r, loadingFeeWaived: r.loadingFeeWaived ?? false }))
+      : toDriverSaleRows(initial.driverSales, drivers[0]?.id ?? "")
   );
   const [truckDeliveries, setTruckDeliveries] = useState<TruckDeliveryRow[]>(() =>
     draft ? rekeyRows(draft.truckDeliveries) : toTruckDeliveryRows(initial.truckDeliveries, customers[0]?.id ?? "")
@@ -758,6 +760,11 @@ export default function DailyRecordFormModal({
             value={leakageBags}
             onChange={(e) => setLeakageBags(e.target.value)}
           />
+        </div>
+        <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginBottom: 6 }}>
+          Opening {leakageOpeningNum} + New {Number(leakageBags) || 0} − Rebagged {Number(factoryBagsFromLeakage) || 0}
+          {(Number(leakageWasteBags) || 0) > 0 ? ` − Wasted ${Number(leakageWasteBags) || 0}` : ""} = Closing{" "}
+          {leakageClosingPreview}
         </div>
         <div className="calc-box" style={{ marginBottom: 14 }}>
           <span>Leakage balance to carry forward</span>

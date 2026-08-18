@@ -128,12 +128,7 @@ function printDailyRecordPdf(record: DailyRecordFull) {
 
   <div class="totals"><span>Pump water sales</span><span>${formatMoney(record.pumpWaterAmount)}</span></div>
 
-  <h2>Leakages</h2>
-  <table><tbody>
-    <tr><td>Opening ${record.leakageOpening} + New ${record.leakageBags} − Rebagged ${record.factoryBagsFromLeakage}${
-      record.leakageWasteBags > 0 ? ` − Wasted ${record.leakageWasteBags}` : ""
-    } = Closing ${record.leakageClosing}</td></tr>
-  </tbody></table>
+  <div class="totals"><span>Leakage balance carried forward</span><span>${record.leakageClosing} bags</span></div>
 
   <h2>Expenses</h2>
   <table><tbody>${expenseRows}</tbody></table>
@@ -268,13 +263,10 @@ export default function DailyRecordDetail({ record }: { record: DailyRecordFull 
             <b>{formatMoney(record.pumpWaterAmount)}</b>
           </div>
 
-          <Section title="Leakages">
-            <div>
-              Opening {record.leakageOpening} + New {record.leakageBags} − Rebagged {record.factoryBagsFromLeakage}
-              {record.leakageWasteBags > 0 ? ` − Wasted ${record.leakageWasteBags}` : ""} = Closing{" "}
-              {record.leakageClosing}
-            </div>
-          </Section>
+          <div className="calc-box">
+            <span>Leakage balance carried forward</span>
+            <b>{record.leakageClosing} bags</b>
+          </div>
 
           <Section title="Expenses">
             {record.expenseItems.length === 0 ? (

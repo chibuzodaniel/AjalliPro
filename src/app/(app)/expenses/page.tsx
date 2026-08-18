@@ -1,3 +1,4 @@
+import { getCurrentUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { formatMoney } from "@/lib/money";
 import KpiCard from "@/components/ui/KpiCard";
@@ -5,6 +6,7 @@ import RangeTabs from "@/components/ui/RangeTabs";
 import Pill from "@/components/ui/Pill";
 import ViewAllModal from "@/components/ui/ViewAllModal";
 import ExpensePaidToggle from "@/components/expenses/ExpensePaidToggle";
+import DeleteExpenseButton from "@/components/expenses/DeleteExpenseButton";
 
 type StatusFilter = "unpaid" | "paid" | "all";
 
@@ -19,6 +21,8 @@ export default async function ExpensesPage({
 }) {
   const sp = await searchParams;
   const status = parseStatus(sp.status);
+  const user = await getCurrentUser();
+  const isSuperAdmin = user?.role === "SUPER_ADMIN";
 
   const [items, unpaidTotal, paidTotal, unpaidCount] = await Promise.all([
     prisma.expenseItem.findMany({
@@ -53,8 +57,9 @@ export default async function ExpensesPage({
               <Pill status={item.paid ? "APPROVED" : "PENDING"}>{item.paid ? "paid" : "unpaid"}</Pill>
             </td>
             <td>{item.paidBy ? item.paidBy.name : "—"}</td>
-            <td>
+            <td style={{ display: "flex", gap: 6, alignItems: "center" }}>
               <ExpensePaidToggle id={item.id} paid={item.paid} />
+              {isSuperAdmin && <DeleteExpenseButton id={item.id} description={item.description} />}
             </td>
           </tr>
         ))}

@@ -22,3 +22,24 @@ export async function setExpensePaid(id: string, paid: boolean) {
   );
   revalidatePath("/expenses");
 }
+
+export interface DeleteExpenseItemResult {
+  ok: boolean;
+  error?: string;
+}
+
+export async function deleteExpenseItem(id: string): Promise<DeleteExpenseItemResult> {
+  const user = await requireRole(["SUPER_ADMIN"]);
+  const expense = await prisma.expenseItem.findUnique({ where: { id }, include: { dailyRecord: true } });
+  if (!expense) {
+    return { ok: false, error: "Expense not found." };
+  }
+
+  await prisma.expenseItem.delete({ where: { id } });
+  await logActivity(
+    `${user.name} deleted the expense "${expense.description}" (${expense.dailyRecord.date}).`,
+    user.id
+  );
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
