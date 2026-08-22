@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/ui/Modal";
-import { createDailyRecord, updateDailyRecord } from "@/app/(app)/daily-record/actions";
+import { createDailyRecord, updateDailyRecord, findDailyRecordByDate } from "@/app/(app)/daily-record/actions";
 import { formatMoney } from "@/lib/money";
 
 interface DriverOption {
@@ -217,6 +217,75 @@ export default function DailyRecordFormModal({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // In create mode, if the picked date already has a record (e.g. production
+  // logged earlier via the Total Produced page's quick-add), the form
+  // transparently switches to editing that record instead of trying — and
+  // failing — to create a duplicate.
+  const [effectiveMode, setEffectiveMode] = useState<"create" | "edit">(mode);
+  const [effectiveRecordId, setEffectiveRecordId] = useState<string | undefined>(recordId);
+  const [foundExistingDate, setFoundExistingDate] = useState<string | null>(null);
+
+  function applyFormData(data: {
+    openingStock: number;
+    leakageOpening: number;
+    production: DailyRecordFormInitial["production"];
+    driverSales: DailyRecordFormInitial["driverSales"];
+    truckDeliveries: DailyRecordFormInitial["truckDeliveries"];
+    factoryBags: number;
+    factoryBagsFromLeakage: number;
+    factoryPricePerBag: number;
+    factoryCustomerId: string | null;
+    pumpWaterAmount: number;
+    leakageBags: number;
+    leakageWasteBags: number;
+    expenses: DailyRecordFormInitial["expenses"];
+  }) {
+    setOpeningValue(String(data.openingStock));
+    setLeakageOpeningValue(String(data.leakageOpening));
+    setProduction(toProductionRows(data.production));
+    setDriverSales(toDriverSaleRows(data.driverSales, drivers[0]?.id ?? ""));
+    setTruckDeliveries(toTruckDeliveryRows(data.truckDeliveries, customers[0]?.id ?? ""));
+    setFactoryBags(data.factoryBags ? String(data.factoryBags) : "");
+    setFactoryBagsFromLeakage(data.factoryBagsFromLeakage ? String(data.factoryBagsFromLeakage) : "");
+    setFactoryPrice(String(data.factoryPricePerBag));
+    setFactoryCustomerId(data.factoryCustomerId ?? "");
+    setPumpWaterAmount(data.pumpWaterAmount ? String(data.pumpWaterAmount) : "");
+    setLeakageBags(data.leakageBags ? String(data.leakageBags) : "");
+    setLeakageWasteBags(data.leakageWasteBags ? String(data.leakageWasteBags) : "");
+    setExpenses(toExpenseRows(data.expenses));
+  }
+
+  useEffect(() => {
+    if (mode !== "create") return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const found = await findDailyRecordByDate(date);
+        if (cancelled) return;
+        if (found) {
+          if (found.id !== effectiveRecordId) {
+            applyFormData(found);
+            setEffectiveMode("edit");
+            setEffectiveRecordId(found.id);
+            setFoundExistingDate(found.date);
+          }
+        } else if (effectiveRecordId) {
+          applyFormData({ ...initial, leakageOpening });
+          setEffectiveMode("create");
+          setEffectiveRecordId(undefined);
+          setFoundExistingDate(null);
+        }
+      } catch {
+        // Convenience lookup only — a failure here shouldn't block manual entry.
+      }
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, mode]);
+
   useEffect(() => {
     const toSave: DraftState = {
       date,
@@ -265,19 +334,10 @@ export default function DailyRecordFormModal({
     }
     setRestoredDraft(false);
     setDate(initial.date);
-    setOpeningValue(String(initial.openingStock));
-    setLeakageOpeningValue(String(leakageOpening));
-    setProduction(toProductionRows(initial.production));
-    setDriverSales(toDriverSaleRows(initial.driverSales, drivers[0]?.id ?? ""));
-    setTruckDeliveries(toTruckDeliveryRows(initial.truckDeliveries, customers[0]?.id ?? ""));
-    setFactoryBags(initial.factoryBags ? String(initial.factoryBags) : "");
-    setFactoryBagsFromLeakage(initial.factoryBagsFromLeakage ? String(initial.factoryBagsFromLeakage) : "");
-    setFactoryPrice(String(initial.factoryPricePerBag));
-    setFactoryCustomerId(initial.factoryCustomerId ?? "");
-    setPumpWaterAmount(initial.pumpWaterAmount ? String(initial.pumpWaterAmount) : "");
-    setLeakageBags(initial.leakageBags ? String(initial.leakageBags) : "");
-    setLeakageWasteBags(initial.leakageWasteBags ? String(initial.leakageWasteBags) : "");
-    setExpenses(toExpenseRows(initial.expenses));
+    applyFormData({ ...initial, leakageOpening });
+    setEffectiveMode(mode);
+    setEffectiveRecordId(recordId);
+    setFoundExistingDate(null);
   }
 
   const driverById = useMemo(() => new Map(drivers.map((d) => [d.id, d])), [drivers]);
@@ -356,7 +416,8 @@ export default function DailyRecordFormModal({
         .filter((e) => e.description.trim().length > 0 && (Number(e.amount) || 0) > 0)
         .map((e) => ({ description: e.description.trim(), amount: Number(e.amount) || 0, paid: e.paid })),
     };
-    const result = mode === "create" ? await createDailyRecord(payload) : await updateDailyRecord(recordId!, payload);
+    const result =
+      effectiveMode === "create" ? await createDailyRecord(payload) : await updateDailyRecord(effectiveRecordId!, payload);
     setLoading(false);
     if (!result.ok) {
       setError(result.error ?? "Could not save daily record");
@@ -373,7 +434,12 @@ export default function DailyRecordFormModal({
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={mode === "create" ? "New Daily Record" : `Edit Daily Record — ${initial.date}`} maxWidth={720}>
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={effectiveMode === "create" ? "New Daily Record" : `Edit Daily Record — ${foundExistingDate ?? initial.date}`}
+      maxWidth={720}
+    >
       <form onSubmit={handleSubmit}>
         {restoredDraft && (
           <div className="calc-box" style={{ marginBottom: 14, alignItems: "center" }}>
@@ -381,6 +447,14 @@ export default function DailyRecordFormModal({
             <button type="button" className="btn btn-sm btn-ghost" onClick={discardDraft}>
               Start fresh
             </button>
+          </div>
+        )}
+        {mode === "create" && effectiveMode === "edit" && (
+          <div className="calc-box" style={{ marginBottom: 14 }}>
+            <span>
+              This date already has a record — production and anything else already logged is filled in below.
+              Saving updates that record instead of creating a new one.
+            </span>
           </div>
         )}
         <div className="form-grid">
@@ -840,7 +914,13 @@ export default function DailyRecordFormModal({
 
         {error && <div className="field-error">{error}</div>}
         <button className="btn btn-primary" style={{ width: "100%", marginTop: 16 }} type="submit" disabled={loading}>
-          {loading ? (mode === "create" ? "Saving…" : "Updating…") : mode === "create" ? "Save daily record" : "Update record"}
+          {loading
+            ? effectiveMode === "create"
+              ? "Saving…"
+              : "Updating…"
+            : effectiveMode === "create"
+              ? "Save daily record"
+              : "Update record"}
         </button>
       </form>
     </Modal>

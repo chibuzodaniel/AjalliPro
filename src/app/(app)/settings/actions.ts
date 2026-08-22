@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 import { SUPER_ADMIN_EMAIL } from "@/lib/auth";
 import { logActivity } from "@/lib/activity";
+import { sendPushToUsers } from "@/lib/push";
 import { weeklyIncentiveSettingsSchema } from "@/lib/validation/weekly-incentive";
 import { emailTemplateSettingsSchema } from "@/lib/validation/email-template";
 import { pricingSettingsSchema, packerPriceSettingSchema } from "@/lib/validation/pricing";
@@ -66,6 +67,13 @@ export async function setDailyRecordApprover(userId: string, value: boolean): Pr
     `${admin.name} ${value ? "assigned" : "unassigned"} "${target.name}" ${value ? "to" : "from"} daily record approval notifications.`,
     admin.id
   );
+  await sendPushToUsers([userId], {
+    title: value ? "You can now approve daily records" : "Daily record approval access removed",
+    body: value
+      ? `${admin.name} assigned you to approve and get notified about daily records.`
+      : `${admin.name} removed your daily record approval access.`,
+    url: "/approvals",
+  });
   revalidatePath("/settings");
   return { ok: true };
 }
@@ -84,6 +92,11 @@ export async function promoteSuperAdmin(userId: string): Promise<PromoteSuperAdm
 
   await prisma.user.update({ where: { id: userId }, data: { role: "SUPER_ADMIN" } });
   await logActivity(`${admin.name} promoted "${target.name}" to Super Admin.`, admin.id);
+  await sendPushToUsers([userId], {
+    title: "You're now a Super Admin",
+    body: `${admin.name} gave you full Super Admin access.`,
+    url: "/settings",
+  });
   revalidatePath("/settings");
   return { ok: true };
 }
@@ -107,6 +120,11 @@ export async function revokeSuperAdmin(userId: string): Promise<PromoteSuperAdmi
 
   await prisma.user.update({ where: { id: userId }, data: { role: "ADMIN" } });
   await logActivity(`${admin.name} revoked Super Admin rights from "${target.name}" (now Admin).`, admin.id);
+  await sendPushToUsers([userId], {
+    title: "Super Admin rights revoked",
+    body: `${admin.name} revoked your Super Admin rights. You're now an Admin.`,
+    url: "/settings",
+  });
   revalidatePath("/settings");
   return { ok: true };
 }

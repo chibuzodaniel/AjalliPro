@@ -4,6 +4,7 @@ import KpiCard from "@/components/ui/KpiCard";
 import RangeTabs from "@/components/ui/RangeTabs";
 import ViewAllModal from "@/components/ui/ViewAllModal";
 import { BarTrendChart } from "@/components/charts/DynamicTrendChart";
+import AddProductionButton from "@/components/production/AddProductionButton";
 
 export default async function ProductionPage({
   searchParams,
@@ -61,6 +62,7 @@ export default async function ProductionPage({
           <h1>Total Produced</h1>
           <div className="sub">Bags packed by day and by packer, from approved daily records</div>
         </div>
+        <AddProductionButton />
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 18 }}>
         <RangeTabs basePath="/production" current={range} options={RANGE_OPTIONS} />
