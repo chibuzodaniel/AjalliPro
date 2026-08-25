@@ -210,3 +210,71 @@ export async function updatePackerPriceSetting(input: unknown): Promise<UpdatePr
   revalidatePath("/", "layout");
   return { ok: true };
 }
+
+export interface ResetPreviewCounts {
+  dailyRecords: number;
+  drivers: number;
+  customers: number;
+  packers: number;
+  expenses: number;
+}
+
+/** Only the primary Super Admin sees this — used to show what a reset would delete before they confirm. */
+export async function getResetPreviewCounts(): Promise<ResetPreviewCounts> {
+  const user = await requireRole(["SUPER_ADMIN"]);
+  if ((user.email ?? "").toLowerCase() !== SUPER_ADMIN_EMAIL) {
+    return { dailyRecords: 0, drivers: 0, customers: 0, packers: 0, expenses: 0 };
+  }
+  const [dailyRecords, drivers, customers, packers, expenses] = await Promise.all([
+    prisma.dailyRecord.count(),
+    prisma.driver.count(),
+    prisma.customer.count(),
+    prisma.packer.count(),
+    prisma.expenseItem.count(),
+  ]);
+  return { dailyRecords, drivers, customers, packers, expenses };
+}
+
+export interface ResetAllDataResult {
+  ok: boolean;
+  error?: string;
+}
+
+const RESET_CONFIRM_PHRASE = "RESET ALL DATA";
+
+/**
+ * Full factory reset — clears every daily record (and everything tied to
+ * one: production, sales, expenses, leakages), every driver, customer,
+ * packer, and all settings back to their defaults. User accounts are never
+ * touched, including the caller's own. Restricted to the primary Super
+ * Admin (SUPER_ADMIN_EMAIL) specifically — the same bar as revoking another
+ * Super Admin — since this is far more destructive than that and there's no
+ * undo. The caller must also send the exact confirmation phrase shown in
+ * the UI, checked again here so this can't be triggered by a stray request.
+ */
+export async function resetAllData(confirmPhrase: string): Promise<ResetAllDataResult> {
+  const user = await requireRole(["SUPER_ADMIN"]);
+  if ((user.email ?? "").toLowerCase() !== SUPER_ADMIN_EMAIL) {
+    return { ok: false, error: "Only the primary Super Admin can reset the system." };
+  }
+  if (confirmPhrase !== RESET_CONFIRM_PHRASE) {
+    return { ok: false, error: `Type "${RESET_CONFIRM_PHRASE}" exactly to confirm.` };
+  }
+
+  await prisma.$transaction([
+    prisma.mailLog.deleteMany({}),
+    prisma.dailyRecord.deleteMany({}), // cascades production lines, driver sales, truck deliveries, expenses
+    prisma.driver.deleteMany({}),
+    prisma.customer.deleteMany({}),
+    prisma.packer.deleteMany({}),
+    prisma.incentiveTier.deleteMany({}),
+    prisma.pricingSetting.deleteMany({}),
+    prisma.weeklyIncentiveSetting.deleteMany({}),
+    prisma.emailTemplateSetting.deleteMany({}),
+    prisma.activityLog.deleteMany({}),
+  ]);
+
+  await logActivity(`${user.name} performed a full system reset. All daily records, drivers, customers, packers, and settings were cleared.`, user.id);
+  revalidatePath("/", "layout");
+  return { ok: true };
+}

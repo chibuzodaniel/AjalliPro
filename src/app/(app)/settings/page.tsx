@@ -10,6 +10,8 @@ import FactoryPriceEditor from "@/components/settings/FactoryPriceEditor";
 import PackerPriceEditor from "@/components/settings/PackerPriceEditor";
 import ProductionCalculator from "@/components/settings/ProductionCalculator";
 import UsersList from "@/components/settings/UsersList";
+import ResetSystemButton from "@/components/settings/ResetSystemButton";
+import { getResetPreviewCounts } from "./actions";
 
 export default async function SettingsPage() {
   const user = await getCurrentUser();
@@ -17,7 +19,7 @@ export default async function SettingsPage() {
   const isSeniorAdmin = (user?.email ?? "").toLowerCase() === SUPER_ADMIN_EMAIL;
   const canSeeUsers = user ? isApprover(user.role) : false;
 
-  const [stock, weeklySettings, emailTemplate, pricing, usersRaw] = await Promise.all([
+  const [stock, weeklySettings, emailTemplate, pricing, usersRaw, resetCounts] = await Promise.all([
     latestClosingStock(),
     getWeeklyIncentiveSettings(),
     getEmailTemplateSettings(),
@@ -28,6 +30,7 @@ export default async function SettingsPage() {
           select: { id: true, name: true, email: true, role: true, dailyRecordApprover: true, createdAt: true },
         })
       : Promise.resolve([]),
+    isSeniorAdmin ? getResetPreviewCounts() : Promise.resolve(null),
   ]);
   const allUsers = usersRaw.map((u) => ({ ...u, isPrimary: u.email.toLowerCase() === SUPER_ADMIN_EMAIL }));
 
@@ -109,6 +112,20 @@ export default async function SettingsPage() {
             </div>
           </div>
         </>
+      )}
+
+      {isSeniorAdmin && resetCounts && (
+        <div className="card" style={{ marginTop: 16, borderColor: "var(--red)" }}>
+          <div className="section-title" style={{ color: "var(--red)" }}>
+            Danger zone
+          </div>
+          <div className="section-sub">
+            Permanently clears all daily records, drivers, customers, packers, expenses, and settings back to a
+            blank slate. Only visible to you, the primary Super Admin — no one else can do this. User accounts are
+            never affected.
+          </div>
+          <ResetSystemButton counts={resetCounts} />
+        </div>
       )}
     </div>
   );

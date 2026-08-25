@@ -5,6 +5,7 @@ import { roleLabel, isApprover, canApproveDailyRecords } from "@/lib/roles";
 import ApproveRejectButtons from "@/components/shared/ApproveRejectButtons";
 import ViewAllModal from "@/components/ui/ViewAllModal";
 import DailyRecordDetail from "@/components/daily-record/DailyRecordDetail";
+import DeleteDailyRecordButton from "@/components/daily-record/DeleteDailyRecordButton";
 import PendingDriverDetail from "@/components/approvals/PendingDriverDetail";
 import { approveDailyRecord, rejectDailyRecord } from "./actions";
 import { approveDriver, rejectDriver } from "../drivers/actions";
@@ -56,8 +57,9 @@ export default async function ApprovalsPage() {
                 {net >= 0 ? "+" : ""}
                 {net} bags
               </td>
-              <td>
+              <td style={{ display: "flex", gap: 6, alignItems: "center" }}>
                 <ApproveRejectButtons id={r.id} onApprove={approveDailyRecord} onReject={rejectDailyRecord} />
+                {approver && <DeleteDailyRecordButton id={r.id} date={r.date} status={r.status} />}
               </td>
             </tr>
           );
