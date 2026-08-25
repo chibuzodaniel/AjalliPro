@@ -21,6 +21,7 @@ interface ProductionRow {
   key: number;
   packerName: string;
   bags: string;
+  paid: boolean;
 }
 interface DriverSaleRow {
   key: number;
@@ -83,7 +84,7 @@ function readDraft(key: string): DraftState | null {
 export interface DailyRecordFormInitial {
   date: string;
   openingStock: number;
-  production: { packerName: string; bags: number }[];
+  production: { packerName: string; bags: number; paid: boolean }[];
   factoryBags: number;
   factoryBagsFromLeakage: number;
   factoryPricePerBag: number;
@@ -104,8 +105,8 @@ export interface DailyRecordFormInitial {
 }
 
 function toProductionRows(rows: DailyRecordFormInitial["production"]): ProductionRow[] {
-  if (rows.length === 0) return [{ key: nextKey(), packerName: "", bags: "" }];
-  return rows.map((r) => ({ key: nextKey(), packerName: r.packerName, bags: String(r.bags) }));
+  if (rows.length === 0) return [{ key: nextKey(), packerName: "", bags: "", paid: false }];
+  return rows.map((r) => ({ key: nextKey(), packerName: r.packerName, bags: String(r.bags), paid: r.paid }));
 }
 function toDriverSaleRows(rows: DailyRecordFormInitial["driverSales"], firstDriverId: string): DriverSaleRow[] {
   if (rows.length === 0)
@@ -157,6 +158,7 @@ export default function DailyRecordFormModal({
   canEditOpeningStock,
   canEditFactoryPrice,
   canEditLeakageOpening,
+  packerPricePerBag,
 }: {
   mode: "create" | "edit";
   recordId?: string;
@@ -170,6 +172,7 @@ export default function DailyRecordFormModal({
   canEditOpeningStock?: boolean;
   canEditFactoryPrice?: boolean;
   canEditLeakageOpening?: boolean;
+  packerPricePerBag: number;
 }) {
   const router = useRouter();
   const draftKey = mode === "create" ? "ajalli:daily-record-draft:create" : `ajalli:daily-record-draft:edit:${recordId}`;
@@ -185,7 +188,7 @@ export default function DailyRecordFormModal({
   const [leakageOpeningValue, setLeakageOpeningValue] = useState(draft?.leakageOpeningValue ?? String(leakageOpening));
   const [production, setProduction] = useState<ProductionRow[]>(() =>
     draft
-      ? rekeyRows(draft.production).map((r) => ({ ...r, packerName: r.packerName ?? "" }))
+      ? rekeyRows(draft.production).map((r) => ({ ...r, packerName: r.packerName ?? "", paid: r.paid ?? false }))
       : toProductionRows(initial.production)
   );
   const [driverSales, setDriverSales] = useState<DriverSaleRow[]>(() =>
@@ -386,7 +389,7 @@ export default function DailyRecordFormModal({
       leakageOpeningOverride: canEditLeakageOpening ? leakageOpeningNum : null,
       production: production
         .filter((p) => (Number(p.bags) || 0) > 0)
-        .map((p) => ({ packerName: p.packerName || "Unnamed", bags: Number(p.bags) || 0 })),
+        .map((p) => ({ packerName: p.packerName || "Unnamed", bags: Number(p.bags) || 0, paid: p.paid })),
       factoryBags: Number(factoryBags) || 0,
       factoryBagsFromLeakage: Number(factoryBagsFromLeakage) || 0,
       factoryPricePerBag: Number(factoryPrice) || 0,
@@ -487,42 +490,65 @@ export default function DailyRecordFormModal({
         </div>
 
         <div className="subhead">Production</div>
-        {production.map((row) => (
-          <div className="repeater-row" key={row.key}>
-            <div className="field" style={{ marginBottom: 0 }}>
-              <input
-                type="text"
-                placeholder="Packer name"
-                value={row.packerName}
-                onChange={(e) =>
-                  setProduction((rows) => rows.map((r) => (r.key === row.key ? { ...r, packerName: e.target.value } : r)))
-                }
-              />
+        {production.map((row) => {
+          const bags = Number(row.bags) || 0;
+          const pay = bags * packerPricePerBag;
+          return (
+            <div key={row.key}>
+              <div className="repeater-row" style={{ gridTemplateColumns: "1.3fr .9fr auto auto" }}>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <input
+                    type="text"
+                    placeholder="Packer name"
+                    value={row.packerName}
+                    onChange={(e) =>
+                      setProduction((rows) => rows.map((r) => (r.key === row.key ? { ...r, packerName: e.target.value } : r)))
+                    }
+                  />
+                </div>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <input
+                    type="number"
+                    placeholder="Bags packed"
+                    min={0}
+                    value={row.bags}
+                    onChange={(e) =>
+                      setProduction((rows) => rows.map((r) => (r.key === row.key ? { ...r, bags: e.target.value } : r)))
+                    }
+                  />
+                </div>
+                {packerPricePerBag > 0 && (
+                  <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", fontSize: 12.5, color: "var(--text-dim)", whiteSpace: "nowrap" }}>
+                    <input
+                      type="checkbox"
+                      checked={row.paid}
+                      onChange={(e) =>
+                        setProduction((rows) => rows.map((r) => (r.key === row.key ? { ...r, paid: e.target.checked } : r)))
+                      }
+                    />
+                    Paid
+                  </label>
+                )}
+                <button
+                  type="button"
+                  className="icon-btn"
+                  onClick={() => setProduction((rows) => rows.filter((r) => r.key !== row.key))}
+                >
+                  ✕
+                </button>
+              </div>
+              {packerPricePerBag > 0 && bags > 0 && (
+                <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: -6, marginBottom: 10 }}>
+                  Packer pay: {formatMoney(pay)} (auto-added as an expense, {row.paid ? "marked paid" : "owing"})
+                </div>
+              )}
             </div>
-            <div className="field" style={{ marginBottom: 0 }}>
-              <input
-                type="number"
-                placeholder="Bags packed"
-                min={0}
-                value={row.bags}
-                onChange={(e) =>
-                  setProduction((rows) => rows.map((r) => (r.key === row.key ? { ...r, bags: e.target.value } : r)))
-                }
-              />
-            </div>
-            <button
-              type="button"
-              className="icon-btn"
-              onClick={() => setProduction((rows) => rows.filter((r) => r.key !== row.key))}
-            >
-              ✕
-            </button>
-          </div>
-        ))}
+          );
+        })}
         <button
           type="button"
           className="add-row-btn"
-          onClick={() => setProduction((rows) => [...rows, { key: nextKey(), packerName: "", bags: "" }])}
+          onClick={() => setProduction((rows) => [...rows, { key: nextKey(), packerName: "", bags: "", paid: false }])}
         >
           + Add packer
         </button>

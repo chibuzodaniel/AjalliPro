@@ -217,22 +217,34 @@ export interface ResetPreviewCounts {
   customers: number;
   packers: number;
   expenses: number;
+  activityLogs: number;
 }
 
 /** Only the primary Super Admin sees this — used to show what a reset would delete before they confirm. */
 export async function getResetPreviewCounts(): Promise<ResetPreviewCounts> {
   const user = await requireRole(["SUPER_ADMIN"]);
   if ((user.email ?? "").toLowerCase() !== SUPER_ADMIN_EMAIL) {
-    return { dailyRecords: 0, drivers: 0, customers: 0, packers: 0, expenses: 0 };
+    return { dailyRecords: 0, drivers: 0, customers: 0, packers: 0, expenses: 0, activityLogs: 0 };
   }
-  const [dailyRecords, drivers, customers, packers, expenses] = await Promise.all([
+  const [dailyRecords, drivers, customers, packers, expenses, activityLogs] = await Promise.all([
     prisma.dailyRecord.count(),
     prisma.driver.count(),
     prisma.customer.count(),
     prisma.packer.count(),
     prisma.expenseItem.count(),
+    prisma.activityLog.count(),
   ]);
-  return { dailyRecords, drivers, customers, packers, expenses };
+  return { dailyRecords, drivers, customers, packers, expenses, activityLogs };
+}
+
+export interface ResetSelection {
+  dailyRecords: boolean;
+  expenses: boolean;
+  drivers: boolean;
+  customers: boolean;
+  packers: boolean;
+  settings: boolean;
+  activityLog: boolean;
 }
 
 export interface ResetAllDataResult {
@@ -242,17 +254,34 @@ export interface ResetAllDataResult {
 
 const RESET_CONFIRM_PHRASE = "RESET ALL DATA";
 
+const RESET_LABELS: Record<keyof ResetSelection, string> = {
+  dailyRecords: "daily records (production, sales, deliveries, expenses, leakages)",
+  expenses: "expense line items",
+  drivers: "drivers",
+  customers: "customers",
+  packers: "packers",
+  settings: "settings (pricing, incentive thresholds, email template)",
+  activityLog: "the activity log",
+};
+
 /**
- * Full factory reset — clears every daily record (and everything tied to
- * one: production, sales, expenses, leakages), every driver, customer,
- * packer, and all settings back to their defaults. User accounts are never
- * touched, including the caller's own. Restricted to the primary Super
- * Admin (SUPER_ADMIN_EMAIL) specifically — the same bar as revoking another
- * Super Admin — since this is far more destructive than that and there's no
- * undo. The caller must also send the exact confirmation phrase shown in
- * the UI, checked again here so this can't be triggered by a stray request.
+ * Selective (or full) factory reset. The caller picks exactly which
+ * categories to clear; "reset everything" is just every category selected
+ * at once. User accounts are never touched, including the caller's own.
+ * Restricted to the primary Super Admin (SUPER_ADMIN_EMAIL) specifically —
+ * the same bar as revoking another Super Admin — since this is far more
+ * destructive and there's no undo. The caller must also send the exact
+ * confirmation phrase shown in the UI, checked again here so this can't be
+ * triggered by a stray request.
+ *
+ * Daily records are the root of most foreign keys here (driver sales,
+ * production lines, truck deliveries, expenses all cascade from them), so
+ * clearing daily records first unblocks clearing drivers/customers/packers
+ * in the same request. If daily records are NOT included, those categories
+ * are only safe to clear once nothing still references them — checked below
+ * with the same guards used by their individual delete buttons.
  */
-export async function resetAllData(confirmPhrase: string): Promise<ResetAllDataResult> {
+export async function resetSelectedData(selection: ResetSelection, confirmPhrase: string): Promise<ResetAllDataResult> {
   const user = await requireRole(["SUPER_ADMIN"]);
   if ((user.email ?? "").toLowerCase() !== SUPER_ADMIN_EMAIL) {
     return { ok: false, error: "Only the primary Super Admin can reset the system." };
@@ -260,21 +289,65 @@ export async function resetAllData(confirmPhrase: string): Promise<ResetAllDataR
   if (confirmPhrase !== RESET_CONFIRM_PHRASE) {
     return { ok: false, error: `Type "${RESET_CONFIRM_PHRASE}" exactly to confirm.` };
   }
+  const chosen = (Object.keys(selection) as (keyof ResetSelection)[]).filter((k) => selection[k]);
+  if (chosen.length === 0) {
+    return { ok: false, error: "Select at least one thing to reset." };
+  }
 
-  await prisma.$transaction([
-    prisma.mailLog.deleteMany({}),
-    prisma.dailyRecord.deleteMany({}), // cascades production lines, driver sales, truck deliveries, expenses
-    prisma.driver.deleteMany({}),
-    prisma.customer.deleteMany({}),
-    prisma.packer.deleteMany({}),
-    prisma.incentiveTier.deleteMany({}),
-    prisma.pricingSetting.deleteMany({}),
-    prisma.weeklyIncentiveSetting.deleteMany({}),
-    prisma.emailTemplateSetting.deleteMany({}),
-    prisma.activityLog.deleteMany({}),
-  ]);
+  if (selection.drivers && !selection.dailyRecords) {
+    const salesCount = await prisma.driverSale.count();
+    if (salesCount > 0) {
+      return {
+        ok: false,
+        error: `Can't reset drivers — ${salesCount} recorded sale${salesCount === 1 ? "" : "s"} still reference them. Also reset daily records, or clear those first.`,
+      };
+    }
+  }
+  if (selection.customers && !selection.dailyRecords) {
+    const [factorySales, driverSales, truckDeliveries] = await Promise.all([
+      prisma.dailyRecord.count({ where: { factoryCustomerId: { not: null } } }),
+      prisma.driverSale.count({ where: { customerId: { not: null } } }),
+      prisma.truckDelivery.count({ where: { customerId: { not: null } } }),
+    ]);
+    const linked = factorySales + driverSales + truckDeliveries;
+    if (linked > 0) {
+      return {
+        ok: false,
+        error: `Can't reset customers — linked to ${linked} sale${linked === 1 ? "" : "s"}. Also reset daily records, or clear those first.`,
+      };
+    }
+  }
+  if (selection.packers && !selection.dailyRecords) {
+    const linesCount = await prisma.productionLine.count();
+    if (linesCount > 0) {
+      return {
+        ok: false,
+        error: `Can't reset packers — ${linesCount} recorded production line${linesCount === 1 ? "" : "s"} still reference them. Also reset daily records, or clear those first.`,
+      };
+    }
+  }
 
-  await logActivity(`${user.name} performed a full system reset. All daily records, drivers, customers, packers, and settings were cleared.`, user.id);
+  await prisma.$transaction(
+    async (tx) => {
+      if (selection.customers) await tx.mailLog.deleteMany({});
+      if (selection.expenses) await tx.expenseItem.deleteMany({});
+      if (selection.dailyRecords) await tx.dailyRecord.deleteMany({}); // cascades production lines, driver sales, truck deliveries, expenses
+      if (selection.drivers) await tx.driver.deleteMany({});
+      if (selection.customers) await tx.customer.deleteMany({});
+      if (selection.packers) await tx.packer.deleteMany({});
+      if (selection.settings) {
+        await tx.incentiveTier.deleteMany({});
+        await tx.pricingSetting.deleteMany({});
+        await tx.weeklyIncentiveSetting.deleteMany({});
+        await tx.emailTemplateSetting.deleteMany({});
+      }
+      if (selection.activityLog) await tx.activityLog.deleteMany({});
+    },
+    { timeout: 30000 }
+  );
+
+  const summary = chosen.map((k) => RESET_LABELS[k]).join(", ");
+  await logActivity(`${user.name} reset: ${summary}.`, user.id);
   revalidatePath("/", "layout");
   return { ok: true };
 }

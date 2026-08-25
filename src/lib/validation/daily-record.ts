@@ -3,6 +3,7 @@ import { z } from "zod";
 export const productionLineSchema = z.object({
   packerName: z.string().trim().min(1),
   bags: z.number().int().min(0),
+  paid: z.boolean().default(false),
 });
 
 export const driverSaleSchema = z.object({
