@@ -35,11 +35,20 @@ export default async function DashboardPage() {
 
   const wk = currentWeekKey();
   const weekRecords = approvedRecords.filter((r) => weekKeyOf(r.date) === wk);
-  const revenue = computeRevenue(weekRecords);
   const weekProduced = weekRecords.reduce(
     (s, r) => s + r.productionLines.reduce((s2, p) => s2 + p.bags, 0),
     0
   );
+
+  // Net income cards — gross sales revenue for the period, not reduced by
+  // expenses (those are tracked separately, with their own paid/owing
+  // picture, on the Expenses page). Always computed fresh from approved
+  // records for the current week/month/year, no date range to pick.
+  const monthPrefix = today.slice(0, 7);
+  const yearPrefix = today.slice(0, 4);
+  const monthRevenue = computeRevenue(approvedRecords.filter((r) => r.date.startsWith(monthPrefix)));
+  const yearRevenue = computeRevenue(approvedRecords.filter((r) => r.date.startsWith(yearPrefix)));
+  const weekRevenue = computeRevenue(weekRecords);
 
   // 14-day series
   const days: string[] = [];
@@ -154,13 +163,32 @@ export default async function DashboardPage() {
           delta="See breakdown →"
         />
         {approver && (
-          <KpiCard
-            label="Net Income (This Week)"
-            value={formatMoney(revenue.net)}
-            icon="₦"
-            iconBg="rgba(63,222,154,.15)"
-            iconColor="var(--green)"
-          />
+          <>
+            <KpiCard
+              label="Net Income (This Week)"
+              value={formatMoney(weekRevenue.gross)}
+              icon="₦"
+              iconBg="rgba(63,222,154,.15)"
+              iconColor="var(--green)"
+              delta={`Pump ${formatMoney(weekRevenue.pumpWaterTotal)} + Sachet ${formatMoney(weekRevenue.sachetTotal)}`}
+            />
+            <KpiCard
+              label="Net Income (This Month)"
+              value={formatMoney(monthRevenue.gross)}
+              icon="₦"
+              iconBg="rgba(63,222,154,.15)"
+              iconColor="var(--green)"
+              delta={`Pump ${formatMoney(monthRevenue.pumpWaterTotal)} + Sachet ${formatMoney(monthRevenue.sachetTotal)}`}
+            />
+            <KpiCard
+              label="Net Income (This Year)"
+              value={formatMoney(yearRevenue.gross)}
+              icon="₦"
+              iconBg="rgba(63,222,154,.15)"
+              iconColor="var(--green)"
+              delta={`Pump ${formatMoney(yearRevenue.pumpWaterTotal)} + Sachet ${formatMoney(yearRevenue.sachetTotal)}`}
+            />
+          </>
         )}
         <KpiCard
           label="Pending Approvals"

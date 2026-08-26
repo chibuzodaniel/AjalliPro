@@ -3,26 +3,30 @@ import { recordExpenseTotal } from "./records";
 
 export interface RevenueSummary {
   gross: number;
+  pumpWaterTotal: number;
+  sachetTotal: number; // factory + driver + truck deliveries combined
   expenses: number;
   net: number;
 }
 
 export function computeRevenue(records: DailyRecordFull[]): RevenueSummary {
-  let rev = 0;
+  let pumpWaterTotal = 0;
+  let sachetTotal = 0;
   let exp = 0;
   for (const r of records) {
-    rev += r.factoryBags * r.factoryPricePerBag;
-    rev += r.pumpWaterAmount;
+    sachetTotal += r.factoryBags * r.factoryPricePerBag;
+    pumpWaterTotal += r.pumpWaterAmount;
     for (const d of r.driverSales) {
-      rev += d.bags * d.pricePerBag;
+      sachetTotal += d.bags * d.pricePerBag;
     }
     for (const t of r.truckDeliveries) {
-      rev += t.bags * t.pricePerBag;
+      sachetTotal += t.bags * t.pricePerBag;
     }
     // Truck fuel/hired cost is now its own "Truck fuel — X" / "Hired truck — X"
     // expense line (see buildTruckCostExpenses), so it's already counted via
     // recordExpenseTotal below — adding it again here would double-count it.
     exp += recordExpenseTotal(r);
   }
-  return { gross: rev, expenses: exp, net: rev - exp };
+  const rev = pumpWaterTotal + sachetTotal;
+  return { gross: rev, pumpWaterTotal, sachetTotal, expenses: exp, net: rev - exp };
 }
