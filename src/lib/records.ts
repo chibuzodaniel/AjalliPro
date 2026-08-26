@@ -89,3 +89,8 @@ export function packerPaidMap(expenseItems: { packerId: string | null; paid: boo
   }
   return map;
 }
+
+export function expenseStatusSuffix(e: { amount: number; amountPaid: number; paid: boolean }): string {
+  if (e.paid) return "";
+  return e.amountPaid > 0 ? " (partially paid)" : " (unpaid)";
+}

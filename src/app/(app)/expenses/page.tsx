@@ -5,7 +5,7 @@ import KpiCard from "@/components/ui/KpiCard";
 import RangeTabs from "@/components/ui/RangeTabs";
 import Pill from "@/components/ui/Pill";
 import ViewAllModal from "@/components/ui/ViewAllModal";
-import ExpensePaidToggle from "@/components/expenses/ExpensePaidToggle";
+import ExpensePaymentControl from "@/components/expenses/ExpensePaymentControl";
 import DeleteExpenseButton from "@/components/expenses/DeleteExpenseButton";
 
 type StatusFilter = "unpaid" | "paid" | "all";
@@ -24,16 +24,19 @@ export default async function ExpensesPage({
   const user = await getCurrentUser();
   const isSuperAdmin = user?.role === "SUPER_ADMIN";
 
-  const [items, unpaidTotal, paidTotal, unpaidCount] = await Promise.all([
+  const [items, allTotals, unpaidCount] = await Promise.all([
     prisma.expenseItem.findMany({
       where: status === "all" ? {} : { paid: status === "paid" },
       include: { dailyRecord: true, paidBy: true },
       orderBy: { dailyRecord: { date: "desc" } },
     }),
-    prisma.expenseItem.aggregate({ where: { paid: false }, _sum: { amount: true } }),
-    prisma.expenseItem.aggregate({ where: { paid: true }, _sum: { amount: true } }),
+    prisma.expenseItem.findMany({ select: { amount: true, amountPaid: true } }),
     prisma.expenseItem.count({ where: { paid: false } }),
   ]);
+
+  const totalAmount = allTotals.reduce((s, e) => s + e.amount, 0);
+  const totalPaid = allTotals.reduce((s, e) => s + e.amountPaid, 0);
+  const totalOutstanding = totalAmount - totalPaid;
 
   const expensesTable = (
     <table>
@@ -42,27 +45,36 @@ export default async function ExpensesPage({
           <th>Date</th>
           <th>Description</th>
           <th>Amount</th>
+          <th>Paid</th>
+          <th>Remaining</th>
           <th>Status</th>
-          <th>Paid by</th>
+          <th>Last paid by</th>
           <th></th>
         </tr>
       </thead>
       <tbody>
-        {items.map((item) => (
-          <tr key={item.id}>
-            <td>{item.dailyRecord.date}</td>
-            <td>{item.description}</td>
-            <td>{formatMoney(item.amount)}</td>
-            <td>
-              <Pill status={item.paid ? "APPROVED" : "PENDING"}>{item.paid ? "paid" : "unpaid"}</Pill>
-            </td>
-            <td>{item.paidBy ? item.paidBy.name : "—"}</td>
-            <td style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <ExpensePaidToggle id={item.id} paid={item.paid} />
-              {isSuperAdmin && <DeleteExpenseButton id={item.id} description={item.description} />}
-            </td>
-          </tr>
-        ))}
+        {items.map((item) => {
+          const remaining = item.amount - item.amountPaid;
+          const pillStatus = item.paid ? "APPROVED" : item.amountPaid > 0 ? "PENDING" : "REJECTED";
+          const label = item.paid ? "paid" : item.amountPaid > 0 ? "partial" : "unpaid";
+          return (
+            <tr key={item.id}>
+              <td>{item.dailyRecord.date}</td>
+              <td>{item.description}</td>
+              <td>{formatMoney(item.amount)}</td>
+              <td>{formatMoney(item.amountPaid)}</td>
+              <td>{formatMoney(remaining)}</td>
+              <td>
+                <Pill status={pillStatus}>{label}</Pill>
+              </td>
+              <td>{item.paidBy ? item.paidBy.name : "—"}</td>
+              <td style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <ExpensePaymentControl id={item.id} amount={item.amount} amountPaid={item.amountPaid} />
+                {isSuperAdmin && <DeleteExpenseButton id={item.id} description={item.description} />}
+              </td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );
@@ -77,13 +89,13 @@ export default async function ExpensesPage({
       </div>
       <div className="grid grid-3" style={{ marginBottom: 18 }}>
         <KpiCard
-          label="Unpaid"
-          value={formatMoney(unpaidTotal._sum.amount ?? 0)}
+          label="Outstanding"
+          value={formatMoney(totalOutstanding)}
           delta={`${unpaidCount} item${unpaidCount === 1 ? "" : "s"}`}
           deltaTone="neg"
         />
-        <KpiCard label="Paid" value={formatMoney(paidTotal._sum.amount ?? 0)} />
-        <KpiCard label="Total" value={formatMoney((unpaidTotal._sum.amount ?? 0) + (paidTotal._sum.amount ?? 0))} />
+        <KpiCard label="Paid" value={formatMoney(totalPaid)} />
+        <KpiCard label="Total" value={formatMoney(totalAmount)} />
       </div>
       <RangeTabs
         basePath="/expenses"

@@ -5,7 +5,7 @@ import Modal from "@/components/ui/Modal";
 import Pill from "@/components/ui/Pill";
 import { formatMoney } from "@/lib/money";
 import { roleLabel } from "@/lib/roles";
-import type { DailyRecordFull } from "@/lib/records";
+import { expenseStatusSuffix, type DailyRecordFull } from "@/lib/records";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -72,7 +72,7 @@ function printDailyRecordPdf(record: DailyRecordFull) {
     ? record.expenseItems
         .map(
           (e) =>
-            `<tr><td>${esc(e.description)}${e.paid ? "" : " (unpaid)"}</td><td class="num">${formatMoney(e.amount)}</td></tr>`
+            `<tr><td>${esc(e.description)}${esc(expenseStatusSuffix(e))}</td><td class="num">${formatMoney(e.amount)}</td></tr>`
         )
         .join("")
     : `<tr><td colspan="2" class="empty">None</td></tr>`;
@@ -273,7 +273,7 @@ export default function DailyRecordDetail({ record }: { record: DailyRecordFull 
               <div className="empty">None</div>
             ) : (
               record.expenseItems.map((e) => (
-                <Row key={e.id} left={`${e.description}${e.paid ? "" : " (unpaid)"}`} right={formatMoney(e.amount)} />
+                <Row key={e.id} left={`${e.description}${expenseStatusSuffix(e)}`} right={formatMoney(e.amount)} />
               ))
             )}
           </Section>

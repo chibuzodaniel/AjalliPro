@@ -133,6 +133,7 @@ function buildPackerPayExpenses(
   const expenses: {
     description: string;
     amount: number;
+    amountPaid: number;
     paid: boolean;
     paidAt: Date | null;
     paidById: string | null;
@@ -143,9 +144,11 @@ function buildPackerPayExpenses(
     if (p.bags <= 0) continue;
     const packer = packerByName.get(p.packerName.trim().toLowerCase());
     if (!packer) continue;
+    const amount = p.bags * packerPricePerBag;
     expenses.push({
       description: `Packer pay — ${packer.name}`,
-      amount: p.bags * packerPricePerBag,
+      amount,
+      amountPaid: p.paid ? amount : 0,
       paid: p.paid,
       paidAt: p.paid ? new Date() : null,
       paidById: p.paid ? paidById : null,
@@ -299,6 +302,7 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
             ...data.expenses.map((e) => ({
               description: e.description,
               amount: e.amount,
+              amountPaid: e.paid ? e.amount : 0,
               paid: e.paid,
               paidAt: e.paid ? new Date() : null,
               paidById: e.paid ? user.id : null,
@@ -555,6 +559,7 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
                 ...data.expenses.map((e) => ({
                   description: e.description,
                   amount: e.amount,
+                  amountPaid: e.paid ? e.amount : 0,
                   paid: e.paid,
                   paidAt: e.paid ? new Date() : null,
                   paidById: e.paid ? user.id : null,

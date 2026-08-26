@@ -93,7 +93,8 @@ model ExpenseItem {
   dailyRecord   DailyRecord @relation(fields: [dailyRecordId], references: [id], onDelete: Cascade)
   description   String
   amount        Int
-  paid          Boolean     @default(false)
+  amountPaid    Int         @default(0) // cumulative amount paid so far, via manually-entered payments; amount - amountPaid = still owing
+  paid          Boolean     @default(false) // true once amountPaid >= amount (fully settled)
   paidAt        DateTime?
   paidById      String?
   paidBy        User?       @relation("ExpensePaidBy", fields: [paidById], references: [id])
