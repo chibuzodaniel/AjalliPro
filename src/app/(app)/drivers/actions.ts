@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 import { needsApproval } from "@/lib/roles";
@@ -32,13 +33,15 @@ export async function createDriver(input: unknown) {
     user.id
   );
   if (pending) {
-    await notifyReviewers(
-      {
-        title: "New driver awaiting approval",
-        body: `${user.name} added "${driver.name}".`,
-        url: "/approvals",
-      },
-      user.id
+    after(() =>
+      notifyReviewers(
+        {
+          title: "New driver awaiting approval",
+          body: `${user.name} added "${driver.name}".`,
+          url: "/approvals",
+        },
+        user.id
+      )
     );
   }
   revalidatePath("/", "layout");
@@ -96,11 +99,13 @@ export async function approveDriver(id: string) {
     data: { status: "APPROVED", approvedById: user.id },
   });
   await logActivity(`${user.name} approved driver "${driver.name}".`, user.id);
-  await sendPushToUsers([driver.createdById], {
-    title: "Driver approved",
-    body: `${user.name} approved "${driver.name}".`,
-    url: "/drivers",
-  });
+  after(() =>
+    sendPushToUsers([driver.createdById], {
+      title: "Driver approved",
+      body: `${user.name} approved "${driver.name}".`,
+      url: "/drivers",
+    })
+  );
   revalidatePath("/", "layout");
 }
 
@@ -111,10 +116,12 @@ export async function rejectDriver(id: string) {
     data: { status: "REJECTED", approvedById: user.id },
   });
   await logActivity(`${user.name} rejected driver "${driver.name}".`, user.id);
-  await sendPushToUsers([driver.createdById], {
-    title: "Driver rejected",
-    body: `${user.name} rejected "${driver.name}".`,
-    url: "/drivers",
-  });
+  after(() =>
+    sendPushToUsers([driver.createdById], {
+      title: "Driver rejected",
+      body: `${user.name} rejected "${driver.name}".`,
+      url: "/drivers",
+    })
+  );
   revalidatePath("/", "layout");
 }

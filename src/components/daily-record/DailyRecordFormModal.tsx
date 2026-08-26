@@ -133,8 +133,8 @@ function toTruckDeliveryRows(
     bags: String(r.bags),
     bonusBags: r.bonusBags ? String(r.bonusBags) : "",
     ownTruck: r.ownTruck,
-    fuelCost: String(r.fuelCost),
-    hiredCost: String(r.hiredCost),
+    fuelCost: r.fuelCost ? String(r.fuelCost) : "",
+    hiredCost: r.hiredCost ? String(r.hiredCost) : "",
     loadingFeeWaived: r.loadingFeeWaived,
     offloadingFeeWaived: r.offloadingFeeWaived,
   }));
@@ -194,8 +194,12 @@ export default function DailyRecordFormModal({
   // pre-fill an old date and make a fresh "New daily entry" collide with a date that
   // already has a real record.
   const [date, setDate] = useState(mode === "create" ? initial.date : (draft?.date ?? initial.date));
-  const [openingValue, setOpeningValue] = useState(draft?.openingValue ?? String(initial.openingStock));
-  const [leakageOpeningValue, setLeakageOpeningValue] = useState(draft?.leakageOpeningValue ?? String(leakageOpening));
+  const [openingValue, setOpeningValue] = useState(
+    draft?.openingValue ?? (initial.openingStock ? String(initial.openingStock) : "")
+  );
+  const [leakageOpeningValue, setLeakageOpeningValue] = useState(
+    draft?.leakageOpeningValue ?? (leakageOpening ? String(leakageOpening) : "")
+  );
   const [production, setProduction] = useState<ProductionRow[]>(() =>
     draft
       ? rekeyRows(draft.production).map((r) => ({ ...r, packerName: r.packerName ?? "", paid: r.paid ?? false }))
@@ -221,7 +225,9 @@ export default function DailyRecordFormModal({
   const [factoryBagsFromLeakage, setFactoryBagsFromLeakage] = useState(
     draft?.factoryBagsFromLeakage ?? (initial.factoryBagsFromLeakage ? String(initial.factoryBagsFromLeakage) : "")
   );
-  const [factoryPrice, setFactoryPrice] = useState(draft?.factoryPrice ?? String(initial.factoryPricePerBag));
+  const [factoryPrice, setFactoryPrice] = useState(
+    draft?.factoryPrice ?? (initial.factoryPricePerBag ? String(initial.factoryPricePerBag) : "")
+  );
   const [factoryCustomerId, setFactoryCustomerId] = useState(draft?.factoryCustomerId ?? (initial.factoryCustomerId ?? ""));
   const [pumpWaterAmount, setPumpWaterAmount] = useState(
     draft?.pumpWaterAmount ?? (initial.pumpWaterAmount ? String(initial.pumpWaterAmount) : "")
@@ -259,14 +265,14 @@ export default function DailyRecordFormModal({
     leakageWasteBags: number;
     expenses: DailyRecordFormInitial["expenses"];
   }) {
-    setOpeningValue(String(data.openingStock));
-    setLeakageOpeningValue(String(data.leakageOpening));
+    setOpeningValue(data.openingStock ? String(data.openingStock) : "");
+    setLeakageOpeningValue(data.leakageOpening ? String(data.leakageOpening) : "");
     setProduction(toProductionRows(data.production));
     setDriverSales(toDriverSaleRows(data.driverSales, drivers[0]?.id ?? ""));
     setTruckDeliveries(toTruckDeliveryRows(data.truckDeliveries, customers[0]?.id ?? ""));
     setFactoryBags(data.factoryBags ? String(data.factoryBags) : "");
     setFactoryBagsFromLeakage(data.factoryBagsFromLeakage ? String(data.factoryBagsFromLeakage) : "");
-    setFactoryPrice(String(data.factoryPricePerBag));
+    setFactoryPrice(data.factoryPricePerBag ? String(data.factoryPricePerBag) : "");
     setFactoryCustomerId(data.factoryCustomerId ?? "");
     setPumpWaterAmount(data.pumpWaterAmount ? String(data.pumpWaterAmount) : "");
     setLeakageBags(data.leakageBags ? String(data.leakageBags) : "");

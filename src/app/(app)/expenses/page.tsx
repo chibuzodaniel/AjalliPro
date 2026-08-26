@@ -1,5 +1,6 @@
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
+import { canViewExpenses } from "@/lib/roles";
 import { formatMoney } from "@/lib/money";
 import KpiCard from "@/components/ui/KpiCard";
 import RangeTabs from "@/components/ui/RangeTabs";
@@ -23,6 +24,7 @@ export default async function ExpensesPage({
   const status = parseStatus(sp.status);
   const user = await getCurrentUser();
   const isSuperAdmin = user?.role === "SUPER_ADMIN";
+  const canRecordPayment = user ? canViewExpenses(user.role) : false;
 
   const [items, allTotals, unpaidCount] = await Promise.all([
     prisma.expenseItem.findMany({
@@ -69,7 +71,13 @@ export default async function ExpensesPage({
               </td>
               <td>{item.paidBy ? item.paidBy.name : "—"}</td>
               <td style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                <ExpensePaymentControl id={item.id} amount={item.amount} amountPaid={item.amountPaid} />
+                {canRecordPayment ? (
+                  <ExpensePaymentControl id={item.id} amount={item.amount} amountPaid={item.amountPaid} />
+                ) : remaining <= 0 ? (
+                  <span style={{ fontSize: 12.5, color: "var(--green)" }}>Paid in full</span>
+                ) : (
+                  <span style={{ fontSize: 12.5, color: "var(--text-faint)" }}>{formatMoney(remaining)} owing</span>
+                )}
                 {isSuperAdmin && <DeleteExpenseButton id={item.id} description={item.description} />}
               </td>
             </tr>

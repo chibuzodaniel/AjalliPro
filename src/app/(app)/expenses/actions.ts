@@ -19,7 +19,7 @@ export interface RecordExpensePaymentResult {
  * re-adding it.
  */
 export async function recordExpensePayment(id: string, paymentAmount: number): Promise<RecordExpensePaymentResult> {
-  const user = await requireRole(["ADMIN", "SUPER_ADMIN"]);
+  const user = await requireRole(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
   if (!Number.isInteger(paymentAmount) || paymentAmount <= 0) {
     return { ok: false, error: "Enter a payment amount greater than 0." };
   }

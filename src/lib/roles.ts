@@ -12,6 +12,9 @@ export function canManageDrivers(role: Role): boolean {
 export function canManageCustomers(role: Role): boolean {
   return role === "ADMIN_STAFF" || isApprover(role);
 }
+export function canViewExpenses(role: Role): boolean {
+  return role === "ADMIN_STAFF" || isApprover(role);
+}
 export function needsApproval(role: Role): boolean {
   return !isApprover(role);
 }

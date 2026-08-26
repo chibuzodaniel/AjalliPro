@@ -5,6 +5,7 @@ export interface NavItem {
   approverOnly?: boolean;
   reviewerOnly?: boolean;
   superAdminOnly?: boolean;
+  staffOrAboveOnly?: boolean;
   badge?: boolean;
 }
 
@@ -33,7 +34,7 @@ export const NAV_SECTIONS: NavSection[] = [
     section: "Governance",
     items: [
       { href: "/approvals", label: "Approvals", icon: "✅", reviewerOnly: true, badge: true },
-      { href: "/expenses", label: "Expenses", icon: "💸", approverOnly: true },
+      { href: "/expenses", label: "Expenses", icon: "💸", staffOrAboveOnly: true },
       { href: "/reports", label: "Reports", icon: "📈" },
       { href: "/settings", label: "Settings", icon: "⚙️", approverOnly: true },
     ],

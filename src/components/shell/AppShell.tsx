@@ -86,6 +86,7 @@ export default function AppShell({
               if (item.superAdminOnly) return user.role === "SUPER_ADMIN";
               if (item.approverOnly) return isApprover(user.role);
               if (item.reviewerOnly) return canReview(user.role);
+              if (item.staffOrAboveOnly) return user.role === "ADMIN_STAFF" || isApprover(user.role);
               return true;
             });
             if (!visibleItems.length) return null;

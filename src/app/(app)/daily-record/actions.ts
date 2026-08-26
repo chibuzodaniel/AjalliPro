@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole, requireUser } from "@/lib/auth-helpers";
@@ -325,13 +326,15 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
       user.id
     );
     if (pending) {
-      await notifyDailyRecordApprovers(
-        {
-          title: "New daily record awaiting approval",
-          body: `${user.name} logged the record for ${record.date}.`,
-          url: "/approvals",
-        },
-        user.id
+      after(() =>
+        notifyDailyRecordApprovers(
+          {
+            title: "New daily record awaiting approval",
+            body: `${user.name} logged the record for ${record.date}.`,
+            url: "/approvals",
+          },
+          user.id
+        )
       );
     }
     revalidatePath("/", "layout");
@@ -612,11 +615,13 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
     user.id
   );
   if (user.id !== existing.createdById) {
-    await sendPushToUsers([existing.createdById], {
-      title: "Your daily record was updated",
-      body: `${user.name} made changes to your daily record for ${data.date}.`,
-      url: "/daily-record",
-    });
+    after(() =>
+      sendPushToUsers([existing.createdById], {
+        title: "Your daily record was updated",
+        body: `${user.name} made changes to your daily record for ${data.date}.`,
+        url: "/daily-record",
+      })
+    );
   }
   revalidatePath("/", "layout");
   return { ok: true };

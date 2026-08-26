@@ -4,7 +4,10 @@ import { getToken } from "next-auth/jwt";
 
 const PUBLIC_PATHS = ["/login", "/register"];
 
-const APPROVER_ONLY = ["/approvals", "/settings", "/expenses"];
+const APPROVER_ONLY = ["/approvals", "/settings"];
+// Expenses is viewable by Admin Staff too (not just Admin/Super Admin) —
+// the page itself hides payment-recording controls from non-approvers.
+const STAFF_OR_ABOVE = ["/expenses"];
 // /settings is reachable by Admin+ (page itself hides Super-Admin-only
 // sections from a plain Admin); nothing currently needs a stricter,
 // Super-Admin-only route gate.
@@ -32,6 +35,9 @@ export async function proxy(req: NextRequest) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
     if (APPROVER_ONLY.some((p) => pathname.startsWith(p)) && !isApprover) {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+    if (STAFF_OR_ABOVE.some((p) => pathname.startsWith(p)) && !isApprover && role !== "ADMIN_STAFF") {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
   }
