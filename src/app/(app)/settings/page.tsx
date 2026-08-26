@@ -8,6 +8,7 @@ import WeeklyIncentiveEditor from "@/components/settings/WeeklyIncentiveEditor";
 import EmailTemplateEditor from "@/components/settings/EmailTemplateEditor";
 import FactoryPriceEditor from "@/components/settings/FactoryPriceEditor";
 import PackerPriceEditor from "@/components/settings/PackerPriceEditor";
+import TruckFeeEditor from "@/components/settings/TruckFeeEditor";
 import ProductionCalculator from "@/components/settings/ProductionCalculator";
 import UsersList from "@/components/settings/UsersList";
 import ResetSystemButton from "@/components/settings/ResetSystemButton";
@@ -63,6 +64,15 @@ export default async function SettingsPage() {
           only affects production logged from now on — past entries keep the rate that applied at the time.
         </div>
         <PackerPriceEditor initial={pricing.packerPricePerBag} />
+      </div>
+
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="section-title">Truck delivery loading &amp; offloading fees</div>
+        <div className="section-sub">
+          ₦/bag rates applied to every truck delivery — own truck or hired, either way. Waivable per delivery on the
+          Daily Record form when it doesn&apos;t apply. Changing it only affects deliveries logged from now on.
+        </div>
+        <TruckFeeEditor initialLoading={pricing.truckLoadingFeePerBag} initialOffloading={pricing.truckOffloadingFeePerBag} />
       </div>
 
       {canSeeUsers && (

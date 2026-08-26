@@ -68,17 +68,26 @@ export async function saveEmailTemplateSettings(input: EmailTemplateSettings): P
 export interface PricingSettings {
   factoryPricePerBag: number;
   packerPricePerBag: number;
+  truckLoadingFeePerBag: number;
+  truckOffloadingFeePerBag: number;
 }
 
 export const DEFAULT_PRICING_SETTINGS: PricingSettings = {
   factoryPricePerBag: 0,
   packerPricePerBag: 0,
+  truckLoadingFeePerBag: 0,
+  truckOffloadingFeePerBag: 0,
 };
 
 export async function getPricingSettings(): Promise<PricingSettings> {
   const row = await prisma.pricingSetting.findUnique({ where: { id: SETTINGS_ID } });
   if (!row) return DEFAULT_PRICING_SETTINGS;
-  return { factoryPricePerBag: row.factoryPricePerBag, packerPricePerBag: row.packerPricePerBag };
+  return {
+    factoryPricePerBag: row.factoryPricePerBag,
+    packerPricePerBag: row.packerPricePerBag,
+    truckLoadingFeePerBag: row.truckLoadingFeePerBag,
+    truckOffloadingFeePerBag: row.truckOffloadingFeePerBag,
+  };
 }
 
 export async function savePricingSettings(input: { factoryPricePerBag: number }): Promise<void> {
@@ -94,5 +103,16 @@ export async function savePackerPriceSetting(packerPricePerBag: number): Promise
     where: { id: SETTINGS_ID },
     create: { id: SETTINGS_ID, packerPricePerBag },
     update: { packerPricePerBag },
+  });
+}
+
+export async function saveTruckFeeSettings(input: {
+  truckLoadingFeePerBag: number;
+  truckOffloadingFeePerBag: number;
+}): Promise<void> {
+  await prisma.pricingSetting.upsert({
+    where: { id: SETTINGS_ID },
+    create: { id: SETTINGS_ID, ...input },
+    update: input,
   });
 }

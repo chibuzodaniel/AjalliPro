@@ -88,6 +88,8 @@ export default async function DailyRecordPage() {
                   canEditFactoryPrice={user?.role === "ADMIN" || user?.role === "SUPER_ADMIN"}
                   canEditLeakageOpening={user?.role === "SUPER_ADMIN"}
                   packerPricePerBag={pricing.packerPricePerBag}
+                  truckLoadingFeePerBag={pricing.truckLoadingFeePerBag}
+                  truckOffloadingFeePerBag={pricing.truckOffloadingFeePerBag}
                 />
               )}
               {approver && <DeleteDailyRecordButton id={r.id} date={r.date} status={r.status} />}
@@ -115,6 +117,8 @@ export default async function DailyRecordPage() {
           canEditFactoryPrice={user?.role === "ADMIN" || user?.role === "SUPER_ADMIN"}
           canEditLeakageOpening={user?.role === "SUPER_ADMIN"}
           packerPricePerBag={pricing.packerPricePerBag}
+          truckLoadingFeePerBag={pricing.truckLoadingFeePerBag}
+          truckOffloadingFeePerBag={pricing.truckOffloadingFeePerBag}
         />
       </div>
       <div className="card">

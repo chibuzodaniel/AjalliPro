@@ -8,12 +8,13 @@ import { logActivity } from "@/lib/activity";
 import { sendPushToUsers } from "@/lib/push";
 import { weeklyIncentiveSettingsSchema } from "@/lib/validation/weekly-incentive";
 import { emailTemplateSettingsSchema } from "@/lib/validation/email-template";
-import { pricingSettingsSchema, packerPriceSettingSchema } from "@/lib/validation/pricing";
+import { pricingSettingsSchema, packerPriceSettingSchema, truckFeeSettingsSchema } from "@/lib/validation/pricing";
 import {
   saveWeeklyIncentiveSettings,
   saveEmailTemplateSettings,
   savePricingSettings,
   savePackerPriceSetting,
+  saveTruckFeeSettings,
 } from "@/lib/settings";
 
 export interface UpdateWeeklyIncentiveResult {
@@ -207,6 +208,22 @@ export async function updatePackerPriceSetting(input: unknown): Promise<UpdatePr
 
   await savePackerPriceSetting(parsed.data.packerPricePerBag);
   await logActivity(`${user.name} set the packer pay rate to ₦${parsed.data.packerPricePerBag}/bag.`, user.id);
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function updateTruckFeeSettings(input: unknown): Promise<UpdatePricingResult> {
+  const user = await requireRole(["ADMIN", "SUPER_ADMIN"]);
+  const parsed = truckFeeSettingsSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid value" };
+  }
+
+  await saveTruckFeeSettings(parsed.data);
+  await logActivity(
+    `${user.name} set truck loading fee to ₦${parsed.data.truckLoadingFeePerBag}/bag and offloading fee to ₦${parsed.data.truckOffloadingFeePerBag}/bag.`,
+    user.id
+  );
   revalidatePath("/", "layout");
   return { ok: true };
 }

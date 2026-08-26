@@ -177,6 +177,10 @@ model TruckDelivery {
   ownTruck      Boolean     @default(true)
   fuelCost      Int         @default(0) // used when ownTruck = true
   hiredCost     Int         @default(0) // used when ownTruck = false (price paid to the hired truck)
+  loadingFeePerBag     Int     @default(0) // snapshot of the fixed loading fee/bag at the time of this delivery — applies regardless of own/hired truck
+  loadingFeeWaived     Boolean @default(false)
+  offloadingFeePerBag  Int     @default(0) // snapshot of the fixed offloading fee/bag at the time of this delivery — applies regardless of own/hired truck
+  offloadingFeeWaived  Boolean @default(false)
 
   @@index([dailyRecordId])
   @@index([customerId])
@@ -218,10 +222,12 @@ model IncentiveTier {
 }
 
 model PricingSetting {
-  id                 String   @id @default("singleton")
-  factoryPricePerBag Int      @default(0)
-  packerPricePerBag  Int      @default(0) // single rate applied to every packer, fixed by Admin/Super Admin
-  updatedAt          DateTime @updatedAt
+  id                        String   @id @default("singleton")
+  factoryPricePerBag        Int      @default(0)
+  packerPricePerBag         Int      @default(0) // single rate applied to every packer, fixed by Admin/Super Admin
+  truckLoadingFeePerBag     Int      @default(0) // single rate applied to every truck delivery (own or hired), fixed by Admin/Super Admin
+  truckOffloadingFeePerBag  Int      @default(0) // single rate applied to every truck delivery (own or hired), fixed by Admin/Super Admin
+  updatedAt                 DateTime @updatedAt
 }
 
 model WeeklyIncentiveSetting {

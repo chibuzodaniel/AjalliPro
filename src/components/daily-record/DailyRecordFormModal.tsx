@@ -38,6 +38,8 @@ interface TruckDeliveryRow {
   ownTruck: boolean;
   fuelCost: string;
   hiredCost: string;
+  loadingFeeWaived: boolean;
+  offloadingFeeWaived: boolean;
 }
 interface ExpenseRow {
   key: number;
@@ -98,6 +100,8 @@ export interface DailyRecordFormInitial {
     ownTruck: boolean;
     fuelCost: number;
     hiredCost: number;
+    loadingFeeWaived: boolean;
+    offloadingFeeWaived: boolean;
   }[];
   leakageBags: number;
   leakageWasteBags: number;
@@ -131,6 +135,8 @@ function toTruckDeliveryRows(
     ownTruck: r.ownTruck,
     fuelCost: String(r.fuelCost),
     hiredCost: String(r.hiredCost),
+    loadingFeeWaived: r.loadingFeeWaived,
+    offloadingFeeWaived: r.offloadingFeeWaived,
   }));
 }
 function toExpenseRows(rows: DailyRecordFormInitial["expenses"]): ExpenseRow[] {
@@ -159,6 +165,8 @@ export default function DailyRecordFormModal({
   canEditFactoryPrice,
   canEditLeakageOpening,
   packerPricePerBag,
+  truckLoadingFeePerBag,
+  truckOffloadingFeePerBag,
 }: {
   mode: "create" | "edit";
   recordId?: string;
@@ -173,6 +181,8 @@ export default function DailyRecordFormModal({
   canEditFactoryPrice?: boolean;
   canEditLeakageOpening?: boolean;
   packerPricePerBag: number;
+  truckLoadingFeePerBag: number;
+  truckOffloadingFeePerBag: number;
 }) {
   const router = useRouter();
   const draftKey = mode === "create" ? "ajalli:daily-record-draft:create" : `ajalli:daily-record-draft:edit:${recordId}`;
@@ -197,7 +207,13 @@ export default function DailyRecordFormModal({
       : toDriverSaleRows(initial.driverSales, drivers[0]?.id ?? "")
   );
   const [truckDeliveries, setTruckDeliveries] = useState<TruckDeliveryRow[]>(() =>
-    draft ? rekeyRows(draft.truckDeliveries) : toTruckDeliveryRows(initial.truckDeliveries, customers[0]?.id ?? "")
+    draft
+      ? rekeyRows(draft.truckDeliveries).map((r) => ({
+          ...r,
+          loadingFeeWaived: r.loadingFeeWaived ?? false,
+          offloadingFeeWaived: r.offloadingFeeWaived ?? false,
+        }))
+      : toTruckDeliveryRows(initial.truckDeliveries, customers[0]?.id ?? "")
   );
   const [factoryBags, setFactoryBags] = useState(
     draft?.factoryBags ?? (initial.factoryBags ? String(initial.factoryBags) : "")
@@ -412,6 +428,8 @@ export default function DailyRecordFormModal({
           ownTruck: t.ownTruck,
           fuelCost: Number(t.fuelCost) || 0,
           hiredCost: Number(t.hiredCost) || 0,
+          loadingFeeWaived: t.loadingFeeWaived,
+          offloadingFeeWaived: t.offloadingFeeWaived,
         })),
       leakageBags: Number(leakageBags) || 0,
       leakageWasteBags: Number(leakageWasteBags) || 0,
@@ -819,12 +837,64 @@ export default function DailyRecordFormModal({
               const truckCustomer = row.customerId ? customerById.get(row.customerId) : undefined;
               const price = truckCustomer?.pricePerBag ?? 0;
               const bonus = Number(row.bonusBags) || 0;
+              const cost = row.ownTruck ? Number(row.fuelCost) || 0 : Number(row.hiredCost) || 0;
+              const bags = Number(row.bags) || 0;
+              const loadingFeeAmount = bags * truckLoadingFeePerBag;
+              const offloadingFeeAmount = bags * truckOffloadingFeePerBag;
               return (
-                <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: -6, marginBottom: 10 }}>
-                  Revenue: {formatMoney((Number(row.bags) || 0) * price)} (₦{price}/bag
-                  {truckCustomer ? ` — ${truckCustomer.name}'s price` : ""})
-                  {truckCustomer && price === 0 ? " — no price set for this customer yet" : ""}
-                  {bonus > 0 && <> · Instant incentive: +{bonus} bags (manual, not part of revenue)</>}
+                <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: -6, marginBottom: 10, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <span>
+                    Revenue: {formatMoney(bags * price)} (₦{price}/bag
+                    {truckCustomer ? ` — ${truckCustomer.name}'s price` : ""})
+                    {truckCustomer && price === 0 ? " — no price set for this customer yet" : ""}
+                    {bonus > 0 && <> · Instant incentive: +{bonus} bags (manual, not part of revenue)</>}
+                    {cost > 0 && (
+                      <>
+                        {" "}
+                        · {row.ownTruck ? "Fuel" : "Hired truck"}: {formatMoney(cost)} (auto-added as an expense)
+                      </>
+                    )}
+                    {truckLoadingFeePerBag > 0 && (
+                      <>
+                        {" "}
+                        · Loading fee: {row.loadingFeeWaived ? "not applicable" : `${formatMoney(loadingFeeAmount)} (auto-added as an expense)`}
+                      </>
+                    )}
+                    {truckOffloadingFeePerBag > 0 && (
+                      <>
+                        {" "}
+                        · Offloading fee: {row.offloadingFeeWaived ? "not applicable" : `${formatMoney(offloadingFeeAmount)} (auto-added as an expense)`}
+                      </>
+                    )}
+                  </span>
+                  {truckLoadingFeePerBag > 0 && (
+                    <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={row.loadingFeeWaived}
+                        onChange={(e) =>
+                          setTruckDeliveries((rows) =>
+                            rows.map((r) => (r.key === row.key ? { ...r, loadingFeeWaived: e.target.checked } : r))
+                          )
+                        }
+                      />
+                      Loading fee not applicable
+                    </label>
+                  )}
+                  {truckOffloadingFeePerBag > 0 && (
+                    <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={row.offloadingFeeWaived}
+                        onChange={(e) =>
+                          setTruckDeliveries((rows) =>
+                            rows.map((r) => (r.key === row.key ? { ...r, offloadingFeeWaived: e.target.checked } : r))
+                          )
+                        }
+                      />
+                      Offloading fee not applicable
+                    </label>
+                  )}
                 </div>
               );
             })()}
@@ -844,6 +914,8 @@ export default function DailyRecordFormModal({
                 ownTruck: true,
                 fuelCost: "",
                 hiredCost: "",
+                loadingFeeWaived: false,
+                offloadingFeeWaived: false,
               },
             ])
           }

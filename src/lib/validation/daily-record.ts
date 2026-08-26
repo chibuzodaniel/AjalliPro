@@ -20,6 +20,8 @@ export const truckDeliverySchema = z.object({
   ownTruck: z.boolean(),
   fuelCost: z.number().int().min(0),
   hiredCost: z.number().int().min(0),
+  loadingFeeWaived: z.boolean().default(false),
+  offloadingFeeWaived: z.boolean().default(false),
 });
 
 export const expenseItemSchema = z.object({

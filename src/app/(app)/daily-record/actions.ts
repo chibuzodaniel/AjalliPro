@@ -42,6 +42,65 @@ function buildLoadingFeeExpenses(
 }
 
 /**
+ * Every truck delivery's fuel cost (own truck) or hired-truck price, plus
+ * its loading/offloading fee (fixed ₦/bag rates set on Settings, applying
+ * regardless of own vs hired truck), is logged as its own expense line —
+ * same treatment as driver loading fees — so it shows up on the Expenses
+ * page and can be marked paid/owing there, instead of only being visible as
+ * a field on the delivery itself.
+ */
+function buildTruckCostExpenses(
+  truckDeliveries: {
+    customerId: string;
+    bags: number;
+    ownTruck: boolean;
+    fuelCost: number;
+    hiredCost: number;
+    loadingFeeWaived: boolean;
+    offloadingFeeWaived: boolean;
+  }[],
+  customerById: Map<string, { name: string }>,
+  truckLoadingFeePerBag: number,
+  truckOffloadingFeePerBag: number
+) {
+  const expenses: { description: string; amount: number; paid: boolean; paidAt: null; paidById: null }[] = [];
+  for (const t of truckDeliveries) {
+    const customerName = customerById.get(t.customerId)?.name ?? "no customer";
+
+    const cost = t.ownTruck ? t.fuelCost : t.hiredCost;
+    if (cost > 0) {
+      expenses.push({
+        description: `${t.ownTruck ? "Truck fuel" : "Hired truck"} — ${customerName}`,
+        amount: cost,
+        paid: false,
+        paidAt: null,
+        paidById: null,
+      });
+    }
+
+    if (t.bags > 0 && !t.loadingFeeWaived && truckLoadingFeePerBag > 0) {
+      expenses.push({
+        description: `Loading fee — ${customerName}`,
+        amount: t.bags * truckLoadingFeePerBag,
+        paid: false,
+        paidAt: null,
+        paidById: null,
+      });
+    }
+    if (t.bags > 0 && !t.offloadingFeeWaived && truckOffloadingFeePerBag > 0) {
+      expenses.push({
+        description: `Offloading fee — ${customerName}`,
+        amount: t.bags * truckOffloadingFeePerBag,
+        paid: false,
+        paidAt: null,
+        paidById: null,
+      });
+    }
+  }
+  return expenses;
+}
+
+/**
  * Packers are entered as free text on the daily record form, same as before —
  * there's no separate "add packer" step. Matching an existing name (case-
  * insensitively) reuses that packer's id and history; an unrecognized name
@@ -228,6 +287,10 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
               ownTruck: t.ownTruck,
               fuelCost: t.ownTruck ? t.fuelCost : 0,
               hiredCost: t.ownTruck ? 0 : t.hiredCost,
+              loadingFeePerBag: fixedPricing.truckLoadingFeePerBag,
+              loadingFeeWaived: t.loadingFeeWaived,
+              offloadingFeePerBag: fixedPricing.truckOffloadingFeePerBag,
+              offloadingFeeWaived: t.offloadingFeeWaived,
             };
           }),
         },
@@ -242,6 +305,12 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
             })),
             ...buildLoadingFeeExpenses(data.driverSales, driverById),
             ...buildPackerPayExpenses(data.production, packerByName, fixedPricing.packerPricePerBag, user.id),
+            ...buildTruckCostExpenses(
+              data.truckDeliveries,
+              truckCustomerById,
+              fixedPricing.truckLoadingFeePerBag,
+              fixedPricing.truckOffloadingFeePerBag
+            ),
           ],
         },
       },
@@ -474,6 +543,10 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
                   ownTruck: t.ownTruck,
                   fuelCost: t.ownTruck ? t.fuelCost : 0,
                   hiredCost: t.ownTruck ? 0 : t.hiredCost,
+                  loadingFeePerBag: fixedPricing.truckLoadingFeePerBag,
+                  loadingFeeWaived: t.loadingFeeWaived,
+                  offloadingFeePerBag: fixedPricing.truckOffloadingFeePerBag,
+                  offloadingFeeWaived: t.offloadingFeeWaived,
                 };
               }),
             },
@@ -488,6 +561,12 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
                 })),
                 ...buildLoadingFeeExpenses(data.driverSales, driverById),
                 ...buildPackerPayExpenses(data.production, packerByName, fixedPricing.packerPricePerBag, user.id),
+                ...buildTruckCostExpenses(
+                  data.truckDeliveries,
+                  truckCustomerById,
+                  fixedPricing.truckLoadingFeePerBag,
+                  fixedPricing.truckOffloadingFeePerBag
+                ),
               ],
             },
           },
@@ -594,6 +673,8 @@ export interface DailyRecordFormData {
     ownTruck: boolean;
     fuelCost: number;
     hiredCost: number;
+    loadingFeeWaived: boolean;
+    offloadingFeeWaived: boolean;
   }[];
   leakageBags: number;
   leakageWasteBags: number;
@@ -641,6 +722,8 @@ export async function findDailyRecordByDate(date: string): Promise<DailyRecordFo
       ownTruck: t.ownTruck,
       fuelCost: t.fuelCost,
       hiredCost: t.hiredCost,
+      loadingFeeWaived: t.loadingFeeWaived,
+      offloadingFeeWaived: t.offloadingFeeWaived,
     })),
     leakageBags: record.leakageBags,
     leakageWasteBags: record.leakageWasteBags,
@@ -731,6 +814,8 @@ export async function addProductionForDate(
       ownTruck: t.ownTruck,
       fuelCost: t.fuelCost,
       hiredCost: t.hiredCost,
+      loadingFeeWaived: t.loadingFeeWaived,
+      offloadingFeeWaived: t.offloadingFeeWaived,
     })),
     leakageBags: existing.leakageBags,
     leakageWasteBags: existing.leakageWasteBags,

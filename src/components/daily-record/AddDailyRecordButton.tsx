@@ -25,6 +25,8 @@ export default function AddDailyRecordButton({
   canEditFactoryPrice,
   canEditLeakageOpening,
   packerPricePerBag,
+  truckLoadingFeePerBag,
+  truckOffloadingFeePerBag,
 }: {
   openingStock: number;
   leakageOpening: number;
@@ -35,6 +37,8 @@ export default function AddDailyRecordButton({
   canEditFactoryPrice?: boolean;
   canEditLeakageOpening?: boolean;
   packerPricePerBag: number;
+  truckLoadingFeePerBag: number;
+  truckOffloadingFeePerBag: number;
 }) {
   const [open, setOpen] = useState(false);
   const [formKey, setFormKey] = useState(0);
@@ -75,6 +79,8 @@ export default function AddDailyRecordButton({
           canEditFactoryPrice={canEditFactoryPrice}
           canEditLeakageOpening={canEditLeakageOpening}
           packerPricePerBag={packerPricePerBag}
+          truckLoadingFeePerBag={truckLoadingFeePerBag}
+          truckOffloadingFeePerBag={truckOffloadingFeePerBag}
         />
       )}
     </>

@@ -11,3 +11,10 @@ export const packerPriceSettingSchema = z.object({
 });
 
 export type PackerPriceSettingInput = z.infer<typeof packerPriceSettingSchema>;
+
+export const truckFeeSettingsSchema = z.object({
+  truckLoadingFeePerBag: z.number().int().min(0),
+  truckOffloadingFeePerBag: z.number().int().min(0),
+});
+
+export type TruckFeeSettingsInput = z.infer<typeof truckFeeSettingsSchema>;

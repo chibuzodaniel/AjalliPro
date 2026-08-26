@@ -23,6 +23,8 @@ export default function EditDailyRecordButton({
   canEditFactoryPrice,
   canEditLeakageOpening,
   packerPricePerBag,
+  truckLoadingFeePerBag,
+  truckOffloadingFeePerBag,
 }: {
   record: DailyRecordFull;
   drivers: DriverOption[];
@@ -31,6 +33,8 @@ export default function EditDailyRecordButton({
   canEditFactoryPrice?: boolean;
   canEditLeakageOpening?: boolean;
   packerPricePerBag: number;
+  truckLoadingFeePerBag: number;
+  truckOffloadingFeePerBag: number;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -61,6 +65,8 @@ export default function EditDailyRecordButton({
       ownTruck: t.ownTruck,
       fuelCost: t.fuelCost,
       hiredCost: t.hiredCost,
+      loadingFeeWaived: t.loadingFeeWaived,
+      offloadingFeeWaived: t.offloadingFeeWaived,
     })),
     leakageBags: record.leakageBags,
     leakageWasteBags: record.leakageWasteBags,
@@ -88,6 +94,8 @@ export default function EditDailyRecordButton({
           canEditFactoryPrice={canEditFactoryPrice}
           canEditLeakageOpening={canEditLeakageOpening}
           packerPricePerBag={packerPricePerBag}
+          truckLoadingFeePerBag={truckLoadingFeePerBag}
+          truckOffloadingFeePerBag={truckOffloadingFeePerBag}
         />
       )}
     </>
