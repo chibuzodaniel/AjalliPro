@@ -12,12 +12,33 @@ function urlBase64ToUint8Array(base64String: string): BufferSource {
   return bytes.buffer;
 }
 
-type Status = "unsupported" | "checking" | "subscribed" | "unsubscribed" | "denied" | "working";
+type Status = "unsupported" | "checking" | "subscribed" | "unsubscribed" | "denied" | "working" | "needs-install";
+
+function isIos(): boolean {
+  const ua = navigator.userAgent;
+  return /iPad|iPhone|iPod/.test(ua) || (ua.includes("Macintosh") && navigator.maxTouchPoints > 1);
+}
+
+function isStandalone(): boolean {
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    (navigator as Navigator & { standalone?: boolean }).standalone === true
+  );
+}
 
 export default function PushSubscribeButton() {
   const [status, setStatus] = useState<Status>("checking");
 
   useEffect(() => {
+    // iOS only supports push notifications for a PWA added to the Home
+    // Screen — a regular Safari tab (even bookmarked) can request
+    // permission and "subscribe" successfully but will never actually
+    // receive a push. Catch that case with a clear instruction instead of
+    // silently doing nothing.
+    if (isIos() && !isStandalone()) {
+      setStatus("needs-install");
+      return;
+    }
     if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
       setStatus("unsupported");
       return;
@@ -86,6 +107,19 @@ export default function PushSubscribeButton() {
 
   if (status === "unsupported") return null;
   if (status === "checking") return null;
+
+  if (status === "needs-install") {
+    return (
+      <div
+        className="nav-item"
+        title="On iPhone/iPad: tap Share, then 'Add to Home Screen', then open the app from your Home Screen to enable notifications"
+        style={{ cursor: "default", fontSize: 12, lineHeight: 1.4, opacity: 0.8 }}
+      >
+        <span className="ic">🔕</span>
+        Add to Home Screen to enable notifications on iOS
+      </div>
+    );
+  }
 
   if (status === "denied") {
     return (

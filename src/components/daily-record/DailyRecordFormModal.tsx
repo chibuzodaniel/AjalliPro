@@ -602,7 +602,7 @@ export default function DailyRecordFormModal({
           </div>
         </div>
         <div className="field">
-          <label>Of these, rebagged from leakage stock (bags — available: {leakageOpeningNum})</label>
+          <label>How many was sold from leakage stock (bags — available: {leakageOpeningNum})</label>
           <input
             type="number"
             min={0}

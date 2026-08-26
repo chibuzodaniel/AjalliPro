@@ -46,5 +46,11 @@ export async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  // PWA assets must stay reachable with no auth check — the browser fetches
+  // manifest.webmanifest/sw.js/icons directly (e.g. iOS "Add to Home
+  // Screen"), often before the user has ever logged in, and a redirect to
+  // /login instead of the real file breaks installability entirely.
+  matcher: [
+    "/((?!api|_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|icon-192.png|icon-512.png|apple-touch-icon.png).*)",
+  ],
 };

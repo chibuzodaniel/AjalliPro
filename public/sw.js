@@ -20,8 +20,8 @@ self.addEventListener("push", (event) => {
 
       await self.registration.showNotification(data.title, {
         body: data.body,
-        icon: "/next.svg",
-        badge: "/next.svg",
+        icon: "/icon-192.png",
+        badge: "/icon-192.png",
         data: { url: data.url },
       });
     })()
