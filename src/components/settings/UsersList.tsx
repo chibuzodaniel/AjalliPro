@@ -2,7 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { setDailyRecordApprover, promoteSuperAdmin, revokeSuperAdmin, deleteUser } from "@/app/(app)/settings/actions";
+import {
+  setDailyRecordApprover,
+  promoteSuperAdmin,
+  revokeSuperAdmin,
+  deleteUser,
+  setUserEditingEnabled,
+} from "@/app/(app)/settings/actions";
 import { roleLabel } from "@/lib/roles";
 import Modal from "@/components/ui/Modal";
 import type { Role } from "@prisma/client";
@@ -13,6 +19,7 @@ interface UserRow {
   email: string;
   role: Role;
   dailyRecordApprover: boolean;
+  canEdit: boolean;
   createdAt: Date;
   isPrimary: boolean;
 }
@@ -150,6 +157,35 @@ function DeleteUserAction({ user, onDone }: { user: UserRow; onDone: () => void 
   );
 }
 
+function EditingToggle({ user, onDone }: { user: UserRow; onDone: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function toggle(next: boolean) {
+    setLoading(true);
+    setError(null);
+    const result = await setUserEditingEnabled(user.id, next);
+    setLoading(false);
+    if (!result.ok) {
+      setError(result.error ?? "Something went wrong");
+      return;
+    }
+    onDone();
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: loading ? "wait" : "pointer" }}>
+        <input type="checkbox" checked={user.canEdit} disabled={loading} onChange={(e) => toggle(e.target.checked)} />
+        <span style={{ fontSize: 12.5, color: "var(--text-dim)" }}>
+          {user.canEdit ? "editing enabled" : "read-only"}
+        </span>
+      </label>
+      {error && <span className="field-error">{error}</span>}
+    </div>
+  );
+}
+
 export default function UsersList({
   users,
   canAssign,
@@ -185,6 +221,7 @@ export default function UsersList({
             <th>Role</th>
             <th>Joined</th>
             {canAssign && <th>Approves daily records</th>}
+            {canAssign && <th>Editing</th>}
             {canAssign && <th></th>}
           </tr>
         </thead>
@@ -195,7 +232,9 @@ export default function UsersList({
               <td>{u.email}</td>
               <td>
                 {u.role === "SUPER_ADMIN" ? (
-                  <span className="badge-role">Super Admin</span>
+                  // Super Admin is a hidden role — only another Super Admin viewing
+                  // this list can tell who holds it.
+                  canAssign && <span className="badge-role">Super Admin</span>
                 ) : (
                   <span className="badge-role">{roleLabel(u.role)}</span>
                 )}
@@ -217,6 +256,17 @@ export default function UsersList({
                     </label>
                   ) : (
                     <span style={{ color: "var(--text-faint)", fontSize: 12.5 }}>—</span>
+                  )}
+                </td>
+              )}
+              {canAssign && (
+                <td>
+                  {u.isPrimary || u.id === currentUserId ? (
+                    <span style={{ color: "var(--text-faint)", fontSize: 12.5 }}>
+                      {u.isPrimary ? "always enabled" : "—"}
+                    </span>
+                  ) : (
+                    <EditingToggle user={u} onDone={() => router.refresh()} />
                   )}
                 </td>
               )}

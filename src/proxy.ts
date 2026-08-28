@@ -12,6 +12,9 @@ const STAFF_OR_ABOVE = ["/expenses"];
 // sections from a plain Admin); nothing currently needs a stricter,
 // Super-Admin-only route gate.
 const SUPER_ADMIN_ONLY: string[] = [];
+// Sales Staff should only be able to record sales — Dashboard and Daily
+// Record only. Everything else in Operations/Governance is off-limits.
+const HIDDEN_FROM_SALES_STAFF = ["/production", "/packers", "/drivers", "/customers", "/incentives", "/reports"];
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -38,6 +41,9 @@ export async function proxy(req: NextRequest) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
     if (STAFF_OR_ABOVE.some((p) => pathname.startsWith(p)) && !isApprover && role !== "ADMIN_STAFF") {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+    if (role === "SALES_STAFF" && HIDDEN_FROM_SALES_STAFF.some((p) => pathname.startsWith(p))) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
   }

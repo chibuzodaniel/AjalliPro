@@ -27,6 +27,7 @@ export default function AddDailyRecordButton({
   packerPricePerBag,
   truckLoadingFeePerBag,
   truckOffloadingFeePerBag,
+  truckHiredCostPerBag,
 }: {
   openingStock: number;
   leakageOpening: number;
@@ -39,6 +40,7 @@ export default function AddDailyRecordButton({
   packerPricePerBag: number;
   truckLoadingFeePerBag: number;
   truckOffloadingFeePerBag: number;
+  truckHiredCostPerBag: number;
 }) {
   const [open, setOpen] = useState(false);
   const [formKey, setFormKey] = useState(0);
@@ -81,6 +83,7 @@ export default function AddDailyRecordButton({
           packerPricePerBag={packerPricePerBag}
           truckLoadingFeePerBag={truckLoadingFeePerBag}
           truckOffloadingFeePerBag={truckOffloadingFeePerBag}
+          truckHiredCostPerBag={truckHiredCostPerBag}
         />
       )}
     </>

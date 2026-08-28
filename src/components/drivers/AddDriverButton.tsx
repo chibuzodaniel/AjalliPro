@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Modal from "@/components/ui/Modal";
 import { createDriver } from "@/app/(app)/drivers/actions";
 
-export default function AddDriverButton({ canSetPricing }: { canSetPricing?: boolean }) {
+export default function AddDriverButton() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -58,28 +58,20 @@ export default function AddDriverButton({ canSetPricing }: { canSetPricing?: boo
             <label>Phone</label>
             <input type="text" placeholder="e.g. 0803 123 4567" value={phone} onChange={(e) => setPhone(e.target.value)} />
           </div>
-          {canSetPricing ? (
-            <>
-              <div className="field">
-                <label>Standard price to driver (₦/bag)</label>
-                <input type="number" min={0} placeholder="0" value={price} onChange={(e) => setPrice(e.target.value)} />
-              </div>
-              <div className="field">
-                <label>Standard loading fee (₦/bag)</label>
-                <input
-                  type="number"
-                  min={0}
-                  placeholder="0"
-                  value={loadingFee}
-                  onChange={(e) => setLoadingFee(e.target.value)}
-                />
-              </div>
-            </>
-          ) : (
-            <div className="hint" style={{ marginBottom: 14 }}>
-              Price/bag and loading fee are set by an Admin or Super Admin after this driver is added.
-            </div>
-          )}
+          <div className="field">
+            <label>Standard price to driver (₦/bag)</label>
+            <input type="number" min={1} required placeholder="0" value={price} onChange={(e) => setPrice(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>Standard loading fee (₦/bag)</label>
+            <input
+              type="number"
+              min={0}
+              placeholder="0"
+              value={loadingFee}
+              onChange={(e) => setLoadingFee(e.target.value)}
+            />
+          </div>
           {error && <div className="field-error">{error}</div>}
           <button className="btn btn-primary" style={{ width: "100%" }} type="submit" disabled={loading}>
             {loading ? "Submitting…" : "Submit driver"}

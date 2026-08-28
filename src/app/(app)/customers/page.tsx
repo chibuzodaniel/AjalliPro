@@ -88,7 +88,7 @@ export default async function CustomersPage() {
           <h1>Customers</h1>
           <div className="sub">Added by Admin Staff or Admin. Click a name for phone/address/email. Incentives &amp; weekly mail tracked here.</div>
         </div>
-        {user && canManageCustomers(user.role) && <AddCustomerButton canSetPricing={canSetPricing} />}
+        {user && canManageCustomers(user.role) && <AddCustomerButton />}
       </div>
       <div className="card">
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>

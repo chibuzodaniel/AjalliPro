@@ -94,7 +94,7 @@ export default async function DriversPage() {
           <h1>Drivers</h1>
           <div className="sub">Added by Admin Staff, approved by Admin/Super Admin</div>
         </div>
-        {user && canManageDrivers(user.role) && <AddDriverButton canSetPricing={canSetPricing} />}
+        {user && canManageDrivers(user.role) && <AddDriverButton />}
       </div>
       <div className="card">
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>

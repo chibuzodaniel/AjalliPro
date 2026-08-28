@@ -17,14 +17,13 @@ export async function createCustomer(input: unknown) {
   if (!parsed.success) {
     return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
-  const canSetPricing = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
   const customer = await prisma.customer.create({
     data: {
       name: parsed.data.name,
       email: parsed.data.email || null,
       phone: parsed.data.phone || null,
       address: parsed.data.address || null,
-      pricePerBag: canSetPricing ? parsed.data.pricePerBag ?? 0 : 0,
+      pricePerBag: parsed.data.pricePerBag,
       createdById: user.id,
     },
   });

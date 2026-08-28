@@ -15,14 +15,13 @@ export async function createDriver(input: unknown) {
   if (!parsed.success) {
     return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
-  const canSetPricing = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
   const pending = needsApproval(user.role);
   const driver = await prisma.driver.create({
     data: {
       name: parsed.data.name,
       phone: parsed.data.phone || null,
-      pricePerBag: canSetPricing ? parsed.data.pricePerBag : 0,
-      loadingFee: canSetPricing ? parsed.data.loadingFee : 0,
+      pricePerBag: parsed.data.pricePerBag,
+      loadingFee: parsed.data.loadingFee,
       status: pending ? "PENDING" : "APPROVED",
       createdById: user.id,
       approvedById: pending ? null : user.id,

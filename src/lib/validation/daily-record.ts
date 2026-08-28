@@ -18,10 +18,10 @@ export const truckDeliverySchema = z.object({
   bags: z.number().int().min(0),
   bonusBags: z.number().int().min(0),
   ownTruck: z.boolean(),
-  fuelCost: z.number().int().min(0),
-  hiredCost: z.number().int().min(0),
+  fuelCost: z.number().int().min(0), // manual — used when ownTruck = true, varies by trip
   loadingFeeWaived: z.boolean().default(false),
   offloadingFeeWaived: z.boolean().default(false),
+  hiredCostWaived: z.boolean().default(false), // hired-truck cost itself is computed server-side from the Settings rate, not submitted
 });
 
 export const expenseItemSchema = z.object({

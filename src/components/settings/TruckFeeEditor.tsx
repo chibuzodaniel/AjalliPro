@@ -7,13 +7,16 @@ import { updateTruckFeeSettings } from "@/app/(app)/settings/actions";
 export default function TruckFeeEditor({
   initialLoading,
   initialOffloading,
+  initialHiredCost,
 }: {
   initialLoading: number;
   initialOffloading: number;
+  initialHiredCost: number;
 }) {
   const router = useRouter();
-  const [loadingFee, setLoadingFee] = useState(String(initialLoading));
-  const [offloadingFee, setOffloadingFee] = useState(String(initialOffloading));
+  const [loadingFee, setLoadingFee] = useState(initialLoading ? String(initialLoading) : "");
+  const [offloadingFee, setOffloadingFee] = useState(initialOffloading ? String(initialOffloading) : "");
+  const [hiredCost, setHiredCost] = useState(initialHiredCost ? String(initialHiredCost) : "");
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -25,6 +28,7 @@ export default function TruckFeeEditor({
     const result = await updateTruckFeeSettings({
       truckLoadingFeePerBag: Number(loadingFee) || 0,
       truckOffloadingFeePerBag: Number(offloadingFee) || 0,
+      truckHiredCostPerBag: Number(hiredCost) || 0,
     });
     setLoading(false);
     if (!result.ok) {
@@ -56,6 +60,16 @@ export default function TruckFeeEditor({
             placeholder="0"
             value={offloadingFee}
             onChange={(e) => setOffloadingFee(e.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label>Hired truck cost (₦ per bag)</label>
+          <input
+            type="number"
+            min={0}
+            placeholder="0"
+            value={hiredCost}
+            onChange={(e) => setHiredCost(e.target.value)}
           />
         </div>
       </div>

@@ -28,7 +28,15 @@ export default async function SettingsPage() {
     canSeeUsers
       ? prisma.user.findMany({
           orderBy: [{ role: "asc" }, { name: "asc" }],
-          select: { id: true, name: true, email: true, role: true, dailyRecordApprover: true, createdAt: true },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            dailyRecordApprover: true,
+            canEdit: true,
+            createdAt: true,
+          },
         })
       : Promise.resolve([]),
     isSeniorAdmin ? getResetPreviewCounts() : Promise.resolve(null),
@@ -67,12 +75,18 @@ export default async function SettingsPage() {
       </div>
 
       <div className="card" style={{ marginTop: 16 }}>
-        <div className="section-title">Truck delivery loading &amp; offloading fees</div>
+        <div className="section-title">Truck delivery fees</div>
         <div className="section-sub">
-          ₦/bag rates applied to every truck delivery — own truck or hired, either way. Waivable per delivery on the
-          Daily Record form when it doesn&apos;t apply. Changing it only affects deliveries logged from now on.
+          ₦/bag rates for truck deliveries. Loading and offloading apply either way (own truck or hired); hired
+          truck cost only applies to hired deliveries, replacing manual entry — it's calculated automatically once
+          bags are entered. All three are waivable per delivery on the Daily Record form. Changing a rate only
+          affects deliveries logged from now on.
         </div>
-        <TruckFeeEditor initialLoading={pricing.truckLoadingFeePerBag} initialOffloading={pricing.truckOffloadingFeePerBag} />
+        <TruckFeeEditor
+          initialLoading={pricing.truckLoadingFeePerBag}
+          initialOffloading={pricing.truckOffloadingFeePerBag}
+          initialHiredCost={pricing.truckHiredCostPerBag}
+        />
       </div>
 
       {canSeeUsers && (

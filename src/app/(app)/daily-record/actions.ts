@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireRole, requireUser } from "@/lib/auth-helpers";
+import { requireRole, requireUser, requireEditingEnabled } from "@/lib/auth-helpers";
 import { needsApproval, isApprover } from "@/lib/roles";
 import { logActivity } from "@/lib/activity";
 import { notifyDailyRecordApprovers, sendPushToUsers } from "@/lib/push";
@@ -56,23 +56,33 @@ function buildTruckCostExpenses(
     bags: number;
     ownTruck: boolean;
     fuelCost: number;
-    hiredCost: number;
     loadingFeeWaived: boolean;
     offloadingFeeWaived: boolean;
+    hiredCostWaived: boolean;
   }[],
   customerById: Map<string, { name: string }>,
   truckLoadingFeePerBag: number,
-  truckOffloadingFeePerBag: number
+  truckOffloadingFeePerBag: number,
+  truckHiredCostPerBag: number
 ) {
   const expenses: { description: string; amount: number; paid: boolean; paidAt: null; paidById: null }[] = [];
   for (const t of truckDeliveries) {
     const customerName = customerById.get(t.customerId)?.name ?? "no customer";
 
-    const cost = t.ownTruck ? t.fuelCost : t.hiredCost;
-    if (cost > 0) {
+    if (t.ownTruck) {
+      if (t.fuelCost > 0) {
+        expenses.push({
+          description: `Truck fuel — ${customerName}`,
+          amount: t.fuelCost,
+          paid: false,
+          paidAt: null,
+          paidById: null,
+        });
+      }
+    } else if (t.bags > 0 && !t.hiredCostWaived && truckHiredCostPerBag > 0) {
       expenses.push({
-        description: `${t.ownTruck ? "Truck fuel" : "Hired truck"} — ${customerName}`,
-        amount: cost,
+        description: `Hired truck — ${customerName}`,
+        amount: t.bags * truckHiredCostPerBag,
         paid: false,
         paidAt: null,
         paidById: null,
@@ -290,7 +300,9 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
               pricePerBag: customer?.pricePerBag ?? 0,
               ownTruck: t.ownTruck,
               fuelCost: t.ownTruck ? t.fuelCost : 0,
-              hiredCost: t.ownTruck ? 0 : t.hiredCost,
+              hiredCost: !t.ownTruck && !t.hiredCostWaived ? t.bags * fixedPricing.truckHiredCostPerBag : 0,
+              hiredCostPerBag: t.ownTruck ? 0 : fixedPricing.truckHiredCostPerBag,
+              hiredCostWaived: t.hiredCostWaived,
               loadingFeePerBag: fixedPricing.truckLoadingFeePerBag,
               loadingFeeWaived: t.loadingFeeWaived,
               offloadingFeePerBag: fixedPricing.truckOffloadingFeePerBag,
@@ -314,7 +326,8 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
               data.truckDeliveries,
               truckCustomerById,
               fixedPricing.truckLoadingFeePerBag,
-              fixedPricing.truckOffloadingFeePerBag
+              fixedPricing.truckOffloadingFeePerBag,
+              fixedPricing.truckHiredCostPerBag
             ),
           ],
         },
@@ -419,6 +432,7 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
   if (!canEdit) {
     return { ok: false, error: "You don't have permission to edit this record." };
   }
+  await requireEditingEnabled(user.id);
 
   const dateChanged = data.date !== existing.date;
   if (dateChanged) {
@@ -549,7 +563,9 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
                   pricePerBag: customer?.pricePerBag ?? 0,
                   ownTruck: t.ownTruck,
                   fuelCost: t.ownTruck ? t.fuelCost : 0,
-                  hiredCost: t.ownTruck ? 0 : t.hiredCost,
+                  hiredCost: !t.ownTruck && !t.hiredCostWaived ? t.bags * fixedPricing.truckHiredCostPerBag : 0,
+                  hiredCostPerBag: t.ownTruck ? 0 : fixedPricing.truckHiredCostPerBag,
+                  hiredCostWaived: t.hiredCostWaived,
                   loadingFeePerBag: fixedPricing.truckLoadingFeePerBag,
                   loadingFeeWaived: t.loadingFeeWaived,
                   offloadingFeePerBag: fixedPricing.truckOffloadingFeePerBag,
@@ -573,7 +589,8 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
                   data.truckDeliveries,
                   truckCustomerById,
                   fixedPricing.truckLoadingFeePerBag,
-                  fixedPricing.truckOffloadingFeePerBag
+                  fixedPricing.truckOffloadingFeePerBag,
+                  fixedPricing.truckHiredCostPerBag
                 ),
               ],
             },
@@ -682,9 +699,9 @@ export interface DailyRecordFormData {
     bonusBags: number;
     ownTruck: boolean;
     fuelCost: number;
-    hiredCost: number;
     loadingFeeWaived: boolean;
     offloadingFeeWaived: boolean;
+    hiredCostWaived: boolean;
   }[];
   leakageBags: number;
   leakageWasteBags: number;
@@ -731,9 +748,9 @@ export async function findDailyRecordByDate(date: string): Promise<DailyRecordFo
       bonusBags: t.bonusBags,
       ownTruck: t.ownTruck,
       fuelCost: t.fuelCost,
-      hiredCost: t.hiredCost,
       loadingFeeWaived: t.loadingFeeWaived,
       offloadingFeeWaived: t.offloadingFeeWaived,
+      hiredCostWaived: t.hiredCostWaived,
     })),
     leakageBags: record.leakageBags,
     leakageWasteBags: record.leakageWasteBags,
@@ -823,9 +840,9 @@ export async function addProductionForDate(
       bonusBags: t.bonusBags,
       ownTruck: t.ownTruck,
       fuelCost: t.fuelCost,
-      hiredCost: t.hiredCost,
       loadingFeeWaived: t.loadingFeeWaived,
       offloadingFeeWaived: t.offloadingFeeWaived,
+      hiredCostWaived: t.hiredCostWaived,
     })),
     leakageBags: existing.leakageBags,
     leakageWasteBags: existing.leakageWasteBags,

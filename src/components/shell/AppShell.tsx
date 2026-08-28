@@ -83,6 +83,7 @@ export default function AppShell({
 
           {NAV_SECTIONS.map((section) => {
             const visibleItems = section.items.filter((item) => {
+              if (item.hiddenFromSalesStaff && user.role === "SALES_STAFF") return false;
               if (item.superAdminOnly) return user.role === "SUPER_ADMIN";
               if (item.approverOnly) return isApprover(user.role);
               if (item.reviewerOnly) return canReview(user.role);

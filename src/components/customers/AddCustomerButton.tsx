@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Modal from "@/components/ui/Modal";
 import { createCustomer } from "@/app/(app)/customers/actions";
 
-export default function AddCustomerButton({ canSetPricing }: { canSetPricing?: boolean }) {
+export default function AddCustomerButton() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -34,7 +34,7 @@ export default function AddCustomerButton({ canSetPricing }: { canSetPricing?: b
       email: email || undefined,
       phone: phone || undefined,
       address: address || undefined,
-      pricePerBag: canSetPricing ? Number(pricePerBag) || 0 : undefined,
+      pricePerBag: Number(pricePerBag) || 0,
     });
     setLoading(false);
     if (!result.ok) {
@@ -69,18 +69,17 @@ export default function AddCustomerButton({ canSetPricing }: { canSetPricing?: b
             <label>Email (optional)</label>
             <input type="email" placeholder="you@customer.com" value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
-          {canSetPricing && (
-            <div className="field">
-              <label>Price per bag for truck deliveries (₦, optional)</label>
-              <input
-                type="number"
-                min={0}
-                placeholder="0"
-                value={pricePerBag}
-                onChange={(e) => setPricePerBag(e.target.value)}
-              />
-            </div>
-          )}
+          <div className="field">
+            <label>Price per bag for truck deliveries (₦)</label>
+            <input
+              type="number"
+              min={1}
+              required
+              placeholder="0"
+              value={pricePerBag}
+              onChange={(e) => setPricePerBag(e.target.value)}
+            />
+          </div>
           {error && <div className="field-error">{error}</div>}
           <button className="btn btn-primary" style={{ width: "100%" }} type="submit" disabled={loading}>
             {loading ? "Saving…" : "Save customer"}

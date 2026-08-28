@@ -37,9 +37,9 @@ interface TruckDeliveryRow {
   bonusBags: string;
   ownTruck: boolean;
   fuelCost: string;
-  hiredCost: string;
   loadingFeeWaived: boolean;
   offloadingFeeWaived: boolean;
+  hiredCostWaived: boolean;
 }
 interface ExpenseRow {
   key: number;
@@ -99,9 +99,9 @@ export interface DailyRecordFormInitial {
     bonusBags: number;
     ownTruck: boolean;
     fuelCost: number;
-    hiredCost: number;
     loadingFeeWaived: boolean;
     offloadingFeeWaived: boolean;
+    hiredCostWaived: boolean;
   }[];
   leakageBags: number;
   leakageWasteBags: number;
@@ -134,9 +134,9 @@ function toTruckDeliveryRows(
     bonusBags: r.bonusBags ? String(r.bonusBags) : "",
     ownTruck: r.ownTruck,
     fuelCost: r.fuelCost ? String(r.fuelCost) : "",
-    hiredCost: r.hiredCost ? String(r.hiredCost) : "",
     loadingFeeWaived: r.loadingFeeWaived,
     offloadingFeeWaived: r.offloadingFeeWaived,
+    hiredCostWaived: r.hiredCostWaived,
   }));
 }
 function toExpenseRows(rows: DailyRecordFormInitial["expenses"]): ExpenseRow[] {
@@ -167,6 +167,7 @@ export default function DailyRecordFormModal({
   packerPricePerBag,
   truckLoadingFeePerBag,
   truckOffloadingFeePerBag,
+  truckHiredCostPerBag,
 }: {
   mode: "create" | "edit";
   recordId?: string;
@@ -183,6 +184,7 @@ export default function DailyRecordFormModal({
   packerPricePerBag: number;
   truckLoadingFeePerBag: number;
   truckOffloadingFeePerBag: number;
+  truckHiredCostPerBag: number;
 }) {
   const router = useRouter();
   const draftKey = mode === "create" ? "ajalli:daily-record-draft:create" : `ajalli:daily-record-draft:edit:${recordId}`;
@@ -216,6 +218,7 @@ export default function DailyRecordFormModal({
           ...r,
           loadingFeeWaived: r.loadingFeeWaived ?? false,
           offloadingFeeWaived: r.offloadingFeeWaived ?? false,
+          hiredCostWaived: r.hiredCostWaived ?? false,
         }))
       : toTruckDeliveryRows(initial.truckDeliveries, customers[0]?.id ?? "")
   );
@@ -433,9 +436,9 @@ export default function DailyRecordFormModal({
           bonusBags: Number(t.bonusBags) || 0,
           ownTruck: t.ownTruck,
           fuelCost: Number(t.fuelCost) || 0,
-          hiredCost: Number(t.hiredCost) || 0,
           loadingFeeWaived: t.loadingFeeWaived,
           offloadingFeeWaived: t.offloadingFeeWaived,
+          hiredCostWaived: t.hiredCostWaived,
         })),
       leakageBags: Number(leakageBags) || 0,
       leakageWasteBags: Number(leakageWasteBags) || 0,
@@ -443,8 +446,15 @@ export default function DailyRecordFormModal({
         .filter((e) => e.description.trim().length > 0 && (Number(e.amount) || 0) > 0)
         .map((e) => ({ description: e.description.trim(), amount: Number(e.amount) || 0, paid: e.paid })),
     };
-    const result =
-      effectiveMode === "create" ? await createDailyRecord(payload) : await updateDailyRecord(effectiveRecordId!, payload);
+    let result;
+    try {
+      result =
+        effectiveMode === "create" ? await createDailyRecord(payload) : await updateDailyRecord(effectiveRecordId!, payload);
+    } catch (err) {
+      setLoading(false);
+      setError(err instanceof Error ? err.message : "Could not save daily record");
+      return;
+    }
     setLoading(false);
     if (!result.ok) {
       setError(result.error ?? "Could not save daily record");
@@ -818,17 +828,7 @@ export default function DailyRecordFormModal({
                     }
                   />
                 ) : (
-                  <input
-                    type="number"
-                    placeholder="Hired ₦"
-                    min={0}
-                    value={row.hiredCost}
-                    onChange={(e) =>
-                      setTruckDeliveries((rows) =>
-                        rows.map((r) => (r.key === row.key ? { ...r, hiredCost: e.target.value } : r))
-                      )
-                    }
-                  />
+                  <input type="text" value="Hired ₦ — auto" readOnly disabled />
                 )}
               </div>
               <button
@@ -843,8 +843,9 @@ export default function DailyRecordFormModal({
               const truckCustomer = row.customerId ? customerById.get(row.customerId) : undefined;
               const price = truckCustomer?.pricePerBag ?? 0;
               const bonus = Number(row.bonusBags) || 0;
-              const cost = row.ownTruck ? Number(row.fuelCost) || 0 : Number(row.hiredCost) || 0;
               const bags = Number(row.bags) || 0;
+              const fuelAmount = Number(row.fuelCost) || 0;
+              const hiredCostAmount = bags * truckHiredCostPerBag;
               const loadingFeeAmount = bags * truckLoadingFeePerBag;
               const offloadingFeeAmount = bags * truckOffloadingFeePerBag;
               return (
@@ -854,10 +855,16 @@ export default function DailyRecordFormModal({
                     {truckCustomer ? ` — ${truckCustomer.name}'s price` : ""})
                     {truckCustomer && price === 0 ? " — no price set for this customer yet" : ""}
                     {bonus > 0 && <> · Instant incentive: +{bonus} bags (manual, not part of revenue)</>}
-                    {cost > 0 && (
+                    {row.ownTruck && fuelAmount > 0 && (
                       <>
                         {" "}
-                        · {row.ownTruck ? "Fuel" : "Hired truck"}: {formatMoney(cost)} (auto-added as an expense)
+                        · Fuel: {formatMoney(fuelAmount)} (auto-added as an expense)
+                      </>
+                    )}
+                    {!row.ownTruck && truckHiredCostPerBag > 0 && (
+                      <>
+                        {" "}
+                        · Hired truck: {row.hiredCostWaived ? "not applicable" : `${formatMoney(hiredCostAmount)} (auto-added as an expense)`}
                       </>
                     )}
                     {truckLoadingFeePerBag > 0 && (
@@ -901,6 +908,20 @@ export default function DailyRecordFormModal({
                       Offloading fee not applicable
                     </label>
                   )}
+                  {!row.ownTruck && truckHiredCostPerBag > 0 && (
+                    <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={row.hiredCostWaived}
+                        onChange={(e) =>
+                          setTruckDeliveries((rows) =>
+                            rows.map((r) => (r.key === row.key ? { ...r, hiredCostWaived: e.target.checked } : r))
+                          )
+                        }
+                      />
+                      Hired truck cost not applicable
+                    </label>
+                  )}
                 </div>
               );
             })()}
@@ -919,9 +940,9 @@ export default function DailyRecordFormModal({
                 bonusBags: "",
                 ownTruck: true,
                 fuelCost: "",
-                hiredCost: "",
                 loadingFeeWaived: false,
                 offloadingFeeWaived: false,
+                hiredCostWaived: false,
               },
             ])
           }

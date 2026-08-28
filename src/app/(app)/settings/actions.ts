@@ -82,6 +82,47 @@ export async function setDailyRecordApprover(userId: string, value: boolean): Pr
   return { ok: true };
 }
 
+export interface SetUserEditingEnabledResult {
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * Freezes a profile into read-only without touching its role — every
+ * mutating server action rejects for that user until this is turned back
+ * on. Takes effect immediately (checked fresh from the DB on each action,
+ * not from the session token). Can't be used on yourself or on the primary
+ * Super Admin, so there's always at least one account that can undo it.
+ */
+export async function setUserEditingEnabled(userId: string, enabled: boolean): Promise<SetUserEditingEnabledResult> {
+  const admin = await requireRole(["SUPER_ADMIN"]);
+  if (userId === admin.id) {
+    return { ok: false, error: "You can't toggle editing for your own account." };
+  }
+  const target = await prisma.user.findUnique({ where: { id: userId } });
+  if (!target) return { ok: false, error: "User not found" };
+  if (target.email.toLowerCase() === SUPER_ADMIN_EMAIL) {
+    return { ok: false, error: "This is the primary Super Admin account and can't be set to read-only." };
+  }
+
+  await prisma.user.update({ where: { id: userId }, data: { canEdit: enabled } });
+  await logActivity(
+    `${admin.name} ${enabled ? "re-enabled" : "disabled"} editing for "${target.name}".`,
+    admin.id
+  );
+  after(() =>
+    sendPushToUsers([userId], {
+      title: enabled ? "Editing re-enabled" : "Editing disabled",
+      body: enabled
+        ? `${admin.name} re-enabled your ability to make changes.`
+        : `${admin.name} set your account to read-only. You can still view everything, but can't make changes.`,
+      url: "/settings",
+    })
+  );
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
 export interface PromoteSuperAdminResult {
   ok: boolean;
   error?: string;
@@ -228,7 +269,7 @@ export async function updateTruckFeeSettings(input: unknown): Promise<UpdatePric
 
   await saveTruckFeeSettings(parsed.data);
   await logActivity(
-    `${user.name} set truck loading fee to ₦${parsed.data.truckLoadingFeePerBag}/bag and offloading fee to ₦${parsed.data.truckOffloadingFeePerBag}/bag.`,
+    `${user.name} set truck loading fee to ₦${parsed.data.truckLoadingFeePerBag}/bag, offloading fee to ₦${parsed.data.truckOffloadingFeePerBag}/bag, and hired-truck cost to ₦${parsed.data.truckHiredCostPerBag}/bag.`,
     user.id
   );
   revalidatePath("/", "layout");

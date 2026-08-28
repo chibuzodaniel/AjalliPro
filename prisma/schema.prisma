@@ -29,6 +29,7 @@ model User {
   passwordHash String
   role         Role     @default(SALES_STAFF)
   dailyRecordApprover Boolean @default(false) // Admin explicitly assigned by Super Admin to be notified about daily records awaiting approval (Super Admin is always notified regardless)
+  canEdit      Boolean  @default(true) // Super Admin can toggle this off per profile to freeze that account into read-only, without changing its role
   createdAt    DateTime @default(now())
 
   dailyRecordsCreated  DailyRecord[]      @relation("DailyRecordCreatedBy")
@@ -176,8 +177,10 @@ model TruckDelivery {
   bonusBags     Int         @default(0) // instant incentive bags given free to this customer, entered manually by the recorder
   pricePerBag   Int         @default(0) // snapshot of the customer's set price at the time of this delivery
   ownTruck      Boolean     @default(true)
-  fuelCost      Int         @default(0) // used when ownTruck = true
-  hiredCost     Int         @default(0) // used when ownTruck = false (price paid to the hired truck)
+  fuelCost      Int         @default(0) // used when ownTruck = true — entered manually, varies by trip/distance
+  hiredCost     Int         @default(0) // used when ownTruck = false — computed as bags x hiredCostPerBag (unless waived), not manually entered
+  hiredCostPerBag      Int     @default(0) // snapshot of the fixed hired-truck rate/bag at the time of this delivery
+  hiredCostWaived      Boolean @default(false)
   loadingFeePerBag     Int     @default(0) // snapshot of the fixed loading fee/bag at the time of this delivery — applies regardless of own/hired truck
   loadingFeeWaived     Boolean @default(false)
   offloadingFeePerBag  Int     @default(0) // snapshot of the fixed offloading fee/bag at the time of this delivery — applies regardless of own/hired truck
@@ -228,6 +231,7 @@ model PricingSetting {
   packerPricePerBag         Int      @default(0) // single rate applied to every packer, fixed by Admin/Super Admin
   truckLoadingFeePerBag     Int      @default(0) // single rate applied to every truck delivery (own or hired), fixed by Admin/Super Admin
   truckOffloadingFeePerBag  Int      @default(0) // single rate applied to every truck delivery (own or hired), fixed by Admin/Super Admin
+  truckHiredCostPerBag      Int      @default(0) // rate for hired-truck deliveries only, fixed by Admin/Super Admin — replaces manual entry
   updatedAt                 DateTime @updatedAt
 }
 
