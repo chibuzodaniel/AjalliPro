@@ -9,7 +9,33 @@ import { currentWeekKey, todayISO, weekKeyOf } from "@/lib/week";
 import { formatMoney } from "@/lib/money";
 import { getWeeklyIncentiveSettings } from "@/lib/settings";
 import KpiCard from "@/components/ui/KpiCard";
+import NetRevenueCard, { type PeriodRow } from "@/components/dashboard/NetRevenueCard";
 import { LineTrendChart, BarTrendChart } from "@/components/charts/DynamicTrendChart";
+import type { DailyRecordFull } from "@/lib/records";
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+function groupByPeriod(
+  records: DailyRecordFull[],
+  keyFn: (date: string) => string,
+  labelFn: (key: string) => string,
+  limit: number
+): PeriodRow[] {
+  const groups = new Map<string, DailyRecordFull[]>();
+  for (const r of records) {
+    const key = keyFn(r.date);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(r);
+  }
+  const keys = [...groups.keys()].sort().reverse().slice(0, limit);
+  return keys.map((key) => {
+    const rev = computeRevenue(groups.get(key)!);
+    return { label: labelFn(key), gross: rev.gross, expenses: rev.expenses, net: rev.net };
+  });
+}
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
@@ -49,6 +75,17 @@ export default async function DashboardPage() {
   const monthRevenue = computeRevenue(approvedRecords.filter((r) => r.date.startsWith(monthPrefix)));
   const yearRevenue = computeRevenue(approvedRecords.filter((r) => r.date.startsWith(yearPrefix)));
   const weekRevenue = computeRevenue(weekRecords);
+
+  // Net Revenue history — true net (revenue minus every expense), grouped
+  // by week/month/year so the card's modal can show how it's trending.
+  const weeklyNetHistory = groupByPeriod(approvedRecords, (d) => weekKeyOf(d), (k) => k, 12);
+  const monthlyNetHistory = groupByPeriod(
+    approvedRecords,
+    (d) => d.slice(0, 7),
+    (k) => `${MONTH_NAMES[Number(k.slice(5, 7)) - 1]} ${k.slice(0, 4)}`,
+    12
+  );
+  const yearlyNetHistory = groupByPeriod(approvedRecords, (d) => d.slice(0, 4), (k) => k, 10);
 
   // 14-day series
   const days: string[] = [];
@@ -187,6 +224,12 @@ export default async function DashboardPage() {
               iconBg="rgba(63,222,154,.15)"
               iconColor="var(--green)"
               delta={`Pump ${formatMoney(yearRevenue.pumpWaterTotal)} + Sachet ${formatMoney(yearRevenue.sachetTotal)}`}
+            />
+            <NetRevenueCard
+              weekNet={weekRevenue.net}
+              weeklyHistory={weeklyNetHistory}
+              monthlyHistory={monthlyNetHistory}
+              yearlyHistory={yearlyNetHistory}
             />
           </>
         )}

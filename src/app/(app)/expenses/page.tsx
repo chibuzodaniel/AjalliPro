@@ -7,6 +7,7 @@ import RangeTabs from "@/components/ui/RangeTabs";
 import Pill from "@/components/ui/Pill";
 import ViewAllModal from "@/components/ui/ViewAllModal";
 import ExpensePaymentControl from "@/components/expenses/ExpensePaymentControl";
+import ExpensePaymentHistory from "@/components/expenses/ExpensePaymentHistory";
 import DeleteExpenseButton from "@/components/expenses/DeleteExpenseButton";
 
 type StatusFilter = "unpaid" | "paid" | "all";
@@ -29,7 +30,7 @@ export default async function ExpensesPage({
   const [items, allTotals, unpaidCount] = await Promise.all([
     prisma.expenseItem.findMany({
       where: status === "all" ? {} : { paid: status === "paid" },
-      include: { dailyRecord: true, paidBy: true },
+      include: { dailyRecord: true, paidBy: true, _count: { select: { payments: true } } },
       orderBy: { dailyRecord: { date: "desc" } },
     }),
     prisma.expenseItem.findMany({ select: { amount: true, amountPaid: true } }),
@@ -70,7 +71,7 @@ export default async function ExpensesPage({
                 <Pill status={pillStatus}>{label}</Pill>
               </td>
               <td>{item.paidBy ? item.paidBy.name : "—"}</td>
-              <td style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <td style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                 {canRecordPayment ? (
                   <ExpensePaymentControl id={item.id} amount={item.amount} amountPaid={item.amountPaid} />
                 ) : remaining <= 0 ? (
@@ -78,6 +79,7 @@ export default async function ExpensesPage({
                 ) : (
                   <span style={{ fontSize: 12.5, color: "var(--text-faint)" }}>{formatMoney(remaining)} owing</span>
                 )}
+                <ExpensePaymentHistory expenseItemId={item.id} count={item._count.payments} />
                 {isSuperAdmin && <DeleteExpenseButton id={item.id} description={item.description} />}
               </td>
             </tr>

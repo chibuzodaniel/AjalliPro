@@ -10,8 +10,15 @@ function effectiveRole(email: string, storedRole: Role): Role {
   return email.toLowerCase() === SUPER_ADMIN_EMAIL ? "SUPER_ADMIN" : storedRole;
 }
 
+// 400 days — the practical cap most browsers allow on a cookie's lifetime,
+// used here as "effectively permanent". Only meaningfully matters for
+// accounts Super Admin has marked stayLoggedIn (see User.stayLoggedIn):
+// everyone else still gets kicked out by the 2-minute inactivity timer
+// (InactivityLogout) long before this would ever come into play.
+const SESSION_MAX_AGE_SECONDS = 400 * 24 * 60 * 60;
+
 export const authOptions: AuthOptions = {
-  session: { strategy: "jwt" },
+  session: { strategy: "jwt", maxAge: SESSION_MAX_AGE_SECONDS },
   pages: { signIn: "/login" },
   providers: [
     CredentialsProvider({

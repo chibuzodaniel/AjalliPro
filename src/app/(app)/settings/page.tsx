@@ -35,6 +35,7 @@ export default async function SettingsPage() {
             role: true,
             dailyRecordApprover: true,
             canEdit: true,
+            stayLoggedIn: true,
             createdAt: true,
           },
         })

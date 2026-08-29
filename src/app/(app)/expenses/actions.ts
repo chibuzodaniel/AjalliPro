@@ -13,9 +13,10 @@ export interface RecordExpensePaymentResult {
 /**
  * Payments are entered manually — an amount, not a checkbox — and can't
  * exceed what's still owing on the expense. Each payment adds to the running
- * amountPaid total; the expense is only marked fully paid once amountPaid
- * covers the full amount. A mistaken payment (partial or full) can be
- * undone entirely via revertExpensePayment below.
+ * amountPaid total and gets its own ExpensePayment row (who, how much,
+ * when) so the full history is visible later; the expense is only marked
+ * fully paid once amountPaid covers the full amount. A mistaken payment
+ * (partial or full) can be undone entirely via revertExpensePayment below.
  */
 export async function recordExpensePayment(id: string, paymentAmount: number): Promise<RecordExpensePaymentResult> {
   const user = await requireRole(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
@@ -36,15 +37,20 @@ export async function recordExpensePayment(id: string, paymentAmount: number): P
   const amountPaid = expense.amountPaid + paymentAmount;
   const nowFullyPaid = amountPaid >= expense.amount;
 
-  await prisma.expenseItem.update({
-    where: { id },
-    data: {
-      amountPaid,
-      paid: nowFullyPaid,
-      paidAt: new Date(),
-      paidById: user.id,
-    },
-  });
+  await prisma.$transaction([
+    prisma.expenseItem.update({
+      where: { id },
+      data: {
+        amountPaid,
+        paid: nowFullyPaid,
+        paidAt: new Date(),
+        paidById: user.id,
+      },
+    }),
+    prisma.expensePayment.create({
+      data: { expenseItemId: id, amount: paymentAmount, paidById: user.id },
+    }),
+  ]);
   await logActivity(
     `${user.name} recorded a ₦${paymentAmount} payment on "${expense.description}" (${expense.dailyRecord.date})` +
       (nowFullyPaid ? " — now fully paid." : ` — ₦${expense.amount - amountPaid} still owing.`),
@@ -56,9 +62,9 @@ export async function recordExpensePayment(id: string, paymentAmount: number): P
 
 /**
  * Undoes every payment recorded against an expense, resetting it back to
- * fully unpaid. There's no per-payment history to roll back to a partial
- * amount — this always clears the whole running total, whether the expense
- * was partially or fully paid.
+ * fully unpaid and clearing its payment history — there's no per-payment
+ * rollback to a partial amount, this always clears everything, whether the
+ * expense was partially or fully paid.
  */
 export async function revertExpensePayment(id: string): Promise<RecordExpensePaymentResult> {
   const user = await requireRole(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
@@ -70,16 +76,37 @@ export async function revertExpensePayment(id: string): Promise<RecordExpensePay
     return { ok: false, error: "This expense has no payment to revert." };
   }
 
-  await prisma.expenseItem.update({
-    where: { id },
-    data: { amountPaid: 0, paid: false, paidAt: null, paidById: null },
-  });
+  await prisma.$transaction([
+    prisma.expensePayment.deleteMany({ where: { expenseItemId: id } }),
+    prisma.expenseItem.update({
+      where: { id },
+      data: { amountPaid: 0, paid: false, paidAt: null, paidById: null },
+    }),
+  ]);
   await logActivity(
     `${user.name} reverted the ₦${expense.amountPaid} payment on "${expense.description}" (${expense.dailyRecord.date}) — back to unpaid.`,
     user.id
   );
   revalidatePath("/expenses");
   return { ok: true };
+}
+
+export interface ExpensePaymentHistoryEntry {
+  id: string;
+  amount: number;
+  paidAt: Date;
+  paidByName: string;
+}
+
+/** Read-only — any signed-in user who can already see the Expenses page can view this. */
+export async function getExpensePaymentHistory(expenseItemId: string): Promise<ExpensePaymentHistoryEntry[]> {
+  await requireRole(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
+  const payments = await prisma.expensePayment.findMany({
+    where: { expenseItemId },
+    include: { paidBy: true },
+    orderBy: { paidAt: "asc" },
+  });
+  return payments.map((p) => ({ id: p.id, amount: p.amount, paidAt: p.paidAt, paidByName: p.paidBy.name }));
 }
 
 export interface DeleteExpenseItemResult {

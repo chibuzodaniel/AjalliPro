@@ -17,10 +17,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   let pendingApprovalCount = 0;
   const approverRole = isApprover(user.role);
 
-  const [dbUser, pendingRecordsRaw, pendingDrivers, activity] = await Promise.all([
+  const [dbUser, selfUser, pendingRecordsRaw, pendingDrivers, activity] = await Promise.all([
     approverRole
       ? prisma.user.findUnique({ where: { id: user.id }, select: { dailyRecordApprover: true } })
       : Promise.resolve(null),
+    prisma.user.findUnique({ where: { id: user.id }, select: { stayLoggedIn: true } }),
     approverRole
       ? prisma.dailyRecord.findMany({
           where: { status: "PENDING" },
@@ -71,7 +72,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <>
-      <InactivityLogout />
+      <InactivityLogout exempt={selfUser?.stayLoggedIn ?? false} />
       <NotificationBell items={items} />
       <AppShell
         user={{ name: user.name ?? "", role: user.role }}

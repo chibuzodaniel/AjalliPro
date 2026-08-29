@@ -30,6 +30,7 @@ model User {
   role         Role     @default(SALES_STAFF)
   dailyRecordApprover Boolean @default(false) // Admin explicitly assigned by Super Admin to be notified about daily records awaiting approval (Super Admin is always notified regardless)
   canEdit      Boolean  @default(true) // Super Admin can toggle this off per profile to freeze that account into read-only, without changing its role
+  stayLoggedIn Boolean  @default(false) // Super Admin can exempt a specific account (e.g. a shared device) from the inactivity auto-logout — still requires a real login once
   createdAt    DateTime @default(now())
 
   dailyRecordsCreated  DailyRecord[]      @relation("DailyRecordCreatedBy")
@@ -40,6 +41,7 @@ model User {
   packersCreated       Packer[]           @relation("PackerCreatedBy")
   activityLogs         ActivityLog[]
   expensesMarkedPaid   ExpenseItem[]      @relation("ExpensePaidBy")
+  expensePayments      ExpensePayment[]
   pushSubscriptions    PushSubscription[]
 }
 
@@ -101,10 +103,23 @@ model ExpenseItem {
   paidBy        User?       @relation("ExpensePaidBy", fields: [paidById], references: [id])
   packerId      String?
   packer        Packer?     @relation(fields: [packerId], references: [id])
+  payments      ExpensePayment[]
 
   @@index([dailyRecordId])
   @@index([paid])
   @@index([packerId])
+}
+
+model ExpensePayment {
+  id            String      @id @default(cuid())
+  expenseItemId String
+  expenseItem   ExpenseItem @relation(fields: [expenseItemId], references: [id], onDelete: Cascade)
+  amount        Int
+  paidAt        DateTime    @default(now())
+  paidById      String
+  paidBy        User        @relation(fields: [paidById], references: [id])
+
+  @@index([expenseItemId])
 }
 
 model ProductionLine {

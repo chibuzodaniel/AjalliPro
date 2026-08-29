@@ -123,6 +123,46 @@ export async function setUserEditingEnabled(userId: string, enabled: boolean): P
   return { ok: true };
 }
 
+export interface SetUserStayLoggedInResult {
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * Exempts an account from the 2-minute inactivity auto-logout (see
+ * InactivityLogout) — for a shared/kiosk device that should just stay
+ * signed in once someone's logged in on it. Doesn't skip the login itself;
+ * the account still needs a real password the first time. Unlike
+ * setUserEditingEnabled, there's no reason to block this on yourself or the
+ * primary account — staying logged in isn't a lockout risk.
+ */
+export async function setUserStayLoggedIn(userId: string, stayLoggedIn: boolean): Promise<SetUserStayLoggedInResult> {
+  const admin = await requireRole(["SUPER_ADMIN"]);
+  const target = await prisma.user.findUnique({ where: { id: userId } });
+  if (!target) return { ok: false, error: "User not found" };
+
+  await prisma.user.update({ where: { id: userId }, data: { stayLoggedIn } });
+  await logActivity(
+    stayLoggedIn
+      ? `${admin.name} exempted "${target.name}" from the inactivity auto-logout.`
+      : `${admin.name} turned the inactivity auto-logout back on for "${target.name}".`,
+    admin.id
+  );
+  if (userId !== admin.id) {
+    after(() =>
+      sendPushToUsers([userId], {
+        title: stayLoggedIn ? "Auto sign-out turned off" : "Auto sign-out turned back on",
+        body: stayLoggedIn
+          ? `${admin.name} set your account to stay signed in — you won't be logged out after inactivity.`
+          : `${admin.name} turned your inactivity auto-logout back on.`,
+        url: "/settings",
+      })
+    );
+  }
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
 export interface PromoteSuperAdminResult {
   ok: boolean;
   error?: string;

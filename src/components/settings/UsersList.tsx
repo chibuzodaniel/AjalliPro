@@ -8,6 +8,7 @@ import {
   revokeSuperAdmin,
   deleteUser,
   setUserEditingEnabled,
+  setUserStayLoggedIn,
 } from "@/app/(app)/settings/actions";
 import { roleLabel } from "@/lib/roles";
 import Modal from "@/components/ui/Modal";
@@ -20,6 +21,7 @@ interface UserRow {
   role: Role;
   dailyRecordApprover: boolean;
   canEdit: boolean;
+  stayLoggedIn: boolean;
   createdAt: Date;
   isPrimary: boolean;
 }
@@ -198,6 +200,43 @@ function EditingToggle({ user, onDone }: { user: UserRow; onDone: () => void }) 
   );
 }
 
+function StayLoggedInToggle({ user, onDone }: { user: UserRow; onDone: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [override, setOverride] = useState<boolean | null>(null);
+  const checked = override ?? user.stayLoggedIn;
+
+  async function toggle(next: boolean) {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await setUserStayLoggedIn(user.id, next);
+      if (!result.ok) {
+        setError(result.error ?? "Something went wrong");
+        return;
+      }
+      setOverride(next);
+      onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: loading ? "wait" : "pointer" }}>
+        <input type="checkbox" checked={checked} disabled={loading} onChange={(e) => toggle(e.target.checked)} />
+        <span style={{ fontSize: 12.5, color: "var(--text-dim)" }}>
+          {checked ? "stays signed in" : "auto sign-out"}
+        </span>
+      </label>
+      {error && <span className="field-error">{error}</span>}
+    </div>
+  );
+}
+
 export default function UsersList({
   users,
   canAssign,
@@ -242,6 +281,7 @@ export default function UsersList({
             <th>Joined</th>
             {canAssign && <th>Approves daily records</th>}
             {canAssign && <th>Editing</th>}
+            {canAssign && <th>Stay signed in</th>}
             {canAssign && <th></th>}
           </tr>
         </thead>
@@ -289,6 +329,11 @@ export default function UsersList({
                   ) : (
                     <EditingToggle user={u} onDone={() => router.refresh()} />
                   )}
+                </td>
+              )}
+              {canAssign && (
+                <td>
+                  <StayLoggedInToggle user={u} onDone={() => router.refresh()} />
                 </td>
               )}
               {canAssign && (
