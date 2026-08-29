@@ -160,25 +160,37 @@ function DeleteUserAction({ user, onDone }: { user: UserRow; onDone: () => void 
 function EditingToggle({ user, onDone }: { user: UserRow; onDone: () => void }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Optimistic: reflects the change the moment the server confirms it,
+  // instead of waiting on router.refresh() to re-fetch — that request can
+  // take several seconds, during which the checkbox would otherwise flicker
+  // back to its old value and look like the toggle did nothing.
+  const [override, setOverride] = useState<boolean | null>(null);
+  const checked = override ?? user.canEdit;
 
   async function toggle(next: boolean) {
     setLoading(true);
     setError(null);
-    const result = await setUserEditingEnabled(user.id, next);
-    setLoading(false);
-    if (!result.ok) {
-      setError(result.error ?? "Something went wrong");
-      return;
+    try {
+      const result = await setUserEditingEnabled(user.id, next);
+      if (!result.ok) {
+        setError(result.error ?? "Something went wrong");
+        return;
+      }
+      setOverride(next);
+      onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setLoading(false);
     }
-    onDone();
   }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
       <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: loading ? "wait" : "pointer" }}>
-        <input type="checkbox" checked={user.canEdit} disabled={loading} onChange={(e) => toggle(e.target.checked)} />
+        <input type="checkbox" checked={checked} disabled={loading} onChange={(e) => toggle(e.target.checked)} />
         <span style={{ fontSize: 12.5, color: "var(--text-dim)" }}>
-          {user.canEdit ? "editing enabled" : "read-only"}
+          {checked ? "editing enabled" : "read-only"}
         </span>
       </label>
       {error && <span className="field-error">{error}</span>}
@@ -200,11 +212,19 @@ export default function UsersList({
   const router = useRouter();
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
+  const [approverError, setApproverError] = useState<{ id: string; message: string } | null>(null);
+
   async function toggle(id: string, next: boolean) {
     setLoadingId(id);
-    await setDailyRecordApprover(id, next);
-    setLoadingId(null);
-    router.refresh();
+    setApproverError(null);
+    try {
+      await setDailyRecordApprover(id, next);
+      router.refresh();
+    } catch (err) {
+      setApproverError({ id, message: err instanceof Error ? err.message : "Something went wrong" });
+    } finally {
+      setLoadingId(null);
+    }
   }
 
   if (users.length === 0) {
@@ -257,6 +277,7 @@ export default function UsersList({
                   ) : (
                     <span style={{ color: "var(--text-faint)", fontSize: 12.5 }}>—</span>
                   )}
+                  {approverError?.id === u.id && <div className="field-error">{approverError.message}</div>}
                 </td>
               )}
               {canAssign && (

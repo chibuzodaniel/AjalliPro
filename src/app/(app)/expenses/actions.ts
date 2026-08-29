@@ -14,9 +14,8 @@ export interface RecordExpensePaymentResult {
  * Payments are entered manually — an amount, not a checkbox — and can't
  * exceed what's still owing on the expense. Each payment adds to the running
  * amountPaid total; the expense is only marked fully paid once amountPaid
- * covers the full amount. There's no partial-payment undo — correcting a
- * mistaken entry means deleting the expense (Super Admin only) and
- * re-adding it.
+ * covers the full amount. A mistaken payment (partial or full) can be
+ * undone entirely via revertExpensePayment below.
  */
 export async function recordExpensePayment(id: string, paymentAmount: number): Promise<RecordExpensePaymentResult> {
   const user = await requireRole(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
@@ -49,6 +48,34 @@ export async function recordExpensePayment(id: string, paymentAmount: number): P
   await logActivity(
     `${user.name} recorded a ₦${paymentAmount} payment on "${expense.description}" (${expense.dailyRecord.date})` +
       (nowFullyPaid ? " — now fully paid." : ` — ₦${expense.amount - amountPaid} still owing.`),
+    user.id
+  );
+  revalidatePath("/expenses");
+  return { ok: true };
+}
+
+/**
+ * Undoes every payment recorded against an expense, resetting it back to
+ * fully unpaid. There's no per-payment history to roll back to a partial
+ * amount — this always clears the whole running total, whether the expense
+ * was partially or fully paid.
+ */
+export async function revertExpensePayment(id: string): Promise<RecordExpensePaymentResult> {
+  const user = await requireRole(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
+  const expense = await prisma.expenseItem.findUnique({ where: { id }, include: { dailyRecord: true } });
+  if (!expense) {
+    return { ok: false, error: "Expense not found." };
+  }
+  if (expense.amountPaid === 0) {
+    return { ok: false, error: "This expense has no payment to revert." };
+  }
+
+  await prisma.expenseItem.update({
+    where: { id },
+    data: { amountPaid: 0, paid: false, paidAt: null, paidById: null },
+  });
+  await logActivity(
+    `${user.name} reverted the ₦${expense.amountPaid} payment on "${expense.description}" (${expense.dailyRecord.date}) — back to unpaid.`,
     user.id
   );
   revalidatePath("/expenses");
