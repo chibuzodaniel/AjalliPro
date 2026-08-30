@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth-helpers";
+import { requireRoleSafe } from "@/lib/auth-helpers";
 import { logActivity } from "@/lib/activity";
 
 export interface RecordExpensePaymentResult {
@@ -19,7 +19,9 @@ export interface RecordExpensePaymentResult {
  * (partial or full) can be undone entirely via revertExpensePayment below.
  */
 export async function recordExpensePayment(id: string, paymentAmount: number): Promise<RecordExpensePaymentResult> {
-  const user = await requireRole(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
+  const guard = await requireRoleSafe(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
   if (!Number.isInteger(paymentAmount) || paymentAmount <= 0) {
     return { ok: false, error: "Enter a payment amount greater than 0." };
   }
@@ -67,7 +69,9 @@ export async function recordExpensePayment(id: string, paymentAmount: number): P
  * expense was partially or fully paid.
  */
 export async function revertExpensePayment(id: string): Promise<RecordExpensePaymentResult> {
-  const user = await requireRole(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
+  const guard = await requireRoleSafe(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
   const expense = await prisma.expenseItem.findUnique({ where: { id }, include: { dailyRecord: true } });
   if (!expense) {
     return { ok: false, error: "Expense not found." };
@@ -100,7 +104,8 @@ export interface ExpensePaymentHistoryEntry {
 
 /** Read-only — any signed-in user who can already see the Expenses page can view this. */
 export async function getExpensePaymentHistory(expenseItemId: string): Promise<ExpensePaymentHistoryEntry[]> {
-  await requireRole(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
+  const guard = await requireRoleSafe(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) throw new Error(guard.error);
   const payments = await prisma.expensePayment.findMany({
     where: { expenseItemId },
     include: { paidBy: true },
@@ -115,7 +120,9 @@ export interface DeleteExpenseItemResult {
 }
 
 export async function deleteExpenseItem(id: string): Promise<DeleteExpenseItemResult> {
-  const user = await requireRole(["SUPER_ADMIN"]);
+  const guard = await requireRoleSafe(["SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
   const expense = await prisma.expenseItem.findUnique({ where: { id }, include: { dailyRecord: true } });
   if (!expense) {
     return { ok: false, error: "Expense not found." };

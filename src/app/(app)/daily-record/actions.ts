@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireRole, requireUser, requireEditingEnabled } from "@/lib/auth-helpers";
+import { requireRoleSafe, requireUser, requireEditingEnabled } from "@/lib/auth-helpers";
 import { needsApproval, isApprover } from "@/lib/roles";
 import { logActivity } from "@/lib/activity";
 import { notifyDailyRecordApprovers, sendPushToUsers } from "@/lib/push";
@@ -175,13 +175,15 @@ export interface CreateDailyRecordResult {
 }
 
 export async function createDailyRecord(input: unknown): Promise<CreateDailyRecordResult> {
-  const user = await requireRole([
+  const guard = await requireRoleSafe([
     "SALES_STAFF",
     // "EDITOR", // disabled for now
     "ADMIN_STAFF",
     "ADMIN",
     "SUPER_ADMIN",
   ]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
   const parsed = dailyRecordSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -432,7 +434,11 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
   if (!canEdit) {
     return { ok: false, error: "You don't have permission to edit this record." };
   }
-  await requireEditingEnabled(user.id);
+  try {
+    await requireEditingEnabled(user.id);
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "You don't have permission to do that." };
+  }
 
   const dateChanged = data.date !== existing.date;
   if (dateChanged) {
@@ -650,7 +656,9 @@ export interface DeleteDailyRecordResult {
 }
 
 export async function deleteDailyRecord(id: string): Promise<DeleteDailyRecordResult> {
-  const user = await requireRole(["ADMIN", "SUPER_ADMIN"]);
+  const guard = await requireRoleSafe(["ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
 
   const existing = await prisma.dailyRecord.findUnique({ where: { id } });
   if (!existing) {

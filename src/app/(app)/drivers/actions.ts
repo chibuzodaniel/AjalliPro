@@ -3,14 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth-helpers";
+import { requireRole, requireRoleSafe } from "@/lib/auth-helpers";
 import { needsApproval } from "@/lib/roles";
 import { logActivity } from "@/lib/activity";
 import { notifyReviewers, sendPushToUsers } from "@/lib/push";
 import { driverSchema, driverPricingSchema } from "@/lib/validation/driver";
 
 export async function createDriver(input: unknown) {
-  const user = await requireRole(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
+  const guard = await requireRoleSafe(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false as const, error: guard.error };
+  const user = guard.user;
   const parsed = driverSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -48,7 +50,9 @@ export async function createDriver(input: unknown) {
 }
 
 export async function updateDriverPricing(id: string, input: unknown) {
-  const user = await requireRole(["ADMIN", "SUPER_ADMIN"]);
+  const guard = await requireRoleSafe(["ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false as const, error: guard.error };
+  const user = guard.user;
   const parsed = driverPricingSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -71,7 +75,9 @@ export interface DeleteDriverResult {
 }
 
 export async function deleteDriver(id: string): Promise<DeleteDriverResult> {
-  const user = await requireRole(["SUPER_ADMIN"]);
+  const guard = await requireRoleSafe(["SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
   const driver = await prisma.driver.findUnique({ where: { id } });
   if (!driver) {
     return { ok: false, error: "Driver not found." };

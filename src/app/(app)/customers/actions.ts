@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth-helpers";
+import { requireRoleSafe } from "@/lib/auth-helpers";
 import { logActivity } from "@/lib/activity";
 import { customerSchema, customerPricingSchema } from "@/lib/validation/customer";
 import { getApprovedRecordsSorted } from "@/lib/records";
@@ -12,7 +12,9 @@ import { getWeeklyIncentiveSettings, getEmailTemplateSettings } from "@/lib/sett
 import { isEmailConfigured, sendWeeklyCustomerEmail } from "@/lib/mail";
 
 export async function createCustomer(input: unknown) {
-  const user = await requireRole(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
+  const guard = await requireRoleSafe(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false as const, error: guard.error };
+  const user = guard.user;
   const parsed = customerSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -38,7 +40,9 @@ export interface UpdateCustomerPricingResult {
 }
 
 export async function updateCustomerPricing(id: string, input: unknown): Promise<UpdateCustomerPricingResult> {
-  const user = await requireRole(["ADMIN", "SUPER_ADMIN"]);
+  const guard = await requireRoleSafe(["ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
   const parsed = customerPricingSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -58,7 +62,9 @@ export interface DeleteCustomerResult {
 }
 
 export async function deleteCustomer(id: string): Promise<DeleteCustomerResult> {
-  const user = await requireRole(["SUPER_ADMIN"]);
+  const guard = await requireRoleSafe(["SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
   const customer = await prisma.customer.findUnique({ where: { id } });
   if (!customer) {
     return { ok: false, error: "Customer not found." };
@@ -120,7 +126,8 @@ async function computeWeeklyMailEntries() {
 }
 
 export async function generateWeeklyMailPreview(): Promise<MailPreviewEntry[]> {
-  await requireRole(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
+  const guard = await requireRoleSafe(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) throw new Error(guard.error);
   const { entries } = await computeWeeklyMailEntries();
   return entries;
 }
@@ -133,7 +140,9 @@ export interface SendWeeklyMailResult {
 }
 
 export async function sendWeeklyMailNow(): Promise<SendWeeklyMailResult> {
-  const user = await requireRole(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
+  const guard = await requireRoleSafe(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, sent: 0, failed: 0, error: guard.error };
+  const user = guard.user;
 
   if (!isEmailConfigured()) {
     return {

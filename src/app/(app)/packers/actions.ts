@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth-helpers";
+import { requireRoleSafe } from "@/lib/auth-helpers";
 import { logActivity } from "@/lib/activity";
 
 export interface DeletePackerResult {
@@ -11,7 +11,9 @@ export interface DeletePackerResult {
 }
 
 export async function deletePacker(id: string): Promise<DeletePackerResult> {
-  const user = await requireRole(["SUPER_ADMIN"]);
+  const guard = await requireRoleSafe(["SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
   const packer = await prisma.packer.findUnique({ where: { id } });
   if (!packer) {
     return { ok: false, error: "Packer not found." };

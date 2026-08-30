@@ -41,3 +41,22 @@ export async function requireRole(allowed: Role[]) {
   await requireEditingEnabled(user.id);
   return user;
 }
+
+/**
+ * Same check as requireRole, but returns a result instead of throwing.
+ * Next.js redacts thrown Server Action error messages in production
+ * (replacing them with a generic "Server Components render" error) — so
+ * any action whose result the user is meant to actually read must catch
+ * the permission check itself and return the real message, rather than
+ * relying on the client to catch a rejected action promise.
+ */
+export async function requireRoleSafe(
+  allowed: Role[]
+): Promise<{ ok: true; user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>> } | { ok: false; error: string }> {
+  try {
+    const user = await requireRole(allowed);
+    return { ok: true, user };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "You don't have permission to do that." };
+  }
+}

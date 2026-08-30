@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth-helpers";
+import { requireRole, requireRoleSafe } from "@/lib/auth-helpers";
 import { SUPER_ADMIN_EMAIL } from "@/lib/auth";
 import { logActivity } from "@/lib/activity";
 import { sendPushToUsers } from "@/lib/push";
@@ -24,7 +24,9 @@ export interface UpdateWeeklyIncentiveResult {
 }
 
 export async function updateWeeklyIncentiveSettings(input: unknown): Promise<UpdateWeeklyIncentiveResult> {
-  const user = await requireRole(["SUPER_ADMIN"]);
+  const guard = await requireRoleSafe(["SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
   const parsed = weeklyIncentiveSettingsSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid values" };
@@ -45,7 +47,9 @@ export interface UpdateEmailTemplateResult {
 }
 
 export async function updateEmailTemplate(input: unknown): Promise<UpdateEmailTemplateResult> {
-  const user = await requireRole(["SUPER_ADMIN"]);
+  const guard = await requireRoleSafe(["SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
   const parsed = emailTemplateSettingsSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid values" };
@@ -63,7 +67,9 @@ export interface SetDailyRecordApproverResult {
 }
 
 export async function setDailyRecordApprover(userId: string, value: boolean): Promise<SetDailyRecordApproverResult> {
-  const admin = await requireRole(["SUPER_ADMIN"]);
+  const guard = await requireRoleSafe(["SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const admin = guard.user;
   const target = await prisma.user.update({ where: { id: userId }, data: { dailyRecordApprover: value } });
   await logActivity(
     `${admin.name} ${value ? "assigned" : "unassigned"} "${target.name}" ${value ? "to" : "from"} daily record approval notifications.`,
@@ -95,7 +101,9 @@ export interface SetUserEditingEnabledResult {
  * Super Admin, so there's always at least one account that can undo it.
  */
 export async function setUserEditingEnabled(userId: string, enabled: boolean): Promise<SetUserEditingEnabledResult> {
-  const admin = await requireRole(["SUPER_ADMIN"]);
+  const guard = await requireRoleSafe(["SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const admin = guard.user;
   if (userId === admin.id) {
     return { ok: false, error: "You can't toggle editing for your own account." };
   }
@@ -137,7 +145,9 @@ export interface SetUserStayLoggedInResult {
  * primary account — staying logged in isn't a lockout risk.
  */
 export async function setUserStayLoggedIn(userId: string, stayLoggedIn: boolean): Promise<SetUserStayLoggedInResult> {
-  const admin = await requireRole(["SUPER_ADMIN"]);
+  const guard = await requireRoleSafe(["SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const admin = guard.user;
   const target = await prisma.user.findUnique({ where: { id: userId } });
   if (!target) return { ok: false, error: "User not found" };
 
@@ -170,7 +180,9 @@ export interface PromoteSuperAdminResult {
 
 /** Any current Super Admin can promote another user to Super Admin. */
 export async function promoteSuperAdmin(userId: string): Promise<PromoteSuperAdminResult> {
-  const admin = await requireRole(["SUPER_ADMIN"]);
+  const guard = await requireRoleSafe(["SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const admin = guard.user;
   const target = await prisma.user.findUnique({ where: { id: userId } });
   if (!target) return { ok: false, error: "User not found" };
   if (target.role === "SUPER_ADMIN") return { ok: false, error: "Already a Super Admin" };
@@ -194,7 +206,9 @@ export async function promoteSuperAdmin(userId: string): Promise<PromoteSuperAdm
  * promoteSuperAdmin above, cannot strip another Super Admin's rights.
  */
 export async function revokeSuperAdmin(userId: string): Promise<PromoteSuperAdminResult> {
-  const admin = await requireRole(["SUPER_ADMIN"]);
+  const guard = await requireRoleSafe(["SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const admin = guard.user;
   if ((admin.email ?? "").toLowerCase() !== SUPER_ADMIN_EMAIL) {
     return { ok: false, error: "Only the primary Super Admin can revoke Super Admin rights." };
   }
@@ -231,7 +245,9 @@ export interface DeleteUserResult {
  * used for drivers/customers.
  */
 export async function deleteUser(userId: string): Promise<DeleteUserResult> {
-  const admin = await requireRole(["SUPER_ADMIN"]);
+  const guard = await requireRoleSafe(["SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const admin = guard.user;
   if (userId === admin.id) {
     return { ok: false, error: "You can't delete your own account." };
   }
@@ -275,7 +291,9 @@ export interface UpdatePricingResult {
 }
 
 export async function updatePricingSettings(input: unknown): Promise<UpdatePricingResult> {
-  const user = await requireRole(["ADMIN", "SUPER_ADMIN"]);
+  const guard = await requireRoleSafe(["ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
   const parsed = pricingSettingsSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid value" };
@@ -288,7 +306,9 @@ export async function updatePricingSettings(input: unknown): Promise<UpdatePrici
 }
 
 export async function updatePackerPriceSetting(input: unknown): Promise<UpdatePricingResult> {
-  const user = await requireRole(["ADMIN", "SUPER_ADMIN"]);
+  const guard = await requireRoleSafe(["ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
   const parsed = packerPriceSettingSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid value" };
@@ -301,7 +321,9 @@ export async function updatePackerPriceSetting(input: unknown): Promise<UpdatePr
 }
 
 export async function updateTruckFeeSettings(input: unknown): Promise<UpdatePricingResult> {
-  const user = await requireRole(["ADMIN", "SUPER_ADMIN"]);
+  const guard = await requireRoleSafe(["ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
   const parsed = truckFeeSettingsSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid value" };
@@ -387,7 +409,9 @@ const RESET_LABELS: Record<keyof ResetSelection, string> = {
  * with the same guards used by their individual delete buttons.
  */
 export async function resetSelectedData(selection: ResetSelection, confirmPhrase: string): Promise<ResetAllDataResult> {
-  const user = await requireRole(["SUPER_ADMIN"]);
+  const guard = await requireRoleSafe(["SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
   if ((user.email ?? "").toLowerCase() !== SUPER_ADMIN_EMAIL) {
     return { ok: false, error: "Only the primary Super Admin can reset the system." };
   }
