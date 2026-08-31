@@ -8,6 +8,23 @@ const TIMEOUT_MS = 2 * 60 * 1000;
 const STORAGE_KEY = "ajalli:last-activity-at";
 const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "scroll", "touchstart"] as const;
 
+/**
+ * Call this right after a successful sign-in. Without it, a device that was
+ * previously auto-logged-out by the inactivity timer keeps its old (now
+ * stale) last-activity timestamp in localStorage — so the very next login,
+ * before the user gets a chance to move the mouse or type, the freshly
+ * mounted timer immediately sees "last activity was over 2 minutes ago" and
+ * logs them straight back out. Repeats on every retry on that device, since
+ * elapsed time only grows. Stamping "now" at login breaks that loop.
+ */
+export function markLoginActivity() {
+  try {
+    localStorage.setItem(STORAGE_KEY, String(Date.now()));
+  } catch {
+    // localStorage unavailable — the mount-time check will just fall back to starting a fresh timer
+  }
+}
+
 export default function InactivityLogout({ exempt }: { exempt?: boolean }) {
   const router = useRouter();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

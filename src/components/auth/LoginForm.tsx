@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
+import { markLoginActivity } from "@/components/shell/InactivityLogout";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -22,6 +23,7 @@ export default function LoginForm() {
       setLoading(false);
       return;
     }
+    markLoginActivity();
     router.push("/dashboard");
     router.refresh();
   }

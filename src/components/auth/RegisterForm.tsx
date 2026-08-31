@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { registerUser } from "@/app/register/actions";
+import { markLoginActivity } from "@/components/shell/InactivityLogout";
 
 const ROLE_OPTIONS = [
   { value: "SALES_STAFF", label: "Sales Staff" },
@@ -42,6 +43,7 @@ export default function RegisterForm() {
         setLoading(false);
         return;
       }
+      markLoginActivity();
       router.push("/dashboard");
       router.refresh();
     } catch {
