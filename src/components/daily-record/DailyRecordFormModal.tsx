@@ -168,6 +168,7 @@ export default function DailyRecordFormModal({
   truckLoadingFeePerBag,
   truckOffloadingFeePerBag,
   truckHiredCostPerBag,
+  rollsPricePerKg,
 }: {
   mode: "create" | "edit";
   recordId?: string;
@@ -185,6 +186,7 @@ export default function DailyRecordFormModal({
   truckLoadingFeePerBag: number;
   truckOffloadingFeePerBag: number;
   truckHiredCostPerBag: number;
+  rollsPricePerKg: number;
 }) {
   const router = useRouter();
   const draftKey = mode === "create" ? "ajalli:daily-record-draft:create" : `ajalli:daily-record-draft:edit:${recordId}`;
@@ -978,52 +980,65 @@ export default function DailyRecordFormModal({
             <b>{formatMoney(loadingFeeExpenseTotal)}</b>
           </div>
         )}
-        {expenses.map((row) => (
-          <div
-            className="repeater-row"
-            key={row.key}
-            style={{ gridTemplateColumns: "1.4fr .8fr auto auto", alignItems: "center" }}
-          >
-            <div className="field" style={{ marginBottom: 0 }}>
-              <input
-                type="text"
-                placeholder="Description (e.g. Diesel)"
-                value={row.description}
-                onChange={(e) =>
-                  setExpenses((rows) => rows.map((r) => (r.key === row.key ? { ...r, description: e.target.value } : r)))
-                }
-              />
+        {expenses.map((row) => {
+          const isRolls = row.description.trim().toLowerCase() === "rolls";
+          const rollsAmount = Number(row.amount) || 0;
+          const rollsKg = isRolls && rollsPricePerKg > 0 ? rollsAmount / rollsPricePerKg : null;
+          return (
+            <div key={row.key}>
+              <div
+                className="repeater-row"
+                style={{ gridTemplateColumns: "1.4fr .8fr auto auto", alignItems: "center" }}
+              >
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <input
+                    type="text"
+                    placeholder="Description (e.g. Diesel)"
+                    value={row.description}
+                    onChange={(e) =>
+                      setExpenses((rows) => rows.map((r) => (r.key === row.key ? { ...r, description: e.target.value } : r)))
+                    }
+                  />
+                </div>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <input
+                    type="number"
+                    placeholder="Amount ₦"
+                    min={0}
+                    value={row.amount}
+                    onChange={(e) =>
+                      setExpenses((rows) => rows.map((r) => (r.key === row.key ? { ...r, amount: e.target.value } : r)))
+                    }
+                  />
+                </div>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "var(--text-dim)", whiteSpace: "nowrap" }}>
+                  <input
+                    type="checkbox"
+                    checked={row.paid}
+                    onChange={(e) =>
+                      setExpenses((rows) => rows.map((r) => (r.key === row.key ? { ...r, paid: e.target.checked } : r)))
+                    }
+                  />
+                  Paid
+                </label>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  onClick={() => setExpenses((rows) => rows.filter((r) => r.key !== row.key))}
+                >
+                  ✕
+                </button>
+              </div>
+              {isRolls && rollsAmount > 0 && (
+                <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: -6, marginBottom: 10 }}>
+                  {rollsKg !== null
+                    ? `≈ ${rollsKg.toFixed(1)} kg at ₦${rollsPricePerKg}/kg`
+                    : "Set a rolls price (₦/kg) in Settings to track kg used"}
+                </div>
+              )}
             </div>
-            <div className="field" style={{ marginBottom: 0 }}>
-              <input
-                type="number"
-                placeholder="Amount ₦"
-                min={0}
-                value={row.amount}
-                onChange={(e) =>
-                  setExpenses((rows) => rows.map((r) => (r.key === row.key ? { ...r, amount: e.target.value } : r)))
-                }
-              />
-            </div>
-            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "var(--text-dim)", whiteSpace: "nowrap" }}>
-              <input
-                type="checkbox"
-                checked={row.paid}
-                onChange={(e) =>
-                  setExpenses((rows) => rows.map((r) => (r.key === row.key ? { ...r, paid: e.target.checked } : r)))
-                }
-              />
-              Paid
-            </label>
-            <button
-              type="button"
-              className="icon-btn"
-              onClick={() => setExpenses((rows) => rows.filter((r) => r.key !== row.key))}
-            >
-              ✕
-            </button>
-          </div>
-        ))}
+          );
+        })}
         <button
           type="button"
           className="add-row-btn"

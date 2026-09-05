@@ -9,13 +9,19 @@ import { logActivity } from "@/lib/activity";
 import { sendPushToUsers } from "@/lib/push";
 import { weeklyIncentiveSettingsSchema } from "@/lib/validation/weekly-incentive";
 import { emailTemplateSettingsSchema } from "@/lib/validation/email-template";
-import { pricingSettingsSchema, packerPriceSettingSchema, truckFeeSettingsSchema } from "@/lib/validation/pricing";
+import {
+  pricingSettingsSchema,
+  packerPriceSettingSchema,
+  truckFeeSettingsSchema,
+  rollsPriceSettingSchema,
+} from "@/lib/validation/pricing";
 import {
   saveWeeklyIncentiveSettings,
   saveEmailTemplateSettings,
   savePricingSettings,
   savePackerPriceSetting,
   saveTruckFeeSettings,
+  saveRollsPriceSetting,
 } from "@/lib/settings";
 
 export interface UpdateWeeklyIncentiveResult {
@@ -316,6 +322,21 @@ export async function updatePackerPriceSetting(input: unknown): Promise<UpdatePr
 
   await savePackerPriceSetting(parsed.data.packerPricePerBag);
   await logActivity(`${user.name} set the packer pay rate to ₦${parsed.data.packerPricePerBag}/bag.`, user.id);
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function updateRollsPriceSetting(input: unknown): Promise<UpdatePricingResult> {
+  const guard = await requireRoleSafe(["ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
+  const parsed = rollsPriceSettingSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid value" };
+  }
+
+  await saveRollsPriceSetting(parsed.data.rollsPricePerKg);
+  await logActivity(`${user.name} set the rolls price to ₦${parsed.data.rollsPricePerKg}/kg.`, user.id);
   revalidatePath("/", "layout");
   return { ok: true };
 }

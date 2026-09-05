@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { canViewExpenses } from "@/lib/roles";
 import { formatMoney } from "@/lib/money";
+import { currentWeekKey, weekKeyOf, MONTH_NAMES } from "@/lib/week";
 import KpiCard from "@/components/ui/KpiCard";
 import RangeTabs from "@/components/ui/RangeTabs";
 import Pill from "@/components/ui/Pill";
@@ -9,6 +10,22 @@ import ViewAllModal from "@/components/ui/ViewAllModal";
 import ExpensePaymentControl from "@/components/expenses/ExpensePaymentControl";
 import ExpensePaymentHistory from "@/components/expenses/ExpensePaymentHistory";
 import DeleteExpenseButton from "@/components/expenses/DeleteExpenseButton";
+import RollsUsageCard, { type RollsKgRow } from "@/components/expenses/RollsUsageCard";
+
+function groupKgByPeriod(
+  entries: { date: string; kg: number }[],
+  keyFn: (date: string) => string,
+  labelFn: (key: string) => string,
+  limit: number
+): RollsKgRow[] {
+  const totals = new Map<string, number>();
+  for (const e of entries) {
+    const key = keyFn(e.date);
+    totals.set(key, (totals.get(key) ?? 0) + e.kg);
+  }
+  const keys = [...totals.keys()].sort().reverse().slice(0, limit);
+  return keys.map((key) => ({ label: labelFn(key), kg: totals.get(key)! }));
+}
 
 type StatusFilter = "unpaid" | "paid" | "all";
 
@@ -27,7 +44,7 @@ export default async function ExpensesPage({
   const isSuperAdmin = user?.role === "SUPER_ADMIN";
   const canRecordPayment = user ? canViewExpenses(user.role) : false;
 
-  const [items, allTotals, unpaidCount] = await Promise.all([
+  const [items, allTotals, unpaidCount, rollsEntriesRaw] = await Promise.all([
     prisma.expenseItem.findMany({
       where: status === "all" ? {} : { paid: status === "paid" },
       include: { dailyRecord: true, paidBy: true, _count: { select: { payments: true } } },
@@ -35,11 +52,27 @@ export default async function ExpensesPage({
     }),
     prisma.expenseItem.findMany({ select: { amount: true, amountPaid: true } }),
     prisma.expenseItem.count({ where: { paid: false } }),
+    prisma.expenseItem.findMany({
+      where: { rollsKg: { not: null } },
+      select: { rollsKg: true, dailyRecord: { select: { date: true } } },
+    }),
   ]);
 
   const totalAmount = allTotals.reduce((s, e) => s + e.amount, 0);
   const totalPaid = allTotals.reduce((s, e) => s + e.amountPaid, 0);
   const totalOutstanding = totalAmount - totalPaid;
+
+  const rollsEntries = rollsEntriesRaw.map((e) => ({ date: e.dailyRecord.date, kg: e.rollsKg ?? 0 }));
+  const wk = currentWeekKey();
+  const rollsWeekKg = rollsEntries.filter((e) => weekKeyOf(e.date) === wk).reduce((s, e) => s + e.kg, 0);
+  const rollsWeeklyHistory = groupKgByPeriod(rollsEntries, (d) => weekKeyOf(d), (k) => k, 12);
+  const rollsMonthlyHistory = groupKgByPeriod(
+    rollsEntries,
+    (d) => d.slice(0, 7),
+    (k) => `${MONTH_NAMES[Number(k.slice(5, 7)) - 1]} ${k.slice(0, 4)}`,
+    12
+  );
+  const rollsYearlyHistory = groupKgByPeriod(rollsEntries, (d) => d.slice(0, 4), (k) => k, 10);
 
   const expensesTable = (
     <table>
@@ -48,6 +81,7 @@ export default async function ExpensesPage({
           <th>Date</th>
           <th>Description</th>
           <th>Amount</th>
+          <th>Kg</th>
           <th>Paid</th>
           <th>Remaining</th>
           <th>Status</th>
@@ -65,6 +99,7 @@ export default async function ExpensesPage({
               <td>{item.dailyRecord.date}</td>
               <td>{item.description}</td>
               <td>{formatMoney(item.amount)}</td>
+              <td>{item.rollsKg != null ? `${item.rollsKg.toFixed(1)} kg` : "—"}</td>
               <td>{formatMoney(item.amountPaid)}</td>
               <td>{formatMoney(remaining)}</td>
               <td>
@@ -97,7 +132,7 @@ export default async function ExpensesPage({
           <div className="sub">Every expense line logged on a daily record, across all days</div>
         </div>
       </div>
-      <div className="grid grid-3" style={{ marginBottom: 18 }}>
+      <div className="grid grid-4" style={{ marginBottom: 18 }}>
         <KpiCard
           label="Outstanding"
           value={formatMoney(totalOutstanding)}
@@ -106,6 +141,12 @@ export default async function ExpensesPage({
         />
         <KpiCard label="Paid" value={formatMoney(totalPaid)} />
         <KpiCard label="Total" value={formatMoney(totalAmount)} />
+        <RollsUsageCard
+          weekKg={rollsWeekKg}
+          weeklyHistory={rollsWeeklyHistory}
+          monthlyHistory={rollsMonthlyHistory}
+          yearlyHistory={rollsYearlyHistory}
+        />
       </div>
       <RangeTabs
         basePath="/expenses"

@@ -71,6 +71,7 @@ export interface PricingSettings {
   truckLoadingFeePerBag: number;
   truckOffloadingFeePerBag: number;
   truckHiredCostPerBag: number;
+  rollsPricePerKg: number;
 }
 
 export const DEFAULT_PRICING_SETTINGS: PricingSettings = {
@@ -79,6 +80,7 @@ export const DEFAULT_PRICING_SETTINGS: PricingSettings = {
   truckLoadingFeePerBag: 0,
   truckOffloadingFeePerBag: 0,
   truckHiredCostPerBag: 0,
+  rollsPricePerKg: 0,
 };
 
 export async function getPricingSettings(): Promise<PricingSettings> {
@@ -90,6 +92,7 @@ export async function getPricingSettings(): Promise<PricingSettings> {
     truckLoadingFeePerBag: row.truckLoadingFeePerBag,
     truckOffloadingFeePerBag: row.truckOffloadingFeePerBag,
     truckHiredCostPerBag: row.truckHiredCostPerBag,
+    rollsPricePerKg: row.rollsPricePerKg,
   };
 }
 
@@ -106,6 +109,14 @@ export async function savePackerPriceSetting(packerPricePerBag: number): Promise
     where: { id: SETTINGS_ID },
     create: { id: SETTINGS_ID, packerPricePerBag },
     update: { packerPricePerBag },
+  });
+}
+
+export async function saveRollsPriceSetting(rollsPricePerKg: number): Promise<void> {
+  await prisma.pricingSetting.upsert({
+    where: { id: SETTINGS_ID },
+    create: { id: SETTINGS_ID, rollsPricePerKg },
+    update: { rollsPricePerKg },
   });
 }
 

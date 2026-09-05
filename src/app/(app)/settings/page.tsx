@@ -8,6 +8,7 @@ import WeeklyIncentiveEditor from "@/components/settings/WeeklyIncentiveEditor";
 import EmailTemplateEditor from "@/components/settings/EmailTemplateEditor";
 import FactoryPriceEditor from "@/components/settings/FactoryPriceEditor";
 import PackerPriceEditor from "@/components/settings/PackerPriceEditor";
+import RollsPriceEditor from "@/components/settings/RollsPriceEditor";
 import TruckFeeEditor from "@/components/settings/TruckFeeEditor";
 import ProductionCalculator from "@/components/settings/ProductionCalculator";
 import UsersList from "@/components/settings/UsersList";
@@ -73,6 +74,15 @@ export default async function SettingsPage() {
           only affects production logged from now on — past entries keep the rate that applied at the time.
         </div>
         <PackerPriceEditor initial={pricing.packerPricePerBag} />
+      </div>
+
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="section-title">Rolls price</div>
+        <div className="section-sub">
+          ₦/kg used to work out how many kg of rolls a "Rolls" expense on the Daily Record form bought. Changing it
+          only affects rolls entries logged from now on — past entries keep the rate that applied at the time.
+        </div>
+        <RollsPriceEditor initial={pricing.rollsPricePerKg} />
       </div>
 
       <div className="card" style={{ marginTop: 16 }}>

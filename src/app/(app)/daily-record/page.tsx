@@ -91,6 +91,7 @@ export default async function DailyRecordPage() {
                   truckLoadingFeePerBag={pricing.truckLoadingFeePerBag}
                   truckOffloadingFeePerBag={pricing.truckOffloadingFeePerBag}
                   truckHiredCostPerBag={pricing.truckHiredCostPerBag}
+                  rollsPricePerKg={pricing.rollsPricePerKg}
                 />
               )}
               {approver && <DeleteDailyRecordButton id={r.id} date={r.date} status={r.status} />}
@@ -121,6 +122,7 @@ export default async function DailyRecordPage() {
           truckLoadingFeePerBag={pricing.truckLoadingFeePerBag}
           truckOffloadingFeePerBag={pricing.truckOffloadingFeePerBag}
           truckHiredCostPerBag={pricing.truckHiredCostPerBag}
+          rollsPricePerKg={pricing.rollsPricePerKg}
         />
       </div>
       <div className="card">

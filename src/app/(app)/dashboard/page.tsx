@@ -5,18 +5,13 @@ import { prisma } from "@/lib/prisma";
 import { getApprovedRecordsSorted, recordSoldTotal } from "@/lib/records";
 import { computeRevenue } from "@/lib/revenue";
 import { computeIncentiveData, weeksQualifiedInYear, yearTotal } from "@/lib/incentives";
-import { currentWeekKey, todayISO, weekKeyOf } from "@/lib/week";
+import { currentWeekKey, todayISO, weekKeyOf, MONTH_NAMES } from "@/lib/week";
 import { formatMoney } from "@/lib/money";
 import { getWeeklyIncentiveSettings } from "@/lib/settings";
 import KpiCard from "@/components/ui/KpiCard";
 import NetRevenueCard, { type PeriodRow } from "@/components/dashboard/NetRevenueCard";
 import { LineTrendChart, BarTrendChart } from "@/components/charts/DynamicTrendChart";
 import type { DailyRecordFull } from "@/lib/records";
-
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
 
 function groupByPeriod(
   records: DailyRecordFull[],

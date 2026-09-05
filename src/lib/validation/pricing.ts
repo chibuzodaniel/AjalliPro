@@ -19,3 +19,9 @@ export const truckFeeSettingsSchema = z.object({
 });
 
 export type TruckFeeSettingsInput = z.infer<typeof truckFeeSettingsSchema>;
+
+export const rollsPriceSettingSchema = z.object({
+  rollsPricePerKg: z.number().int().min(0),
+});
+
+export type RollsPriceSettingInput = z.infer<typeof rollsPriceSettingSchema>;
