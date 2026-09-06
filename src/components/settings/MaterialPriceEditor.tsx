@@ -2,9 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { updateRollsPriceSetting } from "@/app/(app)/settings/actions";
 
-export default function RollsPriceEditor({ initial }: { initial: number }) {
+export default function MaterialPriceEditor({
+  label,
+  initial,
+  onSave,
+}: {
+  label: string;
+  initial: number;
+  onSave: (pricePerKg: number) => Promise<{ ok: boolean; error?: string }>;
+}) {
   const router = useRouter();
   const [price, setPrice] = useState(String(initial));
   const [error, setError] = useState<string | null>(null);
@@ -15,7 +22,7 @@ export default function RollsPriceEditor({ initial }: { initial: number }) {
     setLoading(true);
     setError(null);
     setSaved(false);
-    const result = await updateRollsPriceSetting({ rollsPricePerKg: Number(price) || 0 });
+    const result = await onSave(Number(price) || 0);
     setLoading(false);
     if (!result.ok) {
       setError(result.error ?? "Could not save");
@@ -28,7 +35,7 @@ export default function RollsPriceEditor({ initial }: { initial: number }) {
   return (
     <div>
       <div className="field">
-        <label>Rolls price (₦ per kg)</label>
+        <label>{label} (₦ per kg)</label>
         <input type="number" min={0} placeholder="0" value={price} onChange={(e) => setPrice(e.target.value)} />
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>

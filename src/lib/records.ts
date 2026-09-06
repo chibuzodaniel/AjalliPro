@@ -81,6 +81,11 @@ export function isRollsExpense(description: string): boolean {
   return description.trim().toLowerCase() === "rolls";
 }
 
+/** Matches the "Packing bags" expense line specifically. */
+export function isPackingBagsExpense(description: string): boolean {
+  return description.trim().toLowerCase() === "packing bags";
+}
+
 /**
  * Maps packerId -> whether that packer's "Packer pay — X" expense line was
  * marked paid, so a production row's paid/owing state survives round-tripping

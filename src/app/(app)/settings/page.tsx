@@ -8,12 +8,12 @@ import WeeklyIncentiveEditor from "@/components/settings/WeeklyIncentiveEditor";
 import EmailTemplateEditor from "@/components/settings/EmailTemplateEditor";
 import FactoryPriceEditor from "@/components/settings/FactoryPriceEditor";
 import PackerPriceEditor from "@/components/settings/PackerPriceEditor";
-import RollsPriceEditor from "@/components/settings/RollsPriceEditor";
+import MaterialPriceEditor from "@/components/settings/MaterialPriceEditor";
 import TruckFeeEditor from "@/components/settings/TruckFeeEditor";
 import ProductionCalculator from "@/components/settings/ProductionCalculator";
 import UsersList from "@/components/settings/UsersList";
 import ResetSystemButton from "@/components/settings/ResetSystemButton";
-import { getResetPreviewCounts } from "./actions";
+import { getResetPreviewCounts, updateRollsPriceSetting, updatePackingBagsPriceSetting } from "./actions";
 
 export default async function SettingsPage() {
   const user = await getCurrentUser();
@@ -82,7 +82,25 @@ export default async function SettingsPage() {
           ₦/kg used to work out how many kg of rolls a "Rolls" expense on the Daily Record form bought. Changing it
           only affects rolls entries logged from now on — past entries keep the rate that applied at the time.
         </div>
-        <RollsPriceEditor initial={pricing.rollsPricePerKg} />
+        <MaterialPriceEditor
+          label="Rolls price"
+          initial={pricing.rollsPricePerKg}
+          onSave={(rollsPricePerKg) => updateRollsPriceSetting({ rollsPricePerKg })}
+        />
+      </div>
+
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="section-title">Packing bags price</div>
+        <div className="section-sub">
+          ₦/kg used to work out how many kg of packing bags a "Packing bags" expense on the Daily Record form bought.
+          Changing it only affects packing bags entries logged from now on — past entries keep the rate that applied
+          at the time.
+        </div>
+        <MaterialPriceEditor
+          label="Packing bags price"
+          initial={pricing.packingBagsPricePerKg}
+          onSave={(packingBagsPricePerKg) => updatePackingBagsPriceSetting({ packingBagsPricePerKg })}
+        />
       </div>
 
       <div className="card" style={{ marginTop: 16 }}>

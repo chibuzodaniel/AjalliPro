@@ -169,6 +169,7 @@ export default function DailyRecordFormModal({
   truckOffloadingFeePerBag,
   truckHiredCostPerBag,
   rollsPricePerKg,
+  packingBagsPricePerKg,
 }: {
   mode: "create" | "edit";
   recordId?: string;
@@ -187,6 +188,7 @@ export default function DailyRecordFormModal({
   truckOffloadingFeePerBag: number;
   truckHiredCostPerBag: number;
   rollsPricePerKg: number;
+  packingBagsPricePerKg: number;
 }) {
   const router = useRouter();
   const draftKey = mode === "create" ? "ajalli:daily-record-draft:create" : `ajalli:daily-record-draft:edit:${recordId}`;
@@ -981,9 +983,15 @@ export default function DailyRecordFormModal({
           </div>
         )}
         {expenses.map((row) => {
-          const isRolls = row.description.trim().toLowerCase() === "rolls";
-          const rollsAmount = Number(row.amount) || 0;
-          const rollsKg = isRolls && rollsPricePerKg > 0 ? rollsAmount / rollsPricePerKg : null;
+          const descKey = row.description.trim().toLowerCase();
+          const materialAmount = Number(row.amount) || 0;
+          const material =
+            descKey === "rolls"
+              ? { label: "rolls", pricePerKg: rollsPricePerKg }
+              : descKey === "packing bags"
+                ? { label: "packing bags", pricePerKg: packingBagsPricePerKg }
+                : null;
+          const materialKg = material && material.pricePerKg > 0 ? materialAmount / material.pricePerKg : null;
           return (
             <div key={row.key}>
               <div
@@ -1029,11 +1037,11 @@ export default function DailyRecordFormModal({
                   ✕
                 </button>
               </div>
-              {isRolls && rollsAmount > 0 && (
+              {material && materialAmount > 0 && (
                 <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: -6, marginBottom: 10 }}>
-                  {rollsKg !== null
-                    ? `≈ ${rollsKg.toFixed(1)} kg at ₦${rollsPricePerKg}/kg`
-                    : "Set a rolls price (₦/kg) in Settings to track kg used"}
+                  {materialKg !== null
+                    ? `≈ ${materialKg.toFixed(1)} kg at ₦${material.pricePerKg}/kg`
+                    : `Set a ${material.label} price (₦/kg) in Settings to track kg used`}
                 </div>
               )}
             </div>

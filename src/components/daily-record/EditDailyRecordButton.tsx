@@ -27,6 +27,7 @@ export default function EditDailyRecordButton({
   truckOffloadingFeePerBag,
   truckHiredCostPerBag,
   rollsPricePerKg,
+  packingBagsPricePerKg,
 }: {
   record: DailyRecordFull;
   drivers: DriverOption[];
@@ -39,6 +40,7 @@ export default function EditDailyRecordButton({
   truckOffloadingFeePerBag: number;
   truckHiredCostPerBag: number;
   rollsPricePerKg: number;
+  packingBagsPricePerKg: number;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -102,6 +104,7 @@ export default function EditDailyRecordButton({
           truckOffloadingFeePerBag={truckOffloadingFeePerBag}
           truckHiredCostPerBag={truckHiredCostPerBag}
           rollsPricePerKg={rollsPricePerKg}
+          packingBagsPricePerKg={packingBagsPricePerKg}
         />
       )}
     </>

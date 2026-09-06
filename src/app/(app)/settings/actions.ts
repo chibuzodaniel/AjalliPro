@@ -14,6 +14,7 @@ import {
   packerPriceSettingSchema,
   truckFeeSettingsSchema,
   rollsPriceSettingSchema,
+  packingBagsPriceSettingSchema,
 } from "@/lib/validation/pricing";
 import {
   saveWeeklyIncentiveSettings,
@@ -22,6 +23,7 @@ import {
   savePackerPriceSetting,
   saveTruckFeeSettings,
   saveRollsPriceSetting,
+  savePackingBagsPriceSetting,
 } from "@/lib/settings";
 
 export interface UpdateWeeklyIncentiveResult {
@@ -337,6 +339,21 @@ export async function updateRollsPriceSetting(input: unknown): Promise<UpdatePri
 
   await saveRollsPriceSetting(parsed.data.rollsPricePerKg);
   await logActivity(`${user.name} set the rolls price to ₦${parsed.data.rollsPricePerKg}/kg.`, user.id);
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function updatePackingBagsPriceSetting(input: unknown): Promise<UpdatePricingResult> {
+  const guard = await requireRoleSafe(["ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
+  const parsed = packingBagsPriceSettingSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid value" };
+  }
+
+  await savePackingBagsPriceSetting(parsed.data.packingBagsPricePerKg);
+  await logActivity(`${user.name} set the packing bags price to ₦${parsed.data.packingBagsPricePerKg}/kg.`, user.id);
   revalidatePath("/", "layout");
   return { ok: true };
 }

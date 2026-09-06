@@ -25,3 +25,9 @@ export const rollsPriceSettingSchema = z.object({
 });
 
 export type RollsPriceSettingInput = z.infer<typeof rollsPriceSettingSchema>;
+
+export const packingBagsPriceSettingSchema = z.object({
+  packingBagsPricePerKg: z.number().int().min(0),
+});
+
+export type PackingBagsPriceSettingInput = z.infer<typeof packingBagsPriceSettingSchema>;
