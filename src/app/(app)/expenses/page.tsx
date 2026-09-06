@@ -2,7 +2,7 @@ import { getCurrentUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { canViewExpenses } from "@/lib/roles";
 import { formatMoney } from "@/lib/money";
-import { currentWeekKey, weekKeyOf, formatWeekLabel, MONTH_NAMES } from "@/lib/week";
+import { currentWeekKey, weekKeyOf, MONTH_NAMES } from "@/lib/week";
 import KpiCard from "@/components/ui/KpiCard";
 import RangeTabs from "@/components/ui/RangeTabs";
 import Pill from "@/components/ui/Pill";
@@ -36,7 +36,7 @@ function materialHistory(entries: { date: string; qty: number }[]) {
     // Only the current (still-ongoing) week is shown at week granularity —
     // once a week is over, its totals live on in "By month" instead of also
     // lingering here as a separate historical row.
-    weeklyHistory: groupQtyByPeriod(entries, (d) => weekKeyOf(d), formatWeekLabel, 1),
+    weeklyHistory: groupQtyByPeriod(entries, (d) => weekKeyOf(d), (k) => k, 1),
     monthlyHistory: groupQtyByPeriod(
       entries,
       (d) => d.slice(0, 7),

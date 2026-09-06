@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { generateWeeklyMailPreview, sendWeeklyMailNow, type MailPreviewEntry } from "@/app/(app)/customers/actions";
-import { currentWeekKey, formatWeekLabel } from "@/lib/week";
+import { currentWeekKey } from "@/lib/week";
 
 export default function WeeklyMailGenerator({ threshold, bonus }: { threshold: number; bonus: number }) {
   const [entries, setEntries] = useState<MailPreviewEntry[] | null>(null);
@@ -77,7 +77,7 @@ export default function WeeklyMailGenerator({ threshold, bonus }: { threshold: n
             </div>
           ))}
         {entries && entries.length > 0 && (
-          <div className="hint">Preview generated for {formatWeekLabel(currentWeekKey())}.</div>
+          <div className="hint">Preview generated for {currentWeekKey()}.</div>
         )}
       </div>
     </div>

@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getApprovedRecordsSorted, recordSoldTotal } from "@/lib/records";
 import { computeRevenue } from "@/lib/revenue";
 import { computeIncentiveData, weeksQualifiedInYear, yearTotal } from "@/lib/incentives";
-import { currentWeekKey, todayISO, weekKeyOf, formatWeekLabel, MONTH_NAMES } from "@/lib/week";
+import { currentWeekKey, todayISO, weekKeyOf, MONTH_NAMES } from "@/lib/week";
 import { formatMoney } from "@/lib/money";
 import { getWeeklyIncentiveSettings } from "@/lib/settings";
 import KpiCard from "@/components/ui/KpiCard";
@@ -78,7 +78,7 @@ export default async function DashboardPage() {
   // Only the current (still-ongoing) week is shown at week granularity — once a
   // week is over, its totals live on in the "By month" breakdown instead of
   // also lingering here as a separate historical row.
-  const weeklyNetHistory = groupByPeriod(approvedRecords, (d) => weekKeyOf(d), formatWeekLabel, 1);
+  const weeklyNetHistory = groupByPeriod(approvedRecords, (d) => weekKeyOf(d), (k) => k, 1);
   const monthlyNetHistory = groupByPeriod(
     approvedRecords,
     (d) => d.slice(0, 7),
