@@ -52,6 +52,9 @@ export function formatWeekLabel(weekKey: string): string {
   const startDiffDays = Math.max(0, (week - 1) * 7 - onejan.getDay());
   const startDate = new Date(year, 0, 1 + startDiffDays);
   const month = String(startDate.getMonth() + 1).padStart(2, "0");
-  const weekOfMonth = Math.ceil(startDate.getDate() / 7);
+  // Capped at 4 — every month is treated as having exactly 4 weeks, so the
+  // last several days of a month (the would-be 5th week) fold into week 4
+  // instead of a "5w" appearing.
+  const weekOfMonth = Math.min(Math.ceil(startDate.getDate() / 7), 4);
   return `${startDate.getFullYear()}-${month}-${weekOfMonth}w`;
 }
