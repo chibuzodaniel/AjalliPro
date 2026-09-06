@@ -84,22 +84,26 @@ export default async function SettingsPage() {
         </div>
         <MaterialPriceEditor
           label="Rolls price"
+          field="rollsPricePerKg"
+          unit="kg"
           initial={pricing.rollsPricePerKg}
-          onSave={(rollsPricePerKg) => updateRollsPriceSetting({ rollsPricePerKg })}
+          action={updateRollsPriceSetting}
         />
       </div>
 
       <div className="card" style={{ marginTop: 16 }}>
         <div className="section-title">Packing bags price</div>
         <div className="section-sub">
-          ₦/kg used to work out how many kg of packing bags a "Packing bags" expense on the Daily Record form bought.
-          Changing it only affects packing bags entries logged from now on — past entries keep the rate that applied
-          at the time.
+          ₦ per bundle used to work out how many bundles of packing bags a "Packing bags" expense on the Daily Record
+          form bought. Changing it only affects packing bags entries logged from now on — past entries keep the rate
+          that applied at the time.
         </div>
         <MaterialPriceEditor
           label="Packing bags price"
-          initial={pricing.packingBagsPricePerKg}
-          onSave={(packingBagsPricePerKg) => updatePackingBagsPriceSetting({ packingBagsPricePerKg })}
+          field="packingBagsPricePerBundle"
+          unit="bundle"
+          initial={pricing.packingBagsPricePerBundle}
+          action={updatePackingBagsPriceSetting}
         />
       </div>
 

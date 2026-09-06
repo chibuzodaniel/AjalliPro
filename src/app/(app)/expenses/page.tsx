@@ -10,35 +10,35 @@ import ViewAllModal from "@/components/ui/ViewAllModal";
 import ExpensePaymentControl from "@/components/expenses/ExpensePaymentControl";
 import ExpensePaymentHistory from "@/components/expenses/ExpensePaymentHistory";
 import DeleteExpenseButton from "@/components/expenses/DeleteExpenseButton";
-import MaterialUsageCard, { type MaterialKgRow } from "@/components/expenses/MaterialUsageCard";
+import MaterialUsageCard, { type MaterialQtyRow } from "@/components/expenses/MaterialUsageCard";
 
-function groupKgByPeriod(
-  entries: { date: string; kg: number }[],
+function groupQtyByPeriod(
+  entries: { date: string; qty: number }[],
   keyFn: (date: string) => string,
   labelFn: (key: string) => string,
   limit: number
-): MaterialKgRow[] {
+): MaterialQtyRow[] {
   const totals = new Map<string, number>();
   for (const e of entries) {
     const key = keyFn(e.date);
-    totals.set(key, (totals.get(key) ?? 0) + e.kg);
+    totals.set(key, (totals.get(key) ?? 0) + e.qty);
   }
   const keys = [...totals.keys()].sort().reverse().slice(0, limit);
-  return keys.map((key) => ({ label: labelFn(key), kg: totals.get(key)! }));
+  return keys.map((key) => ({ label: labelFn(key), qty: totals.get(key)! }));
 }
 
-function materialHistory(entries: { date: string; kg: number }[]) {
+function materialHistory(entries: { date: string; qty: number }[]) {
   const wk = currentWeekKey();
   return {
-    weekKg: entries.filter((e) => weekKeyOf(e.date) === wk).reduce((s, e) => s + e.kg, 0),
-    weeklyHistory: groupKgByPeriod(entries, (d) => weekKeyOf(d), (k) => k, 12),
-    monthlyHistory: groupKgByPeriod(
+    weekQty: entries.filter((e) => weekKeyOf(e.date) === wk).reduce((s, e) => s + e.qty, 0),
+    weeklyHistory: groupQtyByPeriod(entries, (d) => weekKeyOf(d), (k) => k, 12),
+    monthlyHistory: groupQtyByPeriod(
       entries,
       (d) => d.slice(0, 7),
       (k) => `${MONTH_NAMES[Number(k.slice(5, 7)) - 1]} ${k.slice(0, 4)}`,
       12
     ),
-    yearlyHistory: groupKgByPeriod(entries, (d) => d.slice(0, 4), (k) => k, 10),
+    yearlyHistory: groupQtyByPeriod(entries, (d) => d.slice(0, 4), (k) => k, 10),
   };
 }
 
@@ -72,8 +72,8 @@ export default async function ExpensesPage({
       select: { rollsKg: true, dailyRecord: { select: { date: true } } },
     }),
     prisma.expenseItem.findMany({
-      where: { packingBagsKg: { not: null } },
-      select: { packingBagsKg: true, dailyRecord: { select: { date: true } } },
+      where: { packingBagsBundles: { not: null } },
+      select: { packingBagsBundles: true, dailyRecord: { select: { date: true } } },
     }),
   ]);
 
@@ -81,9 +81,9 @@ export default async function ExpensesPage({
   const totalPaid = allTotals.reduce((s, e) => s + e.amountPaid, 0);
   const totalOutstanding = totalAmount - totalPaid;
 
-  const rolls = materialHistory(rollsEntriesRaw.map((e) => ({ date: e.dailyRecord.date, kg: e.rollsKg ?? 0 })));
+  const rolls = materialHistory(rollsEntriesRaw.map((e) => ({ date: e.dailyRecord.date, qty: e.rollsKg ?? 0 })));
   const packingBags = materialHistory(
-    packingBagsEntriesRaw.map((e) => ({ date: e.dailyRecord.date, kg: e.packingBagsKg ?? 0 }))
+    packingBagsEntriesRaw.map((e) => ({ date: e.dailyRecord.date, qty: e.packingBagsBundles ?? 0 }))
   );
 
   const expensesTable = (
@@ -93,7 +93,7 @@ export default async function ExpensesPage({
           <th>Date</th>
           <th>Description</th>
           <th>Amount</th>
-          <th>Kg</th>
+          <th>Qty</th>
           <th>Paid</th>
           <th>Remaining</th>
           <th>Status</th>
@@ -114,8 +114,8 @@ export default async function ExpensesPage({
               <td>
                 {item.rollsKg != null
                   ? `${item.rollsKg.toFixed(1)} kg`
-                  : item.packingBagsKg != null
-                    ? `${item.packingBagsKg.toFixed(1)} kg`
+                  : item.packingBagsBundles != null
+                    ? `${item.packingBagsBundles.toFixed(1)} bundle${item.packingBagsBundles === 1 ? "" : "s"}`
                     : "—"}
               </td>
               <td>{formatMoney(item.amountPaid)}</td>
@@ -161,6 +161,7 @@ export default async function ExpensesPage({
         <KpiCard label="Total" value={formatMoney(totalAmount)} />
         <MaterialUsageCard
           materialName="Rolls"
+          unit="kg"
           icon="🧻"
           iconBg="rgba(47,215,196,.15)"
           iconColor="var(--teal)"
@@ -168,6 +169,7 @@ export default async function ExpensesPage({
         />
         <MaterialUsageCard
           materialName="Packing Bags"
+          unit="bundle"
           icon="📦"
           iconBg="rgba(124,110,245,.15)"
           iconColor="var(--accent)"

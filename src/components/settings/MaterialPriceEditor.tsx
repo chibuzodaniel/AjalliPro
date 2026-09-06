@@ -5,12 +5,16 @@ import { useRouter } from "next/navigation";
 
 export default function MaterialPriceEditor({
   label,
+  field,
+  unit,
   initial,
-  onSave,
+  action,
 }: {
   label: string;
+  field: string;
+  unit: string;
   initial: number;
-  onSave: (pricePerKg: number) => Promise<{ ok: boolean; error?: string }>;
+  action: (input: unknown) => Promise<{ ok: boolean; error?: string }>;
 }) {
   const router = useRouter();
   const [price, setPrice] = useState(String(initial));
@@ -22,7 +26,7 @@ export default function MaterialPriceEditor({
     setLoading(true);
     setError(null);
     setSaved(false);
-    const result = await onSave(Number(price) || 0);
+    const result = await action({ [field]: Number(price) || 0 });
     setLoading(false);
     if (!result.ok) {
       setError(result.error ?? "Could not save");
@@ -35,7 +39,7 @@ export default function MaterialPriceEditor({
   return (
     <div>
       <div className="field">
-        <label>{label} (₦ per kg)</label>
+        <label>{label} (₦ per {unit})</label>
         <input type="number" min={0} placeholder="0" value={price} onChange={(e) => setPrice(e.target.value)} />
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>

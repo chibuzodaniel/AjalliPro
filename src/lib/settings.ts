@@ -72,7 +72,7 @@ export interface PricingSettings {
   truckOffloadingFeePerBag: number;
   truckHiredCostPerBag: number;
   rollsPricePerKg: number;
-  packingBagsPricePerKg: number;
+  packingBagsPricePerBundle: number;
 }
 
 export const DEFAULT_PRICING_SETTINGS: PricingSettings = {
@@ -82,7 +82,7 @@ export const DEFAULT_PRICING_SETTINGS: PricingSettings = {
   truckOffloadingFeePerBag: 0,
   truckHiredCostPerBag: 0,
   rollsPricePerKg: 0,
-  packingBagsPricePerKg: 0,
+  packingBagsPricePerBundle: 0,
 };
 
 export async function getPricingSettings(): Promise<PricingSettings> {
@@ -95,7 +95,7 @@ export async function getPricingSettings(): Promise<PricingSettings> {
     truckOffloadingFeePerBag: row.truckOffloadingFeePerBag,
     truckHiredCostPerBag: row.truckHiredCostPerBag,
     rollsPricePerKg: row.rollsPricePerKg,
-    packingBagsPricePerKg: row.packingBagsPricePerKg,
+    packingBagsPricePerBundle: row.packingBagsPricePerBundle,
   };
 }
 
@@ -123,11 +123,11 @@ export async function saveRollsPriceSetting(rollsPricePerKg: number): Promise<vo
   });
 }
 
-export async function savePackingBagsPriceSetting(packingBagsPricePerKg: number): Promise<void> {
+export async function savePackingBagsPriceSetting(packingBagsPricePerBundle: number): Promise<void> {
   await prisma.pricingSetting.upsert({
     where: { id: SETTINGS_ID },
-    create: { id: SETTINGS_ID, packingBagsPricePerKg },
-    update: { packingBagsPricePerKg },
+    create: { id: SETTINGS_ID, packingBagsPricePerBundle },
+    update: { packingBagsPricePerBundle },
   });
 }
 

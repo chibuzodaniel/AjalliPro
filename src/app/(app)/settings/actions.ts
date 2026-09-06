@@ -352,8 +352,11 @@ export async function updatePackingBagsPriceSetting(input: unknown): Promise<Upd
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid value" };
   }
 
-  await savePackingBagsPriceSetting(parsed.data.packingBagsPricePerKg);
-  await logActivity(`${user.name} set the packing bags price to ₦${parsed.data.packingBagsPricePerKg}/kg.`, user.id);
+  await savePackingBagsPriceSetting(parsed.data.packingBagsPricePerBundle);
+  await logActivity(
+    `${user.name} set the packing bags price to ₦${parsed.data.packingBagsPricePerBundle}/bundle.`,
+    user.id
+  );
   revalidatePath("/", "layout");
   return { ok: true };
 }

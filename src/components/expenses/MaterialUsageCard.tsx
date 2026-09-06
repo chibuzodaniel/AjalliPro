@@ -4,16 +4,22 @@ import { useState } from "react";
 import KpiCard from "@/components/ui/KpiCard";
 import Modal from "@/components/ui/Modal";
 
-export interface MaterialKgRow {
+export interface MaterialQtyRow {
   label: string;
-  kg: number;
+  qty: number;
 }
 
-function fmtKg(kg: number) {
-  return `${kg.toFixed(1)} kg`;
-}
-
-function KgHistoryTable({ title, columnLabel, rows }: { title: string; columnLabel: string; rows: MaterialKgRow[] }) {
+function MaterialQtyHistoryTable({
+  title,
+  columnLabel,
+  unit,
+  rows,
+}: {
+  title: string;
+  columnLabel: string;
+  unit: string;
+  rows: MaterialQtyRow[];
+}) {
   return (
     <div style={{ marginBottom: 18 }}>
       <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 8, color: "var(--text-dim)" }}>{title}</div>
@@ -33,7 +39,7 @@ function KgHistoryTable({ title, columnLabel, rows }: { title: string; columnLab
                 <tr key={r.label}>
                   <td>{r.label}</td>
                   <td>
-                    <b>{fmtKg(r.kg)}</b>
+                    <b>{r.qty.toFixed(1)} {unit}</b>
                   </td>
                 </tr>
               ))}
@@ -47,22 +53,24 @@ function KgHistoryTable({ title, columnLabel, rows }: { title: string; columnLab
 
 export default function MaterialUsageCard({
   materialName,
+  unit,
   icon,
   iconBg,
   iconColor,
-  weekKg,
+  weekQty,
   weeklyHistory,
   monthlyHistory,
   yearlyHistory,
 }: {
   materialName: string;
+  unit: string;
   icon: string;
   iconBg: string;
   iconColor: string;
-  weekKg: number;
-  weeklyHistory: MaterialKgRow[];
-  monthlyHistory: MaterialKgRow[];
-  yearlyHistory: MaterialKgRow[];
+  weekQty: number;
+  weeklyHistory: MaterialQtyRow[];
+  monthlyHistory: MaterialQtyRow[];
+  yearlyHistory: MaterialQtyRow[];
 }) {
   const [open, setOpen] = useState(false);
   const columnLabel = `${materialName} used`;
@@ -71,22 +79,22 @@ export default function MaterialUsageCard({
     <>
       <KpiCard
         label={`${materialName} Used (This Week)`}
-        value={fmtKg(weekKg)}
+        value={`${weekQty.toFixed(1)} ${unit}`}
         icon={icon}
         iconBg={iconBg}
         iconColor={iconColor}
-        delta={`From ${materialName.toLowerCase()} expenses ÷ ₦/kg — view history →`}
+        delta={`From ${materialName.toLowerCase()} expenses ÷ ₦/${unit} — view history →`}
         onClick={() => setOpen(true)}
       />
       {open && (
         <Modal open={open} onClose={() => setOpen(false)} title={`${materialName} Usage History`} maxWidth={600}>
           <div style={{ fontSize: 12, color: "var(--text-faint)", marginBottom: 14 }}>
-            Every "{materialName}" expense's ₦ amount divided by its price (₦/kg) set on Settings at the time it was
-            logged, for each period.
+            Every "{materialName}" expense's ₦ amount divided by its price (₦/{unit}) set on Settings at the time it
+            was logged, for each period.
           </div>
-          <KgHistoryTable title="By week" columnLabel={columnLabel} rows={weeklyHistory} />
-          <KgHistoryTable title="By month" columnLabel={columnLabel} rows={monthlyHistory} />
-          <KgHistoryTable title="By year" columnLabel={columnLabel} rows={yearlyHistory} />
+          <MaterialQtyHistoryTable title="By week" columnLabel={columnLabel} unit={unit} rows={weeklyHistory} />
+          <MaterialQtyHistoryTable title="By month" columnLabel={columnLabel} unit={unit} rows={monthlyHistory} />
+          <MaterialQtyHistoryTable title="By year" columnLabel={columnLabel} unit={unit} rows={yearlyHistory} />
         </Modal>
       )}
     </>

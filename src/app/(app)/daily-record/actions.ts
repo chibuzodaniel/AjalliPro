@@ -324,9 +324,9 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
               paidAt: e.paid ? new Date() : null,
               paidById: e.paid ? user.id : null,
               rollsKg: isRollsExpense(e.description) && fixedPricing.rollsPricePerKg > 0 ? e.amount / fixedPricing.rollsPricePerKg : null,
-              packingBagsKg:
-                isPackingBagsExpense(e.description) && fixedPricing.packingBagsPricePerKg > 0
-                  ? e.amount / fixedPricing.packingBagsPricePerKg
+              packingBagsBundles:
+                isPackingBagsExpense(e.description) && fixedPricing.packingBagsPricePerBundle > 0
+                  ? e.amount / fixedPricing.packingBagsPricePerBundle
                   : null,
             })),
             ...buildLoadingFeeExpenses(data.driverSales, driverById),
@@ -596,9 +596,9 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
                   paidAt: e.paid ? new Date() : null,
                   paidById: e.paid ? user.id : null,
                   rollsKg: isRollsExpense(e.description) && fixedPricing.rollsPricePerKg > 0 ? e.amount / fixedPricing.rollsPricePerKg : null,
-                  packingBagsKg:
-                    isPackingBagsExpense(e.description) && fixedPricing.packingBagsPricePerKg > 0
-                      ? e.amount / fixedPricing.packingBagsPricePerKg
+                  packingBagsBundles:
+                    isPackingBagsExpense(e.description) && fixedPricing.packingBagsPricePerBundle > 0
+                      ? e.amount / fixedPricing.packingBagsPricePerBundle
                       : null,
                 })),
                 ...buildLoadingFeeExpenses(data.driverSales, driverById),

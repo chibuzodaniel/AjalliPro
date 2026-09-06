@@ -169,7 +169,7 @@ export default function DailyRecordFormModal({
   truckOffloadingFeePerBag,
   truckHiredCostPerBag,
   rollsPricePerKg,
-  packingBagsPricePerKg,
+  packingBagsPricePerBundle,
 }: {
   mode: "create" | "edit";
   recordId?: string;
@@ -188,7 +188,7 @@ export default function DailyRecordFormModal({
   truckOffloadingFeePerBag: number;
   truckHiredCostPerBag: number;
   rollsPricePerKg: number;
-  packingBagsPricePerKg: number;
+  packingBagsPricePerBundle: number;
 }) {
   const router = useRouter();
   const draftKey = mode === "create" ? "ajalli:daily-record-draft:create" : `ajalli:daily-record-draft:edit:${recordId}`;
@@ -987,11 +987,11 @@ export default function DailyRecordFormModal({
           const materialAmount = Number(row.amount) || 0;
           const material =
             descKey === "rolls"
-              ? { label: "rolls", pricePerKg: rollsPricePerKg }
+              ? { label: "rolls", unit: "kg", unitPlural: "kg", price: rollsPricePerKg }
               : descKey === "packing bags"
-                ? { label: "packing bags", pricePerKg: packingBagsPricePerKg }
+                ? { label: "packing bags", unit: "bundle", unitPlural: "bundles", price: packingBagsPricePerBundle }
                 : null;
-          const materialKg = material && material.pricePerKg > 0 ? materialAmount / material.pricePerKg : null;
+          const materialQty = material && material.price > 0 ? materialAmount / material.price : null;
           return (
             <div key={row.key}>
               <div
@@ -1039,9 +1039,9 @@ export default function DailyRecordFormModal({
               </div>
               {material && materialAmount > 0 && (
                 <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: -6, marginBottom: 10 }}>
-                  {materialKg !== null
-                    ? `≈ ${materialKg.toFixed(1)} kg at ₦${material.pricePerKg}/kg`
-                    : `Set a ${material.label} price (₦/kg) in Settings to track kg used`}
+                  {materialQty !== null
+                    ? `≈ ${materialQty.toFixed(1)} ${materialQty === 1 ? material.unit : material.unitPlural} at ₦${material.price}/${material.unit}`
+                    : `Set a ${material.label} price (₦/${material.unit}) in Settings to track usage`}
                 </div>
               )}
             </div>
