@@ -7,7 +7,7 @@ import { logActivity } from "@/lib/activity";
 import { customerSchema, customerPricingSchema } from "@/lib/validation/customer";
 import { getApprovedRecordsSorted } from "@/lib/records";
 import { computeIncentiveData } from "@/lib/incentives";
-import { currentWeekKey } from "@/lib/week";
+import { currentWeekKey, formatWeekLabel } from "@/lib/week";
 import { getWeeklyIncentiveSettings, getEmailTemplateSettings } from "@/lib/settings";
 import { isEmailConfigured, sendWeeklyCustomerEmail } from "@/lib/mail";
 
@@ -122,7 +122,7 @@ async function computeWeeklyMailEntries() {
     };
   });
 
-  return { entries, weeklySettings, weekKey: wk };
+  return { entries, weeklySettings, weekKey: formatWeekLabel(wk) };
 }
 
 export async function generateWeeklyMailPreview(): Promise<MailPreviewEntry[]> {

@@ -2,7 +2,7 @@ import { getCurrentUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { canViewExpenses } from "@/lib/roles";
 import { formatMoney } from "@/lib/money";
-import { currentWeekKey, weekKeyOf, MONTH_NAMES } from "@/lib/week";
+import { currentWeekKey, weekKeyOf, formatWeekLabel, MONTH_NAMES } from "@/lib/week";
 import KpiCard from "@/components/ui/KpiCard";
 import RangeTabs from "@/components/ui/RangeTabs";
 import Pill from "@/components/ui/Pill";
@@ -23,7 +23,9 @@ function groupQtyByPeriod(
     const key = keyFn(e.date);
     totals.set(key, (totals.get(key) ?? 0) + e.qty);
   }
-  const keys = [...totals.keys()].sort().reverse().slice(0, limit);
+  // localeCompare with numeric:true so "...-W9" sorts before "...-W10" —
+  // plain string sort would put W10 before W9 lexicographically.
+  const keys = [...totals.keys()].sort((a, b) => b.localeCompare(a, undefined, { numeric: true })).slice(0, limit);
   return keys.map((key) => ({ label: labelFn(key), qty: totals.get(key)! }));
 }
 
@@ -31,7 +33,10 @@ function materialHistory(entries: { date: string; qty: number }[]) {
   const wk = currentWeekKey();
   return {
     weekQty: entries.filter((e) => weekKeyOf(e.date) === wk).reduce((s, e) => s + e.qty, 0),
-    weeklyHistory: groupQtyByPeriod(entries, (d) => weekKeyOf(d), (k) => k, 12),
+    // Only the current (still-ongoing) week is shown at week granularity —
+    // once a week is over, its totals live on in "By month" instead of also
+    // lingering here as a separate historical row.
+    weeklyHistory: groupQtyByPeriod(entries, (d) => weekKeyOf(d), formatWeekLabel, 1),
     monthlyHistory: groupQtyByPeriod(
       entries,
       (d) => d.slice(0, 7),

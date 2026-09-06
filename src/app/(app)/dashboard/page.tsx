@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getApprovedRecordsSorted, recordSoldTotal } from "@/lib/records";
 import { computeRevenue } from "@/lib/revenue";
 import { computeIncentiveData, weeksQualifiedInYear, yearTotal } from "@/lib/incentives";
-import { currentWeekKey, todayISO, weekKeyOf, MONTH_NAMES } from "@/lib/week";
+import { currentWeekKey, todayISO, weekKeyOf, formatWeekLabel, MONTH_NAMES } from "@/lib/week";
 import { formatMoney } from "@/lib/money";
 import { getWeeklyIncentiveSettings } from "@/lib/settings";
 import KpiCard from "@/components/ui/KpiCard";
@@ -25,7 +25,9 @@ function groupByPeriod(
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(r);
   }
-  const keys = [...groups.keys()].sort().reverse().slice(0, limit);
+  // localeCompare with numeric:true so "...-W9" sorts before "...-W10" —
+  // plain string sort would put W10 before W9 lexicographically.
+  const keys = [...groups.keys()].sort((a, b) => b.localeCompare(a, undefined, { numeric: true })).slice(0, limit);
   return keys.map((key) => {
     const rev = computeRevenue(groups.get(key)!);
     return { label: labelFn(key), gross: rev.gross, expenses: rev.expenses, net: rev.net };
@@ -73,7 +75,10 @@ export default async function DashboardPage() {
 
   // Net Revenue history — true net (revenue minus every expense), grouped
   // by week/month/year so the card's modal can show how it's trending.
-  const weeklyNetHistory = groupByPeriod(approvedRecords, (d) => weekKeyOf(d), (k) => k, 12);
+  // Only the current (still-ongoing) week is shown at week granularity — once a
+  // week is over, its totals live on in the "By month" breakdown instead of
+  // also lingering here as a separate historical row.
+  const weeklyNetHistory = groupByPeriod(approvedRecords, (d) => weekKeyOf(d), formatWeekLabel, 1);
   const monthlyNetHistory = groupByPeriod(
     approvedRecords,
     (d) => d.slice(0, 7),
