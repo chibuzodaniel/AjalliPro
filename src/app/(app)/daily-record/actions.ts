@@ -382,7 +382,7 @@ async function cascadeRecalculate(
   excludeId?: string
 ) {
   const forward = await tx.dailyRecord.findMany({
-    where: { status: "APPROVED", date: { gt: fromDate } },
+    where: { status: "APPROVED", archivedAt: null, date: { gt: fromDate } },
     include: dailyRecordInclude,
     orderBy: { date: "asc" },
   });
@@ -436,6 +436,9 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
   if (!existing) {
     return { ok: false, error: "Daily record not found." };
   }
+  if (existing.archivedAt) {
+    return { ok: false, error: "This record is archived and read-only." };
+  }
 
   const canEdit = isApprover(user.role) || (existing.createdById === user.id && existing.status === "PENDING");
   if (!canEdit) {
@@ -467,7 +470,7 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
     ),
     dateChanged
       ? prisma.dailyRecord.findFirst({
-          where: { status: "APPROVED", date: { lt: data.date }, id: { not: id } },
+          where: { status: "APPROVED", archivedAt: null, date: { lt: data.date }, id: { not: id } },
           orderBy: { date: "desc" },
         })
       : Promise.resolve(null),
@@ -619,7 +622,7 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
           if (dateChanged) {
             const boundaryDate = existing.date < data.date ? existing.date : data.date;
             const anchor = await tx.dailyRecord.findFirst({
-              where: { status: "APPROVED", date: { lt: boundaryDate }, id: { not: id } },
+              where: { status: "APPROVED", archivedAt: null, date: { lt: boundaryDate }, id: { not: id } },
               orderBy: { date: "desc" },
             });
             await cascadeRecalculate(
@@ -676,12 +679,15 @@ export async function deleteDailyRecord(id: string): Promise<DeleteDailyRecordRe
   if (!existing) {
     return { ok: false, error: "Daily record not found." };
   }
+  if (existing.archivedAt) {
+    return { ok: false, error: "This record is archived and read-only." };
+  }
 
   await prisma.$transaction(
     async (tx) => {
       if (existing.status === "APPROVED") {
         const prev = await tx.dailyRecord.findFirst({
-          where: { status: "APPROVED", date: { lt: existing.date } },
+          where: { status: "APPROVED", archivedAt: null, date: { lt: existing.date } },
           orderBy: { date: "desc" },
         });
         const startingClosing = prev?.closingStock ?? 0;
@@ -699,6 +705,45 @@ export async function deleteDailyRecord(id: string): Promise<DeleteDailyRecordRe
   await logActivity(`${user.name} deleted the daily record for ${existing.date}.`, user.id);
   revalidatePath("/", "layout");
   return { ok: true };
+}
+
+export interface ArchiveRecordsResult {
+  ok: boolean;
+  error?: string;
+  archivedCount?: number;
+}
+
+/**
+ * Archives every currently-active daily record so a fresh recording session
+ * can start — nothing is deleted, archived records stay fully intact and
+ * viewable on the Archive tab, just out of the active views (Daily Record
+ * table, Dashboard, stock chain, weekly incentive progress). The next new
+ * record's opening stock therefore starts from 0 (Super Admin re-enters the
+ * real physical count), while yearly customer/driver incentive totals keep
+ * counting straight through, since getAllApprovedRecordsEverSorted() ignores
+ * archive state.
+ */
+export async function archiveAllActiveRecords(): Promise<ArchiveRecordsResult> {
+  const guard = await requireRoleSafe(["SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const admin = guard.user;
+
+  const activeCount = await prisma.dailyRecord.count({ where: { archivedAt: null } });
+  if (activeCount === 0) {
+    return { ok: false, error: "There are no active records to archive." };
+  }
+
+  await prisma.dailyRecord.updateMany({
+    where: { archivedAt: null },
+    data: { archivedAt: new Date(), archivedById: admin.id },
+  });
+
+  await logActivity(
+    `${admin.name} archived ${activeCount} daily record${activeCount === 1 ? "" : "s"} and started a new recording session.`,
+    admin.id
+  );
+  revalidatePath("/", "layout");
+  return { ok: true, archivedCount: activeCount };
 }
 
 export interface DailyRecordFormData {

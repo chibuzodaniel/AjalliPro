@@ -1,7 +1,7 @@
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { canManageCustomers } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
-import { getApprovedRecordsSorted } from "@/lib/records";
+import { getApprovedRecordsSorted, getAllApprovedRecordsEverSorted } from "@/lib/records";
 import { computeIncentiveData } from "@/lib/incentives";
 import { currentWeekKey } from "@/lib/week";
 import { getWeeklyIncentiveSettings } from "@/lib/settings";
@@ -15,12 +15,16 @@ import { formatMoney } from "@/lib/money";
 
 export default async function CustomersPage() {
   const user = await getCurrentUser();
-  const [customers, approvedRecords, weeklySettings] = await Promise.all([
+  const [customers, approvedRecords, allApprovedRecordsEver, weeklySettings] = await Promise.all([
     prisma.customer.findMany({ orderBy: { createdAt: "desc" } }),
     getApprovedRecordsSorted(),
+    getAllApprovedRecordsEverSorted(),
     getWeeklyIncentiveSettings(),
   ]);
-  const { customerWeekly, customerYearly } = computeIncentiveData(approvedRecords);
+  // Weekly progress only reflects the current session (since the last archive);
+  // yearly loyalty totals keep counting straight through an archive.
+  const { customerWeekly } = computeIncentiveData(approvedRecords);
+  const { customerYearly } = computeIncentiveData(allApprovedRecordsEver);
   const wk = currentWeekKey();
   const year = new Date().getFullYear();
   const canSetPricing = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";

@@ -35,6 +35,7 @@ model User {
 
   dailyRecordsCreated  DailyRecord[]      @relation("DailyRecordCreatedBy")
   dailyRecordsApproved DailyRecord[]      @relation("DailyRecordApprovedBy")
+  dailyRecordsArchived DailyRecord[]      @relation("DailyRecordArchivedBy")
   driversCreated       Driver[]           @relation("DriverCreatedBy")
   driversApproved      Driver[]           @relation("DriverApprovedBy")
   customersCreated     Customer[]
@@ -80,6 +81,9 @@ model DailyRecord {
   approvedBy         User?          @relation("DailyRecordApprovedBy", fields: [approvedById], references: [id])
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
+  archivedAt         DateTime?      // set when a Super Admin archives the record to start a fresh recording session; null = active/current
+  archivedById       String?
+  archivedBy         User?          @relation("DailyRecordArchivedBy", fields: [archivedById], references: [id])
 
   productionLines ProductionLine[]
   driverSales     DriverSale[]
@@ -88,6 +92,7 @@ model DailyRecord {
 
   @@index([status])
   @@index([date])
+  @@index([archivedAt])
 }
 
 model ExpenseItem {

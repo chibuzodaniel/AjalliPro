@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getApprovedRecordsSorted } from "@/lib/records";
+import { getApprovedRecordsSorted, getAllApprovedRecordsEverSorted } from "@/lib/records";
 import { computeIncentiveData, weeksQualified, weeksQualifiedInYear, yearTotal } from "@/lib/incentives";
 import { currentWeekKey } from "@/lib/week";
 import { getWeeklyIncentiveSettings } from "@/lib/settings";
@@ -31,21 +31,26 @@ export default async function IncentivesPage({
   const sp = await searchParams;
   const tab = sp.tab === "drivers" ? "drivers" : "customers";
 
-  const [customers, drivers, approvedRecords, weeklySettings] = await Promise.all([
+  const [customers, drivers, approvedRecords, allApprovedRecordsEver, weeklySettings] = await Promise.all([
     prisma.customer.findMany({ orderBy: { name: "asc" } }),
     prisma.driver.findMany({ where: { status: "APPROVED" }, orderBy: { name: "asc" } }),
     getApprovedRecordsSorted(),
+    getAllApprovedRecordsEverSorted(),
     getWeeklyIncentiveSettings(),
   ]);
+  // "This week" figures reflect only the current session (since the last archive).
+  // Everything else here — all-time weeks qualified, year-to-date totals — keeps
+  // counting straight through an archive, since that's a bookkeeping reset for
+  // day-to-day recording, not a reset of what a customer/driver has actually done.
+  const { customerWeekly, driverWeekly, customerInstantWeekly, driverInstantWeekly } =
+    computeIncentiveData(approvedRecords);
   const {
-    customerWeekly,
-    driverWeekly,
+    customerWeekly: customerWeeklyAll,
+    driverWeekly: driverWeeklyAll,
     customerYearly,
-    driverInstantWeekly,
     driverInstantYearly,
-    customerInstantWeekly,
     customerInstantYearly,
-  } = computeIncentiveData(approvedRecords);
+  } = computeIncentiveData(allApprovedRecordsEver);
   const wk = currentWeekKey();
   const year = new Date().getFullYear();
   const { customerWeeklyThreshold, customerWeeklyBonus, driverWeeklyThreshold, driverWeeklyBonus } = weeklySettings;
@@ -54,7 +59,7 @@ export default async function IncentivesPage({
     const wkBags = customerWeekly.get(c.id)?.[wk] ?? 0;
     const qualifies = wkBags >= customerWeeklyThreshold;
     const thresholdBonusYear =
-      weeksQualifiedInYear(customerWeekly.get(c.id), customerWeeklyThreshold, year) * customerWeeklyBonus;
+      weeksQualifiedInYear(customerWeeklyAll.get(c.id), customerWeeklyThreshold, year) * customerWeeklyBonus;
     const instantWeek = customerInstantWeekly.get(c.id)?.[wk] ?? 0;
     const instantYear = yearTotal(customerInstantYearly.get(c.id), year);
     const weekBonusBags = (qualifies ? customerWeeklyBonus : 0) + instantWeek;
@@ -72,7 +77,7 @@ export default async function IncentivesPage({
     const instantWeek = driverInstantWeekly.get(d.id)?.[wk] ?? 0;
     const instantYear = yearTotal(driverInstantYearly.get(d.id), year);
     const weekBonusBags = qualifies ? driverWeeklyBonus : 0;
-    const yearBonusBags = weeksQualifiedInYear(driverWeekly.get(d.id), driverWeeklyThreshold, year) * driverWeeklyBonus;
+    const yearBonusBags = weeksQualifiedInYear(driverWeeklyAll.get(d.id), driverWeeklyThreshold, year) * driverWeeklyBonus;
     return {
       d,
       wkBags,
@@ -118,7 +123,7 @@ export default async function IncentivesPage({
                 <span className="pill pending">in progress</span>
               )}
             </td>
-            <td>{weeksQualified(customerWeekly.get(c.id), customerWeeklyThreshold)}</td>
+            <td>{weeksQualified(customerWeeklyAll.get(c.id), customerWeeklyThreshold)}</td>
             <td>{yearTotal(customerYearly.get(c.id), year)}</td>
             <td>{instantWeek}</td>
             <td>{instantYear}</td>
@@ -156,7 +161,7 @@ export default async function IncentivesPage({
                 <span className="pill pending">in progress</span>
               )}
             </td>
-            <td>{weeksQualified(driverWeekly.get(d.id), driverWeeklyThreshold)}</td>
+            <td>{weeksQualified(driverWeeklyAll.get(d.id), driverWeeklyThreshold)}</td>
             <td>{instantWeek}</td>
             <td>{instantYear}</td>
             <td>{totalYear}</td>

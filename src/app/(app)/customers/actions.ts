@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRoleSafe } from "@/lib/auth-helpers";
 import { logActivity } from "@/lib/activity";
 import { customerSchema, customerPricingSchema } from "@/lib/validation/customer";
-import { getApprovedRecordsSorted } from "@/lib/records";
+import { getApprovedRecordsSorted, getAllApprovedRecordsEverSorted } from "@/lib/records";
 import { computeIncentiveData } from "@/lib/incentives";
 import { currentWeekKey } from "@/lib/week";
 import { getWeeklyIncentiveSettings, getEmailTemplateSettings } from "@/lib/settings";
@@ -100,12 +100,15 @@ export interface MailPreviewEntry {
 }
 
 async function computeWeeklyMailEntries() {
-  const [customers, approvedRecords, weeklySettings] = await Promise.all([
+  const [customers, approvedRecords, allApprovedRecordsEver, weeklySettings] = await Promise.all([
     prisma.customer.findMany({ orderBy: { name: "asc" } }),
     getApprovedRecordsSorted(),
+    getAllApprovedRecordsEverSorted(),
     getWeeklyIncentiveSettings(),
   ]);
-  const { customerWeekly, customerYearly } = computeIncentiveData(approvedRecords);
+  // Weekly qualification reflects the current session; year-to-date keeps counting through an archive.
+  const { customerWeekly } = computeIncentiveData(approvedRecords);
+  const { customerYearly } = computeIncentiveData(allApprovedRecordsEver);
   const wk = currentWeekKey();
   const year = new Date().getFullYear();
 

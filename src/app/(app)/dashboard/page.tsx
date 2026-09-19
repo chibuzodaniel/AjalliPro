@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { isApprover } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
-import { getApprovedRecordsSorted, recordSoldTotal } from "@/lib/records";
+import { getApprovedRecordsSorted, getAllApprovedRecordsEverSorted, recordSoldTotal } from "@/lib/records";
 import { computeRevenue } from "@/lib/revenue";
 import { computeIncentiveData, weeksQualifiedInYear, yearTotal } from "@/lib/incentives";
 import { currentWeekKey, todayISO, weekKeyOf, MONTH_NAMES } from "@/lib/week";
@@ -38,9 +38,10 @@ export default async function DashboardPage() {
   const user = await getCurrentUser();
   const approver = user ? isApprover(user.role) : false;
 
-  const [approvedRecords, customers, drivers, activity, pendingDailyCount, pendingDriverCount, weeklySettings] =
+  const [approvedRecords, allApprovedRecordsEver, customers, drivers, activity, pendingDailyCount, pendingDriverCount, weeklySettings] =
     await Promise.all([
       getApprovedRecordsSorted(),
+      getAllApprovedRecordsEverSorted(),
       prisma.customer.findMany(),
       prisma.driver.findMany({ where: { status: "APPROVED" } }),
       prisma.activityLog.findMany({ orderBy: { createdAt: "desc" }, take: 6 }),
@@ -112,9 +113,14 @@ export default async function DashboardPage() {
   }
   const topDrivers = [...driverTotals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
 
-  // incentive watch
-  const { customerWeekly, driverWeekly, driverInstantWeekly, driverInstantYearly, customerInstantWeekly, customerInstantYearly } =
+  // incentive watch — "this week" figures reflect only the current session
+  // (since the last archive); year-to-date figures keep counting through an
+  // archive, since that's a bookkeeping reset, not a reset of what a
+  // customer/driver has actually done.
+  const { customerWeekly, driverWeekly, driverInstantWeekly, customerInstantWeekly } =
     computeIncentiveData(approvedRecords);
+  const { customerWeekly: customerWeeklyAll, driverWeekly: driverWeeklyAll, driverInstantYearly, customerInstantYearly } =
+    computeIncentiveData(allApprovedRecordsEver);
   const watchItems: { label: string; bags: number; threshold: number }[] = [];
   for (const c of customers) {
     const b = customerWeekly.get(c.id)?.[wk] ?? 0;
@@ -137,7 +143,7 @@ export default async function DashboardPage() {
     incentiveYearTotal += yearTotal(customerInstantYearly.get(c.id), thisYear);
     if (wkBags >= weeklySettings.customerWeeklyThreshold) incentiveWeekTotal += weeklySettings.customerWeeklyBonus;
     incentiveYearTotal +=
-      weeksQualifiedInYear(customerWeekly.get(c.id), weeklySettings.customerWeeklyThreshold, thisYear) *
+      weeksQualifiedInYear(customerWeeklyAll.get(c.id), weeklySettings.customerWeeklyThreshold, thisYear) *
       weeklySettings.customerWeeklyBonus;
   }
   for (const d of drivers) {
@@ -146,7 +152,7 @@ export default async function DashboardPage() {
     incentiveYearTotal += yearTotal(driverInstantYearly.get(d.id), thisYear);
     if (wkBags >= weeklySettings.driverWeeklyThreshold) incentiveWeekTotal += weeklySettings.driverWeeklyBonus;
     incentiveYearTotal +=
-      weeksQualifiedInYear(driverWeekly.get(d.id), weeklySettings.driverWeeklyThreshold, thisYear) *
+      weeksQualifiedInYear(driverWeeklyAll.get(d.id), weeklySettings.driverWeeklyThreshold, thisYear) *
       weeklySettings.driverWeeklyBonus;
   }
 

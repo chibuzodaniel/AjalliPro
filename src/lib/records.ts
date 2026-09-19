@@ -9,26 +9,54 @@ export const dailyRecordInclude = {
   factoryCustomer: true,
   createdBy: true,
   approvedBy: true,
+  archivedBy: true,
 } satisfies Prisma.DailyRecordInclude;
 
 export type DailyRecordFull = Prisma.DailyRecordGetPayload<{
   include: typeof dailyRecordInclude;
 }>;
 
+/** Active (not archived) records only — this is "the current recording session" everywhere it's used. */
 export async function getAllRecordsSorted(): Promise<DailyRecordFull[]> {
   return prisma.dailyRecord.findMany({
+    where: { archivedAt: null },
     include: dailyRecordInclude,
     orderBy: { date: "desc" },
   });
 }
 
+/** Active (not archived) approved records — used for stock chain, dashboard, and weekly incentive progress. */
 export async function getApprovedRecordsSorted(): Promise<DailyRecordFull[]> {
+  const records = await prisma.dailyRecord.findMany({
+    where: { status: "APPROVED", archivedAt: null },
+    include: dailyRecordInclude,
+    orderBy: { date: "asc" },
+  });
+  return records;
+}
+
+/**
+ * Approved records regardless of archive state — used only where history must
+ * keep counting straight through an archive, e.g. yearly incentive totals
+ * (a customer/driver's business relationship doesn't reset just because the
+ * books did).
+ */
+export async function getAllApprovedRecordsEverSorted(): Promise<DailyRecordFull[]> {
   const records = await prisma.dailyRecord.findMany({
     where: { status: "APPROVED" },
     include: dailyRecordInclude,
     orderBy: { date: "asc" },
   });
   return records;
+}
+
+/** Archived records only, most recently archived first — for the Archive History view. */
+export async function getArchivedRecordsSorted(): Promise<DailyRecordFull[]> {
+  return prisma.dailyRecord.findMany({
+    where: { archivedAt: { not: null } },
+    include: dailyRecordInclude,
+    orderBy: [{ archivedAt: "desc" }, { date: "desc" }],
+  });
 }
 
 export function recordProdTotal(r: DailyRecordFull): number {
