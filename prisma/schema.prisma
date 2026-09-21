@@ -31,6 +31,8 @@ model User {
   dailyRecordApprover Boolean  @default(false) // Admin explicitly assigned by Super Admin to be notified about daily records awaiting approval (Super Admin is always notified regardless)
   canEdit             Boolean  @default(true) // Super Admin can toggle this off per profile to freeze that account into read-only, without changing its role
   stayLoggedIn        Boolean  @default(false) // Super Admin can exempt a specific account (e.g. a shared device) from the inactivity auto-logout — still requires a real login once
+  phone               String? // used to SMS this staff member when their salary is marked paid
+  salaryAmount        Int      @default(0) // monthly salary, set by Admin/Super Admin on the Salary page
   createdAt           DateTime @default(now())
 
   dailyRecordsCreated  DailyRecord[]      @relation("DailyRecordCreatedBy")
@@ -45,6 +47,8 @@ model User {
   expensesMarkedPaid   ExpenseItem[]      @relation("ExpensePaidBy")
   expensePayments      ExpensePayment[]
   pushSubscriptions    PushSubscription[]
+  salaryPayments       SalaryPayment[]    @relation("SalaryPaymentFor")
+  salaryPaymentsMarked SalaryPayment[]    @relation("SalaryPaymentMarkedBy")
 }
 
 model PushSubscription {
@@ -291,6 +295,27 @@ model SmsTemplate {
   createdBy   User?    @relation(fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+/**
+ * One row per staff member per month they were paid — marking a salary
+ * paid (Admin/Super Admin, on the Salary page) creates this and SMSes the
+ * staff member's phone. amount is snapshotted at payment time so a later
+ * salaryAmount change never rewrites history.
+ */
+model SalaryPayment {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation("SalaryPaymentFor", fields: [userId], references: [id])
+  amount Int
+  period String // 'YYYY-MM' — the month this payment covers
+
+  paidAt   DateTime @default(now())
+  paidById String
+  paidBy   User     @relation("SalaryPaymentMarkedBy", fields: [paidById], references: [id])
+
+  @@unique([userId, period])
+  @@index([userId])
 }
 
 model ActivityLog {

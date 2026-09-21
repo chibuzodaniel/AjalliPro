@@ -4,7 +4,7 @@ import { getToken } from "next-auth/jwt";
 
 const PUBLIC_PATHS = ["/login", "/register"];
 
-const APPROVER_ONLY = ["/approvals", "/settings"];
+const APPROVER_ONLY = ["/approvals", "/settings", "/salary"];
 // Expenses is viewable by Admin Staff too (not just Admin/Super Admin) —
 // the page itself hides payment-recording controls from non-approvers.
 const STAFF_OR_ABOVE = ["/expenses"];

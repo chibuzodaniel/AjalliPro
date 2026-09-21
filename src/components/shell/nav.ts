@@ -36,6 +36,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: "/approvals", label: "Approvals", icon: "✅", reviewerOnly: true, badge: true },
       { href: "/expenses", label: "Expenses", icon: "💸", staffOrAboveOnly: true },
+      { href: "/salary", label: "Salary", icon: "💰", approverOnly: true },
       { href: "/reports", label: "Reports", icon: "📈", hiddenFromSalesStaff: true },
       { href: "/settings", label: "Settings", icon: "⚙️", approverOnly: true },
     ],
