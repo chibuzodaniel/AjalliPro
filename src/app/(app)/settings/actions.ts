@@ -9,6 +9,7 @@ import { logActivity } from "@/lib/activity";
 import { sendPushToUsers } from "@/lib/push";
 import { weeklyIncentiveSettingsSchema } from "@/lib/validation/weekly-incentive";
 import { emailTemplateSettingsSchema } from "@/lib/validation/email-template";
+import { smsTemplateSchema } from "@/lib/validation/sms-template";
 import {
   pricingSettingsSchema,
   packerPriceSettingSchema,
@@ -518,6 +519,72 @@ export async function resetSelectedData(selection: ResetSelection, confirmPhrase
 
   const summary = chosen.map((k) => RESET_LABELS[k]).join(", ");
   await logActivity(`${user.name} reset: ${summary}.`, user.id);
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export interface SmsTemplateResult {
+  ok: boolean;
+  error?: string;
+}
+
+export async function createSmsTemplate(input: unknown): Promise<SmsTemplateResult> {
+  const guard = await requireRoleSafe(["SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
+  const parsed = smsTemplateSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const existing = await prisma.smsTemplate.findUnique({ where: { name: parsed.data.name } });
+  if (existing) {
+    return { ok: false, error: `A template named "${parsed.data.name}" already exists.` };
+  }
+
+  await prisma.smsTemplate.create({
+    data: { name: parsed.data.name, body: parsed.data.body, createdById: user.id },
+  });
+  await logActivity(`${user.name} created the SMS template "${parsed.data.name}".`, user.id);
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function updateSmsTemplate(id: string, input: unknown): Promise<SmsTemplateResult> {
+  const guard = await requireRoleSafe(["SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
+  const parsed = smsTemplateSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const existing = await prisma.smsTemplate.findUnique({ where: { id } });
+  if (!existing) {
+    return { ok: false, error: "Template not found." };
+  }
+  const nameConflict = await prisma.smsTemplate.findUnique({ where: { name: parsed.data.name } });
+  if (nameConflict && nameConflict.id !== id) {
+    return { ok: false, error: `A template named "${parsed.data.name}" already exists.` };
+  }
+
+  await prisma.smsTemplate.update({ where: { id }, data: { name: parsed.data.name, body: parsed.data.body } });
+  await logActivity(`${user.name} updated the SMS template "${parsed.data.name}".`, user.id);
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function deleteSmsTemplate(id: string): Promise<SmsTemplateResult> {
+  const guard = await requireRoleSafe(["SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
+
+  const existing = await prisma.smsTemplate.findUnique({ where: { id } });
+  if (!existing) {
+    return { ok: false, error: "Template not found." };
+  }
+  await prisma.smsTemplate.delete({ where: { id } });
+  await logActivity(`${user.name} deleted the SMS template "${existing.name}".`, user.id);
   revalidatePath("/", "layout");
   return { ok: true };
 }

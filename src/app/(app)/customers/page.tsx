@@ -9,17 +9,19 @@ import AddCustomerButton from "@/components/customers/AddCustomerButton";
 import CustomerNameDetail from "@/components/customers/CustomerNameDetail";
 import CustomerPricingEditor from "@/components/customers/CustomerPricingEditor";
 import DeleteCustomerButton from "@/components/customers/DeleteCustomerButton";
+import SendCustomerSmsButton from "@/components/customers/SendCustomerSmsButton";
 import WeeklyMailGenerator from "@/components/customers/WeeklyMailGenerator";
 import ViewAllModal from "@/components/ui/ViewAllModal";
 import { formatMoney } from "@/lib/money";
 
 export default async function CustomersPage() {
   const user = await getCurrentUser();
-  const [customers, approvedRecords, allApprovedRecordsEver, weeklySettings] = await Promise.all([
+  const [customers, approvedRecords, allApprovedRecordsEver, weeklySettings, smsTemplates] = await Promise.all([
     prisma.customer.findMany({ orderBy: { createdAt: "desc" } }),
     getApprovedRecordsSorted(),
     getAllApprovedRecordsEverSorted(),
     getWeeklyIncentiveSettings(),
+    prisma.smsTemplate.findMany({ orderBy: { name: "asc" } }),
   ]);
   // Weekly progress only reflects the current session (since the last archive);
   // yearly loyalty totals keep counting straight through an archive.
@@ -77,7 +79,12 @@ export default async function CustomersPage() {
                   <span className="pill pending">below threshold</span>
                 )}
               </td>
-              <td>{canDelete && <DeleteCustomerButton id={c.id} name={c.name} />}</td>
+              <td style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                {user && canManageCustomers(user.role) && c.phone && (
+                  <SendCustomerSmsButton customerId={c.id} customerName={c.name} templates={smsTemplates} />
+                )}
+                {canDelete && <DeleteCustomerButton id={c.id} name={c.name} />}
+              </td>
             </tr>
           );
         })}

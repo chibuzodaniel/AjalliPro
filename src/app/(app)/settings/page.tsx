@@ -13,6 +13,7 @@ import TruckFeeEditor from "@/components/settings/TruckFeeEditor";
 import ProductionCalculator from "@/components/settings/ProductionCalculator";
 import UsersList from "@/components/settings/UsersList";
 import ResetSystemButton from "@/components/settings/ResetSystemButton";
+import SmsTemplatesManager from "@/components/settings/SmsTemplatesManager";
 import { getResetPreviewCounts, updateRollsPriceSetting, updatePackingBagsPriceSetting } from "./actions";
 
 export default async function SettingsPage() {
@@ -21,11 +22,12 @@ export default async function SettingsPage() {
   const isSeniorAdmin = (user?.email ?? "").toLowerCase() === SUPER_ADMIN_EMAIL;
   const canSeeUsers = user ? isApprover(user.role) : false;
 
-  const [stock, weeklySettings, emailTemplate, pricing, usersRaw, resetCounts] = await Promise.all([
+  const [stock, weeklySettings, emailTemplate, pricing, smsTemplates, usersRaw, resetCounts] = await Promise.all([
     latestClosingStock(),
     getWeeklyIncentiveSettings(),
     getEmailTemplateSettings(),
     getPricingSettings(),
+    prisma.smsTemplate.findMany({ orderBy: { name: "asc" } }),
     canSeeUsers
       ? prisma.user.findMany({
           orderBy: [{ role: "asc" }, { name: "asc" }],
@@ -151,6 +153,15 @@ export default async function SettingsPage() {
               Customers page. The bag totals and bonus line stay computed automatically.
             </div>
             <EmailTemplateEditor initial={emailTemplate} />
+          </div>
+          <div className="card" style={{ marginTop: 16 }}>
+            <div className="section-title">SMS templates</div>
+            <div className="section-sub">
+              Reusable message templates (e.g. "Delivery Successful") — sent manually from the SMS button on a
+              customer's row, never automatically. Requires BULKSMSNIGERIA_API_TOKEN and
+              BULKSMSNIGERIA_SENDER_ID to be set before sending works.
+            </div>
+            <SmsTemplatesManager templates={smsTemplates} />
           </div>
           <div className="card" style={{ marginTop: 16 }}>
             <div className="section-title">Production requirement (today)</div>

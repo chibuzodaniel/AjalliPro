@@ -4,12 +4,13 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRoleSafe } from "@/lib/auth-helpers";
 import { logActivity } from "@/lib/activity";
-import { customerSchema, customerPricingSchema } from "@/lib/validation/customer";
+import { customerSchema, customerPricingSchema, customerSmsSchema } from "@/lib/validation/customer";
 import { getApprovedRecordsSorted, getAllApprovedRecordsEverSorted } from "@/lib/records";
 import { computeIncentiveData } from "@/lib/incentives";
 import { currentWeekKey } from "@/lib/week";
 import { getWeeklyIncentiveSettings, getEmailTemplateSettings } from "@/lib/settings";
 import { isEmailConfigured, sendWeeklyCustomerEmail } from "@/lib/mail";
+import { isSmsConfigured, sendWeeklyCustomerSms, sendSms } from "@/lib/sms";
 
 export async function createCustomer(input: unknown) {
   const guard = await requireRoleSafe(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
@@ -90,10 +91,52 @@ export async function deleteCustomer(id: string): Promise<DeleteCustomerResult> 
   return { ok: true };
 }
 
+export interface SendCustomerSmsResult {
+  ok: boolean;
+  error?: string;
+}
+
+/** One-off SMS to a single customer's phone (via BulkSMSNigeria) — separate from the automated weekly summary. */
+export async function sendCustomerSms(customerId: string, input: unknown): Promise<SendCustomerSmsResult> {
+  const guard = await requireRoleSafe(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
+
+  if (!isSmsConfigured()) {
+    return {
+      ok: false,
+      error: "SMS isn't configured yet — set BULKSMSNIGERIA_API_TOKEN and BULKSMSNIGERIA_SENDER_ID in .env first.",
+    };
+  }
+
+  const parsed = customerSmsSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const customer = await prisma.customer.findUnique({ where: { id: customerId } });
+  if (!customer) {
+    return { ok: false, error: "Customer not found." };
+  }
+  if (!customer.phone) {
+    return { ok: false, error: `"${customer.name}" has no phone number on file.` };
+  }
+
+  try {
+    await sendSms(customer.phone, parsed.data.message);
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Could not send SMS" };
+  }
+
+  await logActivity(`${user.name} sent an SMS to "${customer.name}".`, user.id);
+  return { ok: true };
+}
+
 export interface MailPreviewEntry {
   customerId: string;
   name: string;
   email: string | null;
+  phone: string | null;
   weeklyBags: number;
   yearlyBags: number;
   qualifies: boolean;
@@ -119,6 +162,7 @@ async function computeWeeklyMailEntries() {
       customerId: c.id,
       name: c.name,
       email: c.email,
+      phone: c.phone,
       weeklyBags,
       yearlyBags,
       qualifies: weeklyBags >= weeklySettings.customerWeeklyThreshold,
@@ -139,20 +183,27 @@ export interface SendWeeklyMailResult {
   ok: boolean;
   sent: number;
   failed: number;
+  smsSent: number;
+  smsFailed: number;
   error?: string;
 }
 
 export async function sendWeeklyMailNow(): Promise<SendWeeklyMailResult> {
   const guard = await requireRoleSafe(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
-  if (!guard.ok) return { ok: false, sent: 0, failed: 0, error: guard.error };
+  if (!guard.ok) return { ok: false, sent: 0, failed: 0, smsSent: 0, smsFailed: 0, error: guard.error };
   const user = guard.user;
 
-  if (!isEmailConfigured()) {
+  const emailOn = isEmailConfigured();
+  const smsOn = isSmsConfigured();
+  if (!emailOn && !smsOn) {
     return {
       ok: false,
       sent: 0,
       failed: 0,
-      error: "Email isn't configured yet — set BREVO_API_KEY and BREVO_FROM_EMAIL in .env first.",
+      smsSent: 0,
+      smsFailed: 0,
+      error:
+        "Neither email nor SMS is configured yet — set BREVO_API_KEY/BREVO_FROM_EMAIL and/or BULKSMSNIGERIA_API_TOKEN/BULKSMSNIGERIA_SENDER_ID in .env first.",
     };
   }
 
@@ -163,31 +214,50 @@ export async function sendWeeklyMailNow(): Promise<SendWeeklyMailResult> {
 
   let sent = 0;
   let failed = 0;
+  let smsSent = 0;
+  let smsFailed = 0;
   for (const entry of entries) {
-    if (!entry.email) continue;
-    try {
-      await sendWeeklyCustomerEmail({
-        to: entry.email,
-        customerName: entry.name,
-        weeklyBags: entry.weeklyBags,
-        yearlyBags: entry.yearlyBags,
-        qualifies: entry.qualifies,
-        threshold: weeklySettings.customerWeeklyThreshold,
-        bonus: weeklySettings.customerWeeklyBonus,
-        weekKey,
-        template,
-      });
-      await prisma.mailLog.create({ data: { customerId: entry.customerId, weekKey } });
-      sent += 1;
-    } catch {
-      failed += 1;
+    if (emailOn && entry.email) {
+      try {
+        await sendWeeklyCustomerEmail({
+          to: entry.email,
+          customerName: entry.name,
+          weeklyBags: entry.weeklyBags,
+          yearlyBags: entry.yearlyBags,
+          qualifies: entry.qualifies,
+          threshold: weeklySettings.customerWeeklyThreshold,
+          bonus: weeklySettings.customerWeeklyBonus,
+          weekKey,
+          template,
+        });
+        await prisma.mailLog.create({ data: { customerId: entry.customerId, weekKey } });
+        sent += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    if (smsOn && entry.phone) {
+      try {
+        await sendWeeklyCustomerSms({
+          to: entry.phone,
+          customerName: entry.name,
+          weeklyBags: entry.weeklyBags,
+          yearlyBags: entry.yearlyBags,
+          qualifies: entry.qualifies,
+          threshold: weeklySettings.customerWeeklyThreshold,
+          bonus: weeklySettings.customerWeeklyBonus,
+        });
+        smsSent += 1;
+      } catch {
+        smsFailed += 1;
+      }
     }
   }
 
   await logActivity(
-    `${user.name} sent the weekly customer mail (${sent} sent${failed ? `, ${failed} failed` : ""}).`,
+    `${user.name} sent the weekly customer mail (${sent} sent${failed ? `, ${failed} failed` : ""}) and SMS (${smsSent} sent${smsFailed ? `, ${smsFailed} failed` : ""}).`,
     user.id
   );
   revalidatePath("/customers");
-  return { ok: true, sent, failed };
+  return { ok: true, sent, failed, smsSent, smsFailed };
 }
