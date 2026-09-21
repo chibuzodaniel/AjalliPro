@@ -400,12 +400,23 @@ export default function DailyRecordFormModal({
     (Number(leakageBags) || 0) -
     (Number(factoryBagsFromLeakage) || 0) -
     (Number(leakageWasteBags) || 0);
-  const loadingFeeExpenseTotal = driverSales.reduce((s, d) => {
+  const driverLoadingFeeTotal = driverSales.reduce((s, d) => {
     if (d.loadingFeeWaived) return s;
     const driver = driverById.get(d.driverId);
     const bags = Number(d.bags) || 0;
     return s + bags * (driver?.loadingFee ?? 0);
   }, 0);
+  const truckLoadingFeeTotal = truckDeliveries.reduce((s, t) => {
+    const bags = Number(t.bags) || 0;
+    if (bags <= 0 || t.loadingFeeWaived || truckLoadingFeePerBag <= 0) return s;
+    return s + bags * truckLoadingFeePerBag;
+  }, 0);
+  const truckOffloadingFeeTotal = truckDeliveries.reduce((s, t) => {
+    const bags = Number(t.bags) || 0;
+    if (bags <= 0 || t.offloadingFeeWaived || truckOffloadingFeePerBag <= 0) return s;
+    return s + bags * truckOffloadingFeePerBag;
+  }, 0);
+  const loadingFeeExpenseTotal = driverLoadingFeeTotal + truckLoadingFeeTotal + truckOffloadingFeeTotal;
   const factoryTotal = (Number(factoryBags) || 0) * (Number(factoryPrice) || 0);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -978,7 +989,7 @@ export default function DailyRecordFormModal({
         <div className="subhead">Expenses</div>
         {loadingFeeExpenseTotal > 0 && (
           <div className="calc-box" style={{ marginBottom: 14 }}>
-            <span>Loading fees (auto-added below)</span>
+            <span>Loading &amp; offloading fees (auto-added below)</span>
             <b>{formatMoney(loadingFeeExpenseTotal)}</b>
           </div>
         )}
