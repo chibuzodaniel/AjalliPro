@@ -1,11 +1,23 @@
 import { prisma } from "@/lib/prisma";
 import { getApprovedRecordsSorted, getAllApprovedRecordsEverSorted } from "@/lib/records";
-import { computeIncentiveData, weeksQualified, weeksQualifiedInYear, yearTotal } from "@/lib/incentives";
-import { currentWeekKey } from "@/lib/week";
+import {
+  computeIncentiveData,
+  weeksQualified,
+  weeksQualifiedInYear,
+  yearTotal,
+  buildWeeklyIncentiveHistory,
+  buildMonthlyIncentiveHistory,
+} from "@/lib/incentives";
+import { currentWeekKey, MONTH_NAMES } from "@/lib/week";
 import { getWeeklyIncentiveSettings } from "@/lib/settings";
 import KpiCard from "@/components/ui/KpiCard";
 import RangeTabs from "@/components/ui/RangeTabs";
 import ViewAllModal from "@/components/ui/ViewAllModal";
+import IncentiveHistoryButton from "@/components/incentives/IncentiveHistoryButton";
+
+function monthLabel(key: string) {
+  return `${MONTH_NAMES[Number(key.slice(5, 7)) - 1]} ${key.slice(0, 4)}`;
+}
 
 function ProgressBar({ bags, threshold, qualifies }: { bags: number; threshold: number; qualifies: boolean }) {
   const pct = Math.min(100, (bags / threshold) * 100);
@@ -48,7 +60,9 @@ export default async function IncentivesPage({
     customerWeekly: customerWeeklyAll,
     driverWeekly: driverWeeklyAll,
     customerYearly,
+    driverInstantWeekly: driverInstantWeeklyAll,
     driverInstantYearly,
+    customerInstantWeekly: customerInstantWeeklyAll,
     customerInstantYearly,
   } = computeIncentiveData(allApprovedRecordsEver);
   const wk = currentWeekKey();
@@ -64,7 +78,20 @@ export default async function IncentivesPage({
     const instantYear = yearTotal(customerInstantYearly.get(c.id), year);
     const weekBonusBags = (qualifies ? customerWeeklyBonus : 0) + instantWeek;
     const yearBonusBags = thresholdBonusYear + instantYear;
-    return { c, wkBags, qualifies, instantWeek, instantYear, weekBonusBags, yearBonusBags };
+    const weeklyRows = buildWeeklyIncentiveHistory(
+      customerWeeklyAll.get(c.id),
+      customerInstantWeeklyAll.get(c.id),
+      customerWeeklyThreshold,
+      customerWeeklyBonus
+    );
+    const monthlyRows = buildMonthlyIncentiveHistory(
+      customerWeeklyAll.get(c.id),
+      customerInstantWeeklyAll.get(c.id),
+      customerWeeklyThreshold,
+      customerWeeklyBonus,
+      monthLabel
+    );
+    return { c, wkBags, qualifies, instantWeek, instantYear, weekBonusBags, yearBonusBags, weeklyRows, monthlyRows };
   });
   const custQualified = custRows.filter((r) => r.qualifies).length;
   const custAvg = custRows.length ? Math.round(custRows.reduce((s, r) => s + r.wkBags, 0) / custRows.length) : 0;
@@ -78,6 +105,19 @@ export default async function IncentivesPage({
     const instantYear = yearTotal(driverInstantYearly.get(d.id), year);
     const weekBonusBags = qualifies ? driverWeeklyBonus : 0;
     const yearBonusBags = weeksQualifiedInYear(driverWeeklyAll.get(d.id), driverWeeklyThreshold, year) * driverWeeklyBonus;
+    const weeklyRows = buildWeeklyIncentiveHistory(
+      driverWeeklyAll.get(d.id),
+      driverInstantWeeklyAll.get(d.id),
+      driverWeeklyThreshold,
+      driverWeeklyBonus
+    );
+    const monthlyRows = buildMonthlyIncentiveHistory(
+      driverWeeklyAll.get(d.id),
+      driverInstantWeeklyAll.get(d.id),
+      driverWeeklyThreshold,
+      driverWeeklyBonus,
+      monthLabel
+    );
     return {
       d,
       wkBags,
@@ -88,6 +128,8 @@ export default async function IncentivesPage({
       yearBonusBags,
       totalWeek: instantWeek + weekBonusBags,
       totalYear: instantYear + yearBonusBags,
+      weeklyRows,
+      monthlyRows,
     };
   });
   const drvQualified = drvRows.filter((r) => r.qualifies).length;
@@ -108,10 +150,11 @@ export default async function IncentivesPage({
           <th>Instant incentive (week)</th>
           <th>Instant incentive (year)</th>
           <th>Total incentives (year)</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
-        {custRows.map(({ c, wkBags, qualifies, instantWeek, instantYear, yearBonusBags }) => (
+        {custRows.map(({ c, wkBags, qualifies, instantWeek, instantYear, yearBonusBags, weeklyRows, monthlyRows }) => (
           <tr key={c.id}>
             <td>{c.name}</td>
             <td>{wkBags} bags</td>
@@ -128,6 +171,9 @@ export default async function IncentivesPage({
             <td>{instantWeek}</td>
             <td>{instantYear}</td>
             <td>{yearBonusBags}</td>
+            <td>
+              <IncentiveHistoryButton name={c.name} weeklyRows={weeklyRows} monthlyRows={monthlyRows} />
+            </td>
           </tr>
         ))}
       </tbody>
@@ -146,10 +192,11 @@ export default async function IncentivesPage({
           <th>Instant incentive (week)</th>
           <th>Instant incentive (year)</th>
           <th>Total incentives (year)</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
-        {drvRows.map(({ d, wkBags, qualifies, instantWeek, instantYear, totalYear }) => (
+        {drvRows.map(({ d, wkBags, qualifies, instantWeek, instantYear, totalYear, weeklyRows, monthlyRows }) => (
           <tr key={d.id}>
             <td>{d.name}</td>
             <td>{wkBags} bags</td>
@@ -165,6 +212,9 @@ export default async function IncentivesPage({
             <td>{instantWeek}</td>
             <td>{instantYear}</td>
             <td>{totalYear}</td>
+            <td>
+              <IncentiveHistoryButton name={d.name} weeklyRows={weeklyRows} monthlyRows={monthlyRows} />
+            </td>
           </tr>
         ))}
       </tbody>

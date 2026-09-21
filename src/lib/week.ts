@@ -35,3 +35,22 @@ export const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
+
+/**
+ * Which calendar month a weekKeyOf() bucket belongs to, for grouping weekly
+ * figures into a monthly view — a week that straddles two months (they don't
+ * reset at month boundaries) is attributed to the month its first day falls
+ * in. Display-only grouping; never use this to change weekKeyOf's own
+ * bucketing.
+ */
+export function weekKeyToMonthKey(weekKey: string): string {
+  const match = /^(\d{4})-W(\d+)$/.exec(weekKey);
+  if (!match) return weekKey;
+  const year = Number(match[1]);
+  const week = Number(match[2]);
+  const onejan = new Date(year, 0, 1);
+  const startDiffDays = Math.max(0, (week - 1) * 7 - onejan.getDay());
+  const startDate = new Date(year, 0, 1 + startDiffDays);
+  const month = String(startDate.getMonth() + 1).padStart(2, "0");
+  return `${startDate.getFullYear()}-${month}`;
+}

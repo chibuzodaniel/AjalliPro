@@ -1,5 +1,5 @@
 import type { DailyRecordFull } from "./records";
-import { weekKeyOf } from "./week";
+import { weekKeyOf, weekKeyToMonthKey } from "./week";
 
 export type WeeklyBagsMap = Record<string, number>;
 
@@ -97,4 +97,76 @@ export function weeksQualifiedInYear(weeklyMap: WeeklyBagsMap | undefined, thres
 
 export function yearTotal(yearlyMap: Record<number, number> | undefined, year: number): number {
   return yearlyMap?.[year] ?? 0;
+}
+
+export interface IncentiveHistoryRow {
+  label: string;
+  bags: number;
+  bonusBags: number;
+}
+
+interface KeyedIncentiveRow {
+  key: string;
+  bags: number;
+  bonusBags: number;
+}
+
+/**
+ * Merges a weekly bags map and a weekly instant-bonus map into one row per
+ * week — every week either map has an entry for, so this never misses a
+ * week where only an instant bonus was given without also hitting the
+ * threshold that week. Qualification (and so the threshold bonus) is
+ * strictly a weekly mechanic, computed here, never re-derived per month.
+ */
+function computeWeeklyIncentiveRows(
+  bagsMap: WeeklyBagsMap | undefined,
+  instantMap: WeeklyBagsMap | undefined,
+  threshold: number,
+  thresholdBonus: number
+): KeyedIncentiveRow[] {
+  const keys = new Set([...Object.keys(bagsMap ?? {}), ...Object.keys(instantMap ?? {})]);
+  return [...keys].map((key) => {
+    const bags = bagsMap?.[key] ?? 0;
+    const earnedThreshold = bags >= threshold ? thresholdBonus : 0;
+    const instant = instantMap?.[key] ?? 0;
+    return { key, bags, bonusBags: earnedThreshold + instant };
+  });
+}
+
+export function buildWeeklyIncentiveHistory(
+  bagsMap: WeeklyBagsMap | undefined,
+  instantMap: WeeklyBagsMap | undefined,
+  threshold: number,
+  thresholdBonus: number
+): IncentiveHistoryRow[] {
+  return computeWeeklyIncentiveRows(bagsMap, instantMap, threshold, thresholdBonus)
+    .sort((a, b) => b.key.localeCompare(a.key, undefined, { numeric: true }))
+    .map(({ key, bags, bonusBags }) => ({ label: key, bags, bonusBags }));
+}
+
+/**
+ * Rolls the same weekly figures up into months — a month's "incentive bags
+ * earned" is the sum of what was actually earned in each of its weeks, not
+ * the (weekly) threshold re-applied to a monthly total, which would qualify
+ * almost every month trivially.
+ */
+export function buildMonthlyIncentiveHistory(
+  bagsMap: WeeklyBagsMap | undefined,
+  instantMap: WeeklyBagsMap | undefined,
+  threshold: number,
+  thresholdBonus: number,
+  labelFn: (monthKey: string) => string
+): IncentiveHistoryRow[] {
+  const weekly = computeWeeklyIncentiveRows(bagsMap, instantMap, threshold, thresholdBonus);
+  const monthly = new Map<string, { bags: number; bonusBags: number }>();
+  for (const w of weekly) {
+    const monthKey = weekKeyToMonthKey(w.key);
+    const existing = monthly.get(monthKey) ?? { bags: 0, bonusBags: 0 };
+    existing.bags += w.bags;
+    existing.bonusBags += w.bonusBags;
+    monthly.set(monthKey, existing);
+  }
+  return [...monthly.entries()]
+    .sort(([a], [b]) => b.localeCompare(a, undefined, { numeric: true }))
+    .map(([monthKey, v]) => ({ label: labelFn(monthKey), ...v }));
 }
