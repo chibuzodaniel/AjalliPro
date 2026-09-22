@@ -65,17 +65,23 @@ export async function saveEmailTemplateSettings(input: EmailTemplateSettings): P
   });
 }
 
-/** Phone number (Super Admin, set on the Reports page) that auto-receives the full day's report by SMS on approval. */
-export async function getDailyReportSmsPhone(): Promise<string | null> {
+/** Phone number(s) (Super Admin, set on the Reports page) that auto-receive the full day's report by SMS on approval. */
+export async function getDailyReportSmsPhones(): Promise<string[]> {
   const row = await prisma.dailyReportSmsSetting.findUnique({ where: { id: SETTINGS_ID } });
-  return row?.phoneNumber ?? null;
+  if (!row?.phoneNumbers) return [];
+  return row.phoneNumbers
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
 }
 
-export async function saveDailyReportSmsPhone(phoneNumber: string | null): Promise<void> {
+export async function saveDailyReportSmsPhones(phones: string[]): Promise<void> {
+  const cleaned = phones.map((p) => p.trim()).filter(Boolean);
+  const phoneNumbers = cleaned.length > 0 ? cleaned.join(",") : null;
   await prisma.dailyReportSmsSetting.upsert({
     where: { id: SETTINGS_ID },
-    create: { id: SETTINGS_ID, phoneNumber },
-    update: { phoneNumber },
+    create: { id: SETTINGS_ID, phoneNumbers },
+    update: { phoneNumbers },
   });
 }
 

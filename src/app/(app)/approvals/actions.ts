@@ -9,7 +9,7 @@ import { logActivity } from "@/lib/activity";
 import { sendPushToUsers } from "@/lib/push";
 import { dailyRecordInclude } from "@/lib/records";
 import { buildDailyReportSmsText } from "@/lib/dailyReport";
-import { getDailyReportSmsPhone } from "@/lib/settings";
+import { getDailyReportSmsPhones } from "@/lib/settings";
 import { isSmsConfigured, sendSms } from "@/lib/sms";
 
 async function requireDailyRecordApprover() {
@@ -36,12 +36,15 @@ export async function approveDailyRecord(id: string) {
       url: "/daily-record",
     });
     if (isSmsConfigured()) {
-      const phone = await getDailyReportSmsPhone();
-      if (phone) {
-        try {
-          await sendSms(phone, buildDailyReportSmsText(record));
-        } catch (err) {
-          console.error("Failed to send daily report SMS:", err);
+      const phones = await getDailyReportSmsPhones();
+      if (phones.length > 0) {
+        const text = buildDailyReportSmsText(record);
+        for (const phone of phones) {
+          try {
+            await sendSms(phone, text);
+          } catch (err) {
+            console.error(`Failed to send daily report SMS to ${phone}:`, err);
+          }
         }
       }
     }

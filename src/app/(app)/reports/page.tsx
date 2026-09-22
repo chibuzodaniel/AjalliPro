@@ -10,7 +10,7 @@ import {
 import { computeRevenue } from "@/lib/revenue";
 import { filterRecordsByRange, parseRange, RANGE_OPTIONS, RANGE_LABEL } from "@/lib/ranges";
 import { formatMoney } from "@/lib/money";
-import { getDailyReportSmsPhone } from "@/lib/settings";
+import { getDailyReportSmsPhones } from "@/lib/settings";
 import KpiCard from "@/components/ui/KpiCard";
 import RangeTabs from "@/components/ui/RangeTabs";
 import ViewAllModal from "@/components/ui/ViewAllModal";
@@ -28,7 +28,7 @@ export default async function ReportsPage({
   const user = await getCurrentUser();
   const approver = user ? isApprover(user.role) : false;
   const superAdmin = user ? isSuperAdmin(user.role) : false;
-  const dailyReportSmsPhone = superAdmin ? await getDailyReportSmsPhone() : null;
+  const dailyReportSmsPhones = superAdmin ? await getDailyReportSmsPhones() : [];
 
   const approvedRecords = await getApprovedRecordsSorted();
   const records = filterRecordsByRange(approvedRecords, range);
@@ -99,7 +99,7 @@ export default async function ReportsPage({
       </div>
       <RangeTabs basePath="/reports" current={range} options={RANGE_OPTIONS} />
 
-      {superAdmin && <DailyReportSmsPhoneEditor initialPhone={dailyReportSmsPhone} />}
+      {superAdmin && <DailyReportSmsPhoneEditor initialPhones={dailyReportSmsPhones} />}
 
       <div className="grid grid-4" style={{ marginBottom: 18 }}>
         <KpiCard label="Total Bags Sold" value={bagsSold} />

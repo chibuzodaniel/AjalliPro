@@ -283,13 +283,16 @@ model EmailTemplateSetting {
 }
 
 /**
- * Super-Admin-set phone number (Reports page) that automatically receives
+ * Super-Admin-set phone number(s) (Reports page) that automatically receive
  * the full day's report by SMS the moment a daily record is approved.
+ * Stored as a comma-separated list in the (singularly-named, pre-existing)
+ * "phoneNumber" column — @map keeps the column as-is so no migration is
+ * needed to support multiple numbers.
  */
 model DailyReportSmsSetting {
-  id          String   @id @default("singleton")
-  phoneNumber String?
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default("singleton")
+  phoneNumbers String?  @map("phoneNumber")
+  updatedAt    DateTime @updatedAt
 }
 
 /**

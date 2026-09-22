@@ -3,31 +3,31 @@
 import { revalidatePath } from "next/cache";
 import { requireRoleSafe } from "@/lib/auth-helpers";
 import { logActivity } from "@/lib/activity";
-import { saveDailyReportSmsPhone } from "@/lib/settings";
+import { saveDailyReportSmsPhones } from "@/lib/settings";
 
-export interface SaveDailyReportSmsPhoneResult {
+export interface SaveDailyReportSmsPhonesResult {
   ok: boolean;
   error?: string;
 }
 
-export async function updateDailyReportSmsPhone(phoneNumber: string): Promise<SaveDailyReportSmsPhoneResult> {
+export async function updateDailyReportSmsPhones(phoneNumbers: string[]): Promise<SaveDailyReportSmsPhonesResult> {
   const guard = await requireRoleSafe(["SUPER_ADMIN"]);
   if (!guard.ok) return { ok: false, error: guard.error };
   const admin = guard.user;
 
-  const trimmed = phoneNumber.trim();
-  if (trimmed) {
-    const digits = trimmed.replace(/\D/g, "");
+  const cleaned = phoneNumbers.map((p) => p.trim()).filter(Boolean);
+  for (const phone of cleaned) {
+    const digits = phone.replace(/\D/g, "");
     if (digits.length < 10 || digits.length > 13) {
-      return { ok: false, error: "That doesn't look like a valid phone number." };
+      return { ok: false, error: `"${phone}" doesn't look like a valid phone number.` };
     }
   }
 
-  await saveDailyReportSmsPhone(trimmed || null);
+  await saveDailyReportSmsPhones(cleaned);
   await logActivity(
-    trimmed
-      ? `${admin.name} set the daily report SMS number to ${trimmed}.`
-      : `${admin.name} removed the daily report SMS number.`,
+    cleaned.length > 0
+      ? `${admin.name} set the daily report SMS numbers to ${cleaned.join(", ")}.`
+      : `${admin.name} removed all daily report SMS numbers.`,
     admin.id
   );
   revalidatePath("/reports");
