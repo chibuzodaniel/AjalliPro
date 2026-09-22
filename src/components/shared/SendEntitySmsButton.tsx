@@ -46,32 +46,40 @@ export default function SendEntitySmsButton({
     setSent(false);
   }
 
-  function fillFromTemplate(id: string, bagsValue: string) {
-    const template = templates.find((t) => t.id === id);
-    if (!template) return;
-    const filled = template.body
+  /**
+   * Tolerant of the plural ("greetings"), extra spacing, or the sender typing
+   * placeholders in by hand instead of picking a template — this runs both
+   * when a template is applied AND again right before send, so any {{...}}
+   * still in the message never goes out to the customer literally.
+   */
+  function substitutePlaceholders(text: string, bagsValue: string) {
+    return text
       .replace(/\{\{\s*name\s*\}\}/gi, entityName)
-      .replace(/\{\{\s*greeting\s*\}\}/gi, timeOfDayGreeting())
+      .replace(/\{\{\s*greetings?\s*\}\}/gi, timeOfDayGreeting())
       .replace(/\{\{\s*quantity\s*\}\}/gi, bagsValue || "0")
       .replace(/\{\{\s*amount\s*\}\}/gi, formatMoney((Number(bagsValue) || 0) * (pricePerBag ?? 0)));
-    setMessage(filled.slice(0, MAX_LENGTH));
   }
 
   function applyTemplate(id: string) {
     setTemplateId(id);
-    fillFromTemplate(id, bags);
+    const template = templates.find((t) => t.id === id);
+    if (template) setMessage(substitutePlaceholders(template.body, bags).slice(0, MAX_LENGTH));
   }
 
   function handleBagsChange(value: string) {
     setBags(value);
     // Keep an already-applied template's {{quantity}}/{{amount}} in sync as bags changes.
-    if (templateId) fillFromTemplate(templateId, value);
+    if (templateId) {
+      const template = templates.find((t) => t.id === templateId);
+      if (template) setMessage(substitutePlaceholders(template.body, value).slice(0, MAX_LENGTH));
+    }
   }
 
   async function handleSend() {
     setLoading(true);
     setError(null);
-    const result = await sendAction(entityId, { message });
+    const finalMessage = substitutePlaceholders(message, bags);
+    const result = await sendAction(entityId, { message: finalMessage });
     setLoading(false);
     if (!result.ok) {
       setError(result.error ?? "Could not send SMS");
