@@ -4,35 +4,60 @@ import { useState } from "react";
 import {
   generateWeeklyMailPreview,
   sendWeeklyMailNow,
+  sendWeeklySmsNow,
   type MailPreviewEntry,
   type SendWeeklyMailResult,
+  type SendWeeklySmsResult,
 } from "@/app/(app)/customers/actions";
 import { currentWeekKey } from "@/lib/week";
 
 export default function WeeklyMailGenerator({ threshold, bonus }: { threshold: number; bonus: number }) {
   const [entries, setEntries] = useState<MailPreviewEntry[] | null>(null);
   const [loading, setLoading] = useState(false);
-  const [sending, setSending] = useState(false);
+  const [sending, setSending] = useState<"both" | "sms" | null>(null);
   const [sendResult, setSendResult] = useState<SendWeeklyMailResult | null>(null);
+  const [smsResult, setSmsResult] = useState<SendWeeklySmsResult | null>(null);
+  const [generateError, setGenerateError] = useState<string | null>(null);
 
   async function handleGenerate() {
     setLoading(true);
     setSendResult(null);
-    const result = await generateWeeklyMailPreview();
-    setEntries(result);
-    setLoading(false);
+    setSmsResult(null);
+    setGenerateError(null);
+    try {
+      const result = await generateWeeklyMailPreview();
+      setEntries(result);
+    } catch (err) {
+      setGenerateError(err instanceof Error ? err.message : "Could not generate preview");
+    } finally {
+      setLoading(false);
+    }
   }
 
-  async function handleSend() {
+  async function handleSendBoth() {
     const count = entries?.length ?? 0;
     if (!window.confirm(`Send this week's summary (email + SMS) to ${count} customer${count === 1 ? "" : "s"} now?`)) {
       return;
     }
-    setSending(true);
+    setSending("both");
     setSendResult(null);
+    setSmsResult(null);
     const result = await sendWeeklyMailNow();
-    setSending(false);
+    setSending(null);
     setSendResult(result);
+  }
+
+  async function handleSendSmsOnly() {
+    const count = entries?.length ?? 0;
+    if (!window.confirm(`Send this week's SMS summary to ${count} customer${count === 1 ? "" : "s"} now?`)) {
+      return;
+    }
+    setSending("sms");
+    setSendResult(null);
+    setSmsResult(null);
+    const result = await sendWeeklySmsNow();
+    setSending(null);
+    setSmsResult(result);
   }
 
   return (
@@ -41,18 +66,25 @@ export default function WeeklyMailGenerator({ threshold, bonus }: { threshold: n
       <div className="section-sub">
         Generates each customer&apos;s weekly + year-to-date purchase summary and flags the {threshold}-bag/week
         bonus (+{bonus} bags). Preview it here, then send it for real via Brevo (email) and BulkSMSNigeria (SMS) —
-        each customer gets whichever of email/phone they have on file, through whichever channel is configured.
+        each customer gets whichever of email/phone they have on file, through whichever channel is configured. SMS
+        can also be sent on its own, independent of email.
       </div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <button className="btn btn-ghost no-print" onClick={handleGenerate} disabled={loading}>
           {loading ? "Generating…" : "✉️ Preview this week's customer mail"}
         </button>
         {entries && entries.length > 0 && (
-          <button className="btn btn-primary no-print" onClick={handleSend} disabled={sending}>
-            {sending ? "Sending…" : "📤 Send weekly mail + SMS now"}
-          </button>
+          <>
+            <button className="btn btn-primary no-print" onClick={handleSendBoth} disabled={sending !== null}>
+              {sending === "both" ? "Sending…" : "📤 Send weekly mail + SMS now"}
+            </button>
+            <button className="btn btn-ghost no-print" onClick={handleSendSmsOnly} disabled={sending !== null}>
+              {sending === "sms" ? "Sending…" : "📱 Send weekly SMS only"}
+            </button>
+          </>
         )}
       </div>
+      {generateError && <div className="field-error" style={{ marginTop: 10 }}>{generateError}</div>}
       {sendResult && (
         <div className="calc-box" style={{ marginTop: 12, flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
           {sendResult.error ? (
@@ -68,6 +100,18 @@ export default function WeeklyMailGenerator({ threshold, bonus }: { threshold: n
                 {sendResult.smsFailed ? `, ${sendResult.smsFailed} failed` : ""}.
               </span>
             </>
+          )}
+        </div>
+      )}
+      {smsResult && (
+        <div className="calc-box" style={{ marginTop: 12 }}>
+          {smsResult.error ? (
+            <span className="field-error">{smsResult.error}</span>
+          ) : (
+            <span>
+              SMS — sent to <b>{smsResult.smsSent}</b> customer{smsResult.smsSent === 1 ? "" : "s"}
+              {smsResult.smsFailed ? `, ${smsResult.smsFailed} failed` : ""}.
+            </span>
           )}
         </div>
       )}

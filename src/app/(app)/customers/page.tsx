@@ -9,10 +9,11 @@ import AddCustomerButton from "@/components/customers/AddCustomerButton";
 import CustomerNameDetail from "@/components/customers/CustomerNameDetail";
 import CustomerPricingEditor from "@/components/customers/CustomerPricingEditor";
 import DeleteCustomerButton from "@/components/customers/DeleteCustomerButton";
-import SendCustomerSmsButton from "@/components/customers/SendCustomerSmsButton";
+import SendEntitySmsButton from "@/components/shared/SendEntitySmsButton";
 import WeeklyMailGenerator from "@/components/customers/WeeklyMailGenerator";
 import ViewAllModal from "@/components/ui/ViewAllModal";
 import { formatMoney } from "@/lib/money";
+import { sendCustomerSms } from "./actions";
 
 export default async function CustomersPage() {
   const user = await getCurrentUser();
@@ -81,7 +82,7 @@ export default async function CustomersPage() {
               </td>
               <td style={{ display: "flex", gap: 6, alignItems: "center" }}>
                 {user && canManageCustomers(user.role) && c.phone && (
-                  <SendCustomerSmsButton customerId={c.id} customerName={c.name} templates={smsTemplates} />
+                  <SendEntitySmsButton entityId={c.id} entityName={c.name} templates={smsTemplates} sendAction={sendCustomerSms} />
                 )}
                 {canDelete && <DeleteCustomerButton id={c.id} name={c.name} />}
               </td>

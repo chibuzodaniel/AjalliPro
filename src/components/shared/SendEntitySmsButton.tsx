@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Modal from "@/components/ui/Modal";
-import { sendCustomerSms } from "@/app/(app)/customers/actions";
 import { timeOfDayGreeting } from "@/lib/greeting";
 
 const MAX_LENGTH = 1000;
@@ -13,14 +12,16 @@ export interface SmsTemplateOption {
   body: string;
 }
 
-export default function SendCustomerSmsButton({
-  customerId,
-  customerName,
+export default function SendEntitySmsButton({
+  entityId,
+  entityName,
   templates = [],
+  sendAction,
 }: {
-  customerId: string;
-  customerName: string;
+  entityId: string;
+  entityName: string;
   templates?: SmsTemplateOption[];
+  sendAction: (id: string, input: unknown) => Promise<{ ok: boolean; error?: string }>;
 }) {
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
@@ -42,7 +43,7 @@ export default function SendCustomerSmsButton({
     const template = templates.find((t) => t.id === id);
     if (template) {
       const filled = template.body
-        .replace(/\{\{\s*name\s*\}\}/gi, customerName)
+        .replace(/\{\{\s*name\s*\}\}/gi, entityName)
         .replace(/\{\{\s*greeting\s*\}\}/gi, timeOfDayGreeting());
       setMessage(filled.slice(0, MAX_LENGTH));
     }
@@ -51,7 +52,7 @@ export default function SendCustomerSmsButton({
   async function handleSend() {
     setLoading(true);
     setError(null);
-    const result = await sendCustomerSms(customerId, { message });
+    const result = await sendAction(entityId, { message });
     setLoading(false);
     if (!result.ok) {
       setError(result.error ?? "Could not send SMS");
@@ -71,7 +72,7 @@ export default function SendCustomerSmsButton({
         📱 SMS
       </button>
       {open && (
-        <Modal open={open} onClose={close} title={`Send SMS — ${customerName}`} maxWidth={440}>
+        <Modal open={open} onClose={close} title={`Send SMS — ${entityName}`} maxWidth={440}>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {templates.length > 0 && (
               <div className="field" style={{ marginBottom: 0 }}>

@@ -179,6 +179,63 @@ export async function generateWeeklyMailPreview(): Promise<MailPreviewEntry[]> {
   return entries;
 }
 
+type WeeklyMailEntry = Awaited<ReturnType<typeof computeWeeklyMailEntries>>["entries"][number];
+type WeeklySettings = Awaited<ReturnType<typeof computeWeeklyMailEntries>>["weeklySettings"];
+
+async function sendWeeklyEmails(
+  entries: WeeklyMailEntry[],
+  weeklySettings: WeeklySettings,
+  weekKey: string,
+  template: Awaited<ReturnType<typeof getEmailTemplateSettings>>
+) {
+  let sent = 0;
+  let failed = 0;
+  for (const entry of entries) {
+    if (!entry.email) continue;
+    try {
+      await sendWeeklyCustomerEmail({
+        to: entry.email,
+        customerName: entry.name,
+        weeklyBags: entry.weeklyBags,
+        yearlyBags: entry.yearlyBags,
+        qualifies: entry.qualifies,
+        threshold: weeklySettings.customerWeeklyThreshold,
+        bonus: weeklySettings.customerWeeklyBonus,
+        weekKey,
+        template,
+      });
+      await prisma.mailLog.create({ data: { customerId: entry.customerId, weekKey } });
+      sent += 1;
+    } catch {
+      failed += 1;
+    }
+  }
+  return { sent, failed };
+}
+
+async function sendWeeklySms(entries: WeeklyMailEntry[], weeklySettings: WeeklySettings) {
+  let smsSent = 0;
+  let smsFailed = 0;
+  for (const entry of entries) {
+    if (!entry.phone) continue;
+    try {
+      await sendWeeklyCustomerSms({
+        to: entry.phone,
+        customerName: entry.name,
+        weeklyBags: entry.weeklyBags,
+        yearlyBags: entry.yearlyBags,
+        qualifies: entry.qualifies,
+        threshold: weeklySettings.customerWeeklyThreshold,
+        bonus: weeklySettings.customerWeeklyBonus,
+      });
+      smsSent += 1;
+    } catch {
+      smsFailed += 1;
+    }
+  }
+  return { smsSent, smsFailed };
+}
+
 export interface SendWeeklyMailResult {
   ok: boolean;
   sent: number;
@@ -212,47 +269,8 @@ export async function sendWeeklyMailNow(): Promise<SendWeeklyMailResult> {
     getEmailTemplateSettings(),
   ]);
 
-  let sent = 0;
-  let failed = 0;
-  let smsSent = 0;
-  let smsFailed = 0;
-  for (const entry of entries) {
-    if (emailOn && entry.email) {
-      try {
-        await sendWeeklyCustomerEmail({
-          to: entry.email,
-          customerName: entry.name,
-          weeklyBags: entry.weeklyBags,
-          yearlyBags: entry.yearlyBags,
-          qualifies: entry.qualifies,
-          threshold: weeklySettings.customerWeeklyThreshold,
-          bonus: weeklySettings.customerWeeklyBonus,
-          weekKey,
-          template,
-        });
-        await prisma.mailLog.create({ data: { customerId: entry.customerId, weekKey } });
-        sent += 1;
-      } catch {
-        failed += 1;
-      }
-    }
-    if (smsOn && entry.phone) {
-      try {
-        await sendWeeklyCustomerSms({
-          to: entry.phone,
-          customerName: entry.name,
-          weeklyBags: entry.weeklyBags,
-          yearlyBags: entry.yearlyBags,
-          qualifies: entry.qualifies,
-          threshold: weeklySettings.customerWeeklyThreshold,
-          bonus: weeklySettings.customerWeeklyBonus,
-        });
-        smsSent += 1;
-      } catch {
-        smsFailed += 1;
-      }
-    }
-  }
+  const { sent, failed } = emailOn ? await sendWeeklyEmails(entries, weeklySettings, weekKey, template) : { sent: 0, failed: 0 };
+  const { smsSent, smsFailed } = smsOn ? await sendWeeklySms(entries, weeklySettings) : { smsSent: 0, smsFailed: 0 };
 
   await logActivity(
     `${user.name} sent the weekly customer mail (${sent} sent${failed ? `, ${failed} failed` : ""}) and SMS (${smsSent} sent${smsFailed ? `, ${smsFailed} failed` : ""}).`,
@@ -260,4 +278,37 @@ export async function sendWeeklyMailNow(): Promise<SendWeeklyMailResult> {
   );
   revalidatePath("/customers");
   return { ok: true, sent, failed, smsSent, smsFailed };
+}
+
+export interface SendWeeklySmsResult {
+  ok: boolean;
+  smsSent: number;
+  smsFailed: number;
+  error?: string;
+}
+
+/** SMS-only weekly summary — same content as sendWeeklyMailNow's SMS half, independent of email. */
+export async function sendWeeklySmsNow(): Promise<SendWeeklySmsResult> {
+  const guard = await requireRoleSafe(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, smsSent: 0, smsFailed: 0, error: guard.error };
+  const user = guard.user;
+
+  if (!isSmsConfigured()) {
+    return {
+      ok: false,
+      smsSent: 0,
+      smsFailed: 0,
+      error: "SMS isn't configured yet — set BULKSMSNIGERIA_API_TOKEN and BULKSMSNIGERIA_SENDER_ID in .env first.",
+    };
+  }
+
+  const { entries, weeklySettings } = await computeWeeklyMailEntries();
+  const { smsSent, smsFailed } = await sendWeeklySms(entries, weeklySettings);
+
+  await logActivity(
+    `${user.name} sent the weekly customer SMS (${smsSent} sent${smsFailed ? `, ${smsFailed} failed` : ""}).`,
+    user.id
+  );
+  revalidatePath("/customers");
+  return { ok: true, smsSent, smsFailed };
 }

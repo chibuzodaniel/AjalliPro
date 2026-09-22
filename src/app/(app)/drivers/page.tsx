@@ -12,15 +12,17 @@ import DriverPricingEditor from "@/components/drivers/DriverPricingEditor";
 import DriverNameDetail from "@/components/drivers/DriverNameDetail";
 import DeleteDriverButton from "@/components/drivers/DeleteDriverButton";
 import ApproveRejectButtons from "@/components/shared/ApproveRejectButtons";
+import SendEntitySmsButton from "@/components/shared/SendEntitySmsButton";
 import ViewAllModal from "@/components/ui/ViewAllModal";
-import { approveDriver, rejectDriver } from "./actions";
+import { approveDriver, rejectDriver, sendDriverSms } from "./actions";
 
 export default async function DriversPage() {
   const user = await getCurrentUser();
-  const [drivers, approvedRecords, weeklySettings] = await Promise.all([
+  const [drivers, approvedRecords, weeklySettings, smsTemplates] = await Promise.all([
     prisma.driver.findMany({ include: { createdBy: true }, orderBy: { createdAt: "desc" } }),
     getApprovedRecordsSorted(),
     getWeeklyIncentiveSettings(),
+    prisma.smsTemplate.findMany({ orderBy: { name: "asc" } }),
   ]);
   const { driverWeekly } = computeIncentiveData(approvedRecords);
   const wk = currentWeekKey();
@@ -77,6 +79,9 @@ export default async function DriversPage() {
               <td style={{ display: "flex", gap: 6, alignItems: "center" }}>
                 {approver && d.status === "PENDING" && (
                   <ApproveRejectButtons id={d.id} onApprove={approveDriver} onReject={rejectDriver} />
+                )}
+                {user && canManageDrivers(user.role) && d.phone && (
+                  <SendEntitySmsButton entityId={d.id} entityName={d.name} templates={smsTemplates} sendAction={sendDriverSms} />
                 )}
                 {canDelete && <DeleteDriverButton id={d.id} name={d.name} />}
               </td>

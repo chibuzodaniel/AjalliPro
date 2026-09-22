@@ -7,7 +7,8 @@ import { requireRole, requireRoleSafe } from "@/lib/auth-helpers";
 import { needsApproval } from "@/lib/roles";
 import { logActivity } from "@/lib/activity";
 import { notifyReviewers, sendPushToUsers } from "@/lib/push";
-import { driverSchema, driverPricingSchema } from "@/lib/validation/driver";
+import { driverSchema, driverPricingSchema, driverSmsSchema } from "@/lib/validation/driver";
+import { isSmsConfigured, sendSms } from "@/lib/sms";
 
 export async function createDriver(input: unknown) {
   const guard = await requireRoleSafe(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
@@ -94,6 +95,47 @@ export async function deleteDriver(id: string): Promise<DeleteDriverResult> {
   await prisma.driver.delete({ where: { id } });
   await logActivity(`${user.name} deleted driver "${driver.name}".`, user.id);
   revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export interface SendDriverSmsResult {
+  ok: boolean;
+  error?: string;
+}
+
+/** One-off SMS to a single driver's phone (via BulkSMSNigeria) — same pattern as the customer "Send SMS" button. */
+export async function sendDriverSms(driverId: string, input: unknown): Promise<SendDriverSmsResult> {
+  const guard = await requireRoleSafe(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
+
+  if (!isSmsConfigured()) {
+    return {
+      ok: false,
+      error: "SMS isn't configured yet — set BULKSMSNIGERIA_API_TOKEN and BULKSMSNIGERIA_SENDER_ID in .env first.",
+    };
+  }
+
+  const parsed = driverSmsSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const driver = await prisma.driver.findUnique({ where: { id: driverId } });
+  if (!driver) {
+    return { ok: false, error: "Driver not found." };
+  }
+  if (!driver.phone) {
+    return { ok: false, error: `"${driver.name}" has no phone number on file.` };
+  }
+
+  try {
+    await sendSms(driver.phone, parsed.data.message);
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Could not send SMS" };
+  }
+
+  await logActivity(`${user.name} sent an SMS to "${driver.name}".`, user.id);
   return { ok: true };
 }
 
