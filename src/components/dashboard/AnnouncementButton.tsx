@@ -55,6 +55,11 @@ export default function AnnouncementButton({
   const listByType: Record<IndividualType, Person[]> = { STAFF: staff, DRIVER: drivers, CUSTOMER: customers, PACKER: packers };
   const individualList = listByType[individualType];
 
+  // Order-specific templates ({{quantity}}/{{amount}}) don't make sense for a
+  // broadcast — there's no single order behind an announcement to fill them
+  // with, so they're left out of this picker entirely.
+  const announcementTemplates = templates.filter((t) => !/\{\{\s*(quantity|amount)\s*\}\}/i.test(t.body));
+
   const audienceCounts: Record<Audience, number> = {
     STAFF: staff.length,
     DRIVERS: drivers.length,
@@ -76,7 +81,7 @@ export default function AnnouncementButton({
 
   function applyTemplate(id: string) {
     setTemplateId(id);
-    const t = templates.find((tpl) => tpl.id === id);
+    const t = announcementTemplates.find((tpl) => tpl.id === id);
     if (t) setMessage(t.body.replace(/\{\{\s*greetings?\s*\}\}/gi, timeOfDayGreeting()).slice(0, MAX_LENGTH));
   }
 
@@ -155,12 +160,12 @@ export default function AnnouncementButton({
             </>
           )}
 
-          {templates.length > 0 && (
+          {announcementTemplates.length > 0 && (
             <div className="field" style={{ marginBottom: 0 }}>
               <label>Template (optional)</label>
               <select value={templateId} onChange={(e) => applyTemplate(e.target.value)}>
                 <option value="">Write your own…</option>
-                {templates.map((t) => (
+                {announcementTemplates.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}
                   </option>
