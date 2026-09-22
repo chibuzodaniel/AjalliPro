@@ -245,7 +245,7 @@ export interface SendWeeklyMailResult {
   error?: string;
 }
 
-export async function sendWeeklyMailNow(): Promise<SendWeeklyMailResult> {
+export async function sendWeeklyMailNow(customerIds?: string[]): Promise<SendWeeklyMailResult> {
   const guard = await requireRoleSafe(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
   if (!guard.ok) return { ok: false, sent: 0, failed: 0, smsSent: 0, smsFailed: 0, error: guard.error };
   const user = guard.user;
@@ -264,10 +264,15 @@ export async function sendWeeklyMailNow(): Promise<SendWeeklyMailResult> {
     };
   }
 
-  const [{ entries, weeklySettings, weekKey }, template] = await Promise.all([
+  const [{ entries: allEntries, weeklySettings, weekKey }, template] = await Promise.all([
     computeWeeklyMailEntries(),
     getEmailTemplateSettings(),
   ]);
+  const idSet = customerIds ? new Set(customerIds) : null;
+  const entries = idSet ? allEntries.filter((e) => idSet.has(e.customerId)) : allEntries;
+  if (entries.length === 0) {
+    return { ok: false, sent: 0, failed: 0, smsSent: 0, smsFailed: 0, error: "No customers selected." };
+  }
 
   const { sent, failed } = emailOn ? await sendWeeklyEmails(entries, weeklySettings, weekKey, template) : { sent: 0, failed: 0 };
   const { smsSent, smsFailed } = smsOn ? await sendWeeklySms(entries, weeklySettings) : { smsSent: 0, smsFailed: 0 };
@@ -288,7 +293,7 @@ export interface SendWeeklySmsResult {
 }
 
 /** SMS-only weekly summary — same content as sendWeeklyMailNow's SMS half, independent of email. */
-export async function sendWeeklySmsNow(): Promise<SendWeeklySmsResult> {
+export async function sendWeeklySmsNow(customerIds?: string[]): Promise<SendWeeklySmsResult> {
   const guard = await requireRoleSafe(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
   if (!guard.ok) return { ok: false, smsSent: 0, smsFailed: 0, error: guard.error };
   const user = guard.user;
@@ -302,7 +307,12 @@ export async function sendWeeklySmsNow(): Promise<SendWeeklySmsResult> {
     };
   }
 
-  const { entries, weeklySettings } = await computeWeeklyMailEntries();
+  const { entries: allEntries, weeklySettings } = await computeWeeklyMailEntries();
+  const idSet = customerIds ? new Set(customerIds) : null;
+  const entries = idSet ? allEntries.filter((e) => idSet.has(e.customerId)) : allEntries;
+  if (entries.length === 0) {
+    return { ok: false, smsSent: 0, smsFailed: 0, error: "No customers selected." };
+  }
   const { smsSent, smsFailed } = await sendWeeklySms(entries, weeklySettings);
 
   await logActivity(
