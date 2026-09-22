@@ -21,6 +21,25 @@ function normalizeNigerianPhone(phone: string): string | null {
   return null;
 }
 
+/**
+ * BulkSMSNigeria (like most SMS gateways, absent an explicit Unicode flag
+ * this integration doesn't set) only supports the GSM 03.38 character set —
+ * anything outside it, including "₦" and typographic dashes/quotes typed
+ * into a template or copy-pasted from the UI, arrives on the phone as "?".
+ * Normalize every outgoing message to plain GSM-7-safe ASCII here, once,
+ * so this can never happen regardless of which caller or template it came
+ * from.
+ */
+function toGsmSafeAscii(text: string): string {
+  return text
+    .replace(/₦/g, "NGN ")
+    .replace(/[–—]/g, "-") // en dash, em dash
+    .replace(/[‘’]/g, "'") // curly single quotes
+    .replace(/[“”]/g, '"') // curly double quotes
+    .replace(/…/g, "...") // ellipsis
+    .replace(/[^\x00-\x7F]/g, ""); // anything else non-ASCII — drop rather than let the gateway turn it into "?"
+}
+
 /** Low-level send — one free-text message to one Nigerian phone number. */
 export async function sendSms(to: string, body: string): Promise<void> {
   const token = process.env.BULKSMSNIGERIA_API_TOKEN;
@@ -37,7 +56,7 @@ export async function sendSms(to: string, body: string): Promise<void> {
       "Content-Type": "application/json",
       Accept: "application/json",
     },
-    body: JSON.stringify({ from: senderId, to: normalizedTo, body }),
+    body: JSON.stringify({ from: senderId, to: normalizedTo, body: toGsmSafeAscii(body) }),
   });
 
   const rawText = await res.text();
