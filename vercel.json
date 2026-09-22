@@ -1,3 +1,6 @@
 {
-  "buildCommand": "prisma migrate deploy && next build"
+  "buildCommand": "prisma migrate deploy && next build",
+  "crons": [
+    { "path": "/api/cron/weekly-packer-sms", "schedule": "0 20 * * 6" }
+  ]
 }

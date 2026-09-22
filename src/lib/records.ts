@@ -88,10 +88,14 @@ export function recordExpenseTotal(r: DailyRecordFull): number {
 }
 
 /**
- * "Loading fee — X" and "Packer pay — X" expense lines are regenerated fresh
- * from driverSales/production on every create or update — never carry them
- * into an editable expense list as if they were manual entries, or they'll
- * be duplicated (the carried-over copy plus the freshly regenerated one).
+ * "Loading fee — X" expense lines are regenerated fresh from driverSales/
+ * production on every create or update — never carry them into an editable
+ * expense list as if they were manual entries, or they'll be duplicated
+ * (the carried-over copy plus the freshly regenerated one). "Packer pay — "
+ * is kept here even though nothing creates new rows with that prefix any
+ * more (packer pay is now a running balance — see PackerPayment) so any
+ * leftover legacy row from before that switch still gets excluded here
+ * rather than leaking into the editable expense list.
  */
 const AUTO_GENERATED_EXPENSE_PREFIXES = [
   "Loading fee — ",
@@ -112,20 +116,6 @@ export function isRollsExpense(description: string): boolean {
 /** Matches the "Packing bags" expense line specifically. */
 export function isPackingBagsExpense(description: string): boolean {
   return description.trim().toLowerCase() === "packing bags";
-}
-
-/**
- * Maps packerId -> whether that packer's "Packer pay — X" expense line was
- * marked paid, so a production row's paid/owing state survives round-tripping
- * back into an editable form (auto-fill on date match, edit modal, quick-add
- * merge). Packer pay expenses are the only ones with a packerId set.
- */
-export function packerPaidMap(expenseItems: { packerId: string | null; paid: boolean }[]): Map<string, boolean> {
-  const map = new Map<string, boolean>();
-  for (const e of expenseItems) {
-    if (e.packerId) map.set(e.packerId, e.paid);
-  }
-  return map;
 }
 
 export function expenseStatusSuffix(e: { amount: number; amountPaid: number; paid: boolean }): string {

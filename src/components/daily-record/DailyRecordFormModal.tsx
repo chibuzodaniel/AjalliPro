@@ -21,7 +21,6 @@ interface ProductionRow {
   key: number;
   packerName: string;
   bags: string;
-  paid: boolean;
 }
 interface DriverSaleRow {
   key: number;
@@ -86,7 +85,7 @@ function readDraft(key: string): DraftState | null {
 export interface DailyRecordFormInitial {
   date: string;
   openingStock: number;
-  production: { packerName: string; bags: number; paid: boolean }[];
+  production: { packerName: string; bags: number }[];
   factoryBags: number;
   factoryBagsFromLeakage: number;
   factoryPricePerBag: number;
@@ -109,8 +108,8 @@ export interface DailyRecordFormInitial {
 }
 
 function toProductionRows(rows: DailyRecordFormInitial["production"]): ProductionRow[] {
-  if (rows.length === 0) return [{ key: nextKey(), packerName: "", bags: "", paid: false }];
-  return rows.map((r) => ({ key: nextKey(), packerName: r.packerName, bags: String(r.bags), paid: r.paid }));
+  if (rows.length === 0) return [{ key: nextKey(), packerName: "", bags: "" }];
+  return rows.map((r) => ({ key: nextKey(), packerName: r.packerName, bags: String(r.bags) }));
 }
 function toDriverSaleRows(rows: DailyRecordFormInitial["driverSales"], firstDriverId: string): DriverSaleRow[] {
   if (rows.length === 0)
@@ -208,7 +207,7 @@ export default function DailyRecordFormModal({
   );
   const [production, setProduction] = useState<ProductionRow[]>(() =>
     draft
-      ? rekeyRows(draft.production).map((r) => ({ ...r, packerName: r.packerName ?? "", paid: r.paid ?? false }))
+      ? rekeyRows(draft.production).map((r) => ({ ...r, packerName: r.packerName ?? "" }))
       : toProductionRows(initial.production)
   );
   const [driverSales, setDriverSales] = useState<DriverSaleRow[]>(() =>
@@ -429,7 +428,7 @@ export default function DailyRecordFormModal({
       leakageOpeningOverride: canEditLeakageOpening ? leakageOpeningNum : null,
       production: production
         .filter((p) => (Number(p.bags) || 0) > 0)
-        .map((p) => ({ packerName: p.packerName || "Unnamed", bags: Number(p.bags) || 0, paid: p.paid })),
+        .map((p) => ({ packerName: p.packerName || "Unnamed", bags: Number(p.bags) || 0 })),
       factoryBags: Number(factoryBags) || 0,
       factoryBagsFromLeakage: Number(factoryBagsFromLeakage) || 0,
       factoryPricePerBag: Number(factoryPrice) || 0,
@@ -544,7 +543,7 @@ export default function DailyRecordFormModal({
           const pay = bags * packerPricePerBag;
           return (
             <div key={row.key}>
-              <div className="repeater-row" style={{ gridTemplateColumns: "1.3fr .9fr auto auto" }}>
+              <div className="repeater-row" style={{ gridTemplateColumns: "1.3fr .9fr auto" }}>
                 <div className="field" style={{ marginBottom: 0 }}>
                   <input
                     type="text"
@@ -566,18 +565,6 @@ export default function DailyRecordFormModal({
                     }
                   />
                 </div>
-                {packerPricePerBag > 0 && (
-                  <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", fontSize: 12.5, color: "var(--text-dim)", whiteSpace: "nowrap" }}>
-                    <input
-                      type="checkbox"
-                      checked={row.paid}
-                      onChange={(e) =>
-                        setProduction((rows) => rows.map((r) => (r.key === row.key ? { ...r, paid: e.target.checked } : r)))
-                      }
-                    />
-                    Paid
-                  </label>
-                )}
                 <button
                   type="button"
                   className="icon-btn"
@@ -588,7 +575,7 @@ export default function DailyRecordFormModal({
               </div>
               {packerPricePerBag > 0 && bags > 0 && (
                 <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: -6, marginBottom: 10 }}>
-                  Packer pay: {formatMoney(pay)} (auto-added as an expense, {row.paid ? "marked paid" : "owing"})
+                  Packer pay: {formatMoney(pay)} (added to their running balance — pay them from the Packers page)
                 </div>
               )}
             </div>
@@ -597,7 +584,7 @@ export default function DailyRecordFormModal({
         <button
           type="button"
           className="add-row-btn"
-          onClick={() => setProduction((rows) => [...rows, { key: nextKey(), packerName: "", bags: "", paid: false }])}
+          onClick={() => setProduction((rows) => [...rows, { key: nextKey(), packerName: "", bags: "" }])}
         >
           + Add packer
         </button>

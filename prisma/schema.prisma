@@ -50,6 +50,7 @@ model User {
   pushSubscriptions    PushSubscription[]
   salaryPayments       SalaryPayment[]    @relation("SalaryPaymentFor")
   salaryPaymentsMarked SalaryPayment[]    @relation("SalaryPaymentMarkedBy")
+  packerPaymentsMarked PackerPayment[]    @relation("PackerPaymentMarkedBy")
 }
 
 model PushSubscription {
@@ -158,6 +159,27 @@ model Packer {
 
   productionLines ProductionLine[]
   expenseItems    ExpenseItem[]
+  payments        PackerPayment[]
+}
+
+/**
+ * A packer's pay isn't per-day expense lines any more — it's a running
+ * balance (sum of productionLines bags×pricePerBag, across all approved
+ * daily records) minus the sum of these payments. Marking a packer paid
+ * (Packers page) settles the current balance in one PackerPayment row and
+ * SMSes them the amount, same pattern as SalaryPayment for staff.
+ */
+model PackerPayment {
+  id       String @id @default(cuid())
+  packerId String
+  packer   Packer @relation(fields: [packerId], references: [id])
+  amount   Int
+
+  paidAt   DateTime @default(now())
+  paidById String
+  paidBy   User     @relation("PackerPaymentMarkedBy", fields: [paidById], references: [id])
+
+  @@index([packerId])
 }
 
 model Driver {

@@ -1,29 +1,32 @@
 import { getCurrentUser } from "@/lib/auth-helpers";
+import { canManagePackers } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { getApprovedRecordsSorted } from "@/lib/records";
 import { getPricingSettings } from "@/lib/settings";
+import { getPackerTotalsMap } from "@/lib/packerPay";
 import { formatMoney } from "@/lib/money";
 import DeletePackerButton from "@/components/packers/DeletePackerButton";
+import PackerPhoneEditor from "@/components/packers/PackerPhoneEditor";
+import PackerNameDetail from "@/components/packers/PackerNameDetail";
+import PackerPaymentControl from "@/components/packers/PackerPaymentControl";
+import PackerPaymentHistory from "@/components/packers/PackerPaymentHistory";
+import WeeklyPackerPaySmsButton from "@/components/packers/WeeklyPackerPaySmsButton";
+import SendEntitySmsButton from "@/components/shared/SendEntitySmsButton";
 import ViewAllModal from "@/components/ui/ViewAllModal";
+import { sendPackerSms } from "./actions";
 
 export default async function PackersPage() {
   const user = await getCurrentUser();
-  const [packers, approvedRecords, pricing, paidAgg, owingAgg] = await Promise.all([
+  const [packers, approvedRecords, pricing, totalsMap, smsTemplates] = await Promise.all([
     prisma.packer.findMany({ orderBy: { createdAt: "desc" } }),
     getApprovedRecordsSorted(),
     getPricingSettings(),
-    prisma.expenseItem.groupBy({
-      by: ["packerId"],
-      where: { packerId: { not: null }, paid: true },
-      _sum: { amount: true },
-    }),
-    prisma.expenseItem.groupBy({
-      by: ["packerId"],
-      where: { packerId: { not: null }, paid: false },
-      _sum: { amount: true },
-    }),
+    getPackerTotalsMap(),
+    prisma.smsTemplate.findMany({ orderBy: { name: "asc" } }),
   ]);
 
+  const canManage = user ? canManagePackers(user.role) : false;
+  const canRecordPayment = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
   const canDelete = user?.role === "SUPER_ADMIN";
 
   const bagsByPacker = new Map<string, number>();
@@ -32,14 +35,13 @@ export default async function PackersPage() {
       bagsByPacker.set(p.packerId, (bagsByPacker.get(p.packerId) ?? 0) + p.bags);
     }
   }
-  const paidByPacker = new Map(paidAgg.map((a) => [a.packerId as string, a._sum.amount ?? 0]));
-  const owingByPacker = new Map(owingAgg.map((a) => [a.packerId as string, a._sum.amount ?? 0]));
 
   const packersTable = (
     <table>
       <thead>
         <tr>
           <th>Name</th>
+          <th>Phone</th>
           <th>Bags packed</th>
           <th>Amount owing</th>
           <th>Amount paid</th>
@@ -49,17 +51,41 @@ export default async function PackersPage() {
       <tbody>
         {packers.map((p) => {
           const bags = bagsByPacker.get(p.id) ?? 0;
-          const owing = owingByPacker.get(p.id) ?? 0;
-          const paid = paidByPacker.get(p.id) ?? 0;
+          const totals = totalsMap.get(p.id) ?? { earned: 0, paid: 0, owing: 0 };
           return (
             <tr key={p.id}>
-              <td>{p.name}</td>
+              <td>
+                <PackerNameDetail
+                  packerId={p.id}
+                  name={p.name}
+                  phone={p.phone}
+                  bagsPacked={bags}
+                  owing={totals.owing}
+                  paid={totals.paid}
+                />
+              </td>
+              <td>
+                {canManage ? (
+                  <PackerPhoneEditor packerId={p.id} phone={p.phone} />
+                ) : (
+                  p.phone || "—"
+                )}
+              </td>
               <td>{bags}</td>
               <td>
-                <span style={{ color: owing > 0 ? "var(--red)" : "var(--text-faint)" }}>{formatMoney(owing)}</span>
+                <span style={{ color: totals.owing > 0 ? "var(--red)" : "var(--text-faint)" }}>
+                  {formatMoney(totals.owing)}
+                </span>
               </td>
-              <td>{formatMoney(paid)}</td>
-              <td>{canDelete && <DeletePackerButton id={p.id} name={p.name} />}</td>
+              <td>{formatMoney(totals.paid)}</td>
+              <td style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                {canRecordPayment && <PackerPaymentControl packerId={p.id} owing={totals.owing} />}
+                {canManage && <PackerPaymentHistory packerId={p.id} name={p.name} />}
+                {canManage && p.phone && (
+                  <SendEntitySmsButton entityId={p.id} entityName={p.name} templates={smsTemplates} sendAction={sendPackerSms} />
+                )}
+                {canDelete && <DeletePackerButton id={p.id} name={p.name} />}
+              </td>
             </tr>
           );
         })}
@@ -74,12 +100,16 @@ export default async function PackersPage() {
           <h1>Packers</h1>
           <div className="sub">
             Recognized automatically from names entered on daily records. Everyone is paid{" "}
-            {formatMoney(pricing.packerPricePerBag)}/bag — change it on the Settings page.
+            {formatMoney(pricing.packerPricePerBag)}/bag — change it on the Settings page. Pay accumulates into a
+            running balance (click a name to see the day-by-day breakdown); packers with a phone on file are
+            automatically texted their outstanding balance every Saturday evening, and texted again the moment
+            they're paid.
           </div>
         </div>
       </div>
       <div className="card">
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 10 }}>
+          {canManage ? <WeeklyPackerPaySmsButton /> : <span />}
           <ViewAllModal title="All Packers">{packersTable}</ViewAllModal>
         </div>
         <div className="table-wrap">{packersTable}</div>

@@ -1,4 +1,5 @@
 import { timeOfDayGreeting } from "./greeting";
+import { formatMoney } from "./money";
 
 const BULKSMS_API_URL = "https://www.bulksmsnigeria.com/api/v2/sms";
 
@@ -67,5 +68,27 @@ export async function sendWeeklyCustomerSms(payload: WeeklyCustomerSmsPayload): 
     ? `You've qualified for +${payload.bonus} bonus bags this week!`
     : `${Math.max(0, payload.threshold - payload.weeklyBags)} bags away from this week's +${payload.bonus}-bag bonus.`;
   const body = `${timeOfDayGreeting()} ${payload.customerName}, this week: ${payload.weeklyBags} bags. YTD: ${payload.yearlyBags} bags. ${bonusLine} - Cusica Intl`;
+  await sendSms(payload.to, body);
+}
+
+export interface PackerOwingSmsPayload {
+  to: string;
+  packerName: string;
+  owing: number;
+}
+
+export async function sendPackerOwingSms(payload: PackerOwingSmsPayload): Promise<void> {
+  const body = `${timeOfDayGreeting()} ${payload.packerName}, you're currently owed ${formatMoney(payload.owing)} for packing at Ajalli Table Water. Thank you for your hard work! - Cusica Intl`;
+  await sendSms(payload.to, body);
+}
+
+export interface PackerPaidSmsPayload {
+  to: string;
+  packerName: string;
+  amount: number;
+}
+
+export async function sendPackerPaidSms(payload: PackerPaidSmsPayload): Promise<void> {
+  const body = `${timeOfDayGreeting()} ${payload.packerName}, you've been paid ${formatMoney(payload.amount)} for packing at Ajalli Table Water. Thank you for your hard work! - Cusica Intl`;
   await sendSms(payload.to, body);
 }
