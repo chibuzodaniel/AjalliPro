@@ -16,8 +16,9 @@ export default async function SalaryPage() {
     prisma.salaryPayment.findMany({ where: { period } }),
   ]);
   const paidUserIds = new Set(paymentsThisPeriod.map((p) => p.userId));
-  const totalMonthly = staff.reduce((s, u) => s + u.salaryAmount, 0);
-  const paidThisMonth = staff
+  const payrollStaff = staff.filter((u) => u.payrollEnabled);
+  const totalMonthly = payrollStaff.reduce((s, u) => s + u.salaryAmount, 0);
+  const paidThisMonth = payrollStaff
     .filter((u) => paidUserIds.has(u.id))
     .reduce((s, u) => s + (paymentsThisPeriod.find((p) => p.userId === u.id)?.amount ?? 0), 0);
 
@@ -30,6 +31,7 @@ export default async function SalaryPage() {
     salaryAmount: s.salaryAmount,
     phone: s.phone,
     paid: paidUserIds.has(s.id),
+    payrollEnabled: s.payrollEnabled,
   }));
 
   return (
@@ -69,7 +71,7 @@ export default async function SalaryPage() {
       </div>
 
       <div className="card">
-        <SalaryStaffTable staff={staffRows} period={period} />
+        <SalaryStaffTable staff={staffRows} period={period} viewerIsSuperAdmin={isSuperAdmin} />
       </div>
     </div>
   );

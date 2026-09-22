@@ -33,6 +33,7 @@ model User {
   stayLoggedIn        Boolean  @default(false) // Super Admin can exempt a specific account (e.g. a shared device) from the inactivity auto-logout — still requires a real login once
   phone               String? // used to SMS this staff member when their salary is marked paid
   salaryAmount        Int      @default(0) // monthly salary, set by Admin/Super Admin on the Salary page
+  payrollEnabled      Boolean  @default(true) // Super Admin can exclude an account from Salary entirely — off, it's just a normal platform login
   createdAt           DateTime @default(now())
 
   dailyRecordsCreated  DailyRecord[]      @relation("DailyRecordCreatedBy")

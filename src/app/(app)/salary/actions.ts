@@ -38,6 +38,31 @@ export async function setStaffSalarySettings(userId: string, input: unknown): Pr
   return { ok: true };
 }
 
+/**
+ * Super-Admin-only: excludes/includes a staff member from Salary entirely.
+ * Turned off, they're just a normal platform login — the Salary page stops
+ * showing their salary/phone/payment controls, same as anyone who's never
+ * had payroll set up for them.
+ */
+export async function setStaffPayrollEnabled(userId: string, enabled: boolean): Promise<SalaryActionResult> {
+  const guard = await requireRoleSafe(["SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const admin = guard.user;
+
+  const target = await prisma.user.findUnique({ where: { id: userId } });
+  if (!target) return { ok: false, error: "User not found" };
+
+  await prisma.user.update({ where: { id: userId }, data: { payrollEnabled: enabled } });
+  await logActivity(
+    enabled
+      ? `${admin.name} added "${target.name}" back to payroll.`
+      : `${admin.name} removed "${target.name}" from payroll.`,
+    admin.id
+  );
+  revalidatePath("/salary");
+  return { ok: true };
+}
+
 type StaffForPayment = { id: string; name: string; phone: string | null; salaryAmount: number };
 
 /** Shared by the single and bulk mark-paid actions. Assumes the caller already checked permissions. */

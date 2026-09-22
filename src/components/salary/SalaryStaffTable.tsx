@@ -6,6 +6,7 @@ import { markSalaryPaidBulk } from "@/app/(app)/salary/actions";
 import StaffSalarySettingsEditor from "./StaffSalarySettingsEditor";
 import SalaryPaymentControl from "./SalaryPaymentControl";
 import SalaryPaymentHistory from "./SalaryPaymentHistory";
+import PayrollToggle from "./PayrollToggle";
 
 export interface StaffSalaryRow {
   id: string;
@@ -15,9 +16,18 @@ export interface StaffSalaryRow {
   salaryAmount: number;
   phone: string | null;
   paid: boolean;
+  payrollEnabled: boolean;
 }
 
-export default function SalaryStaffTable({ staff, period }: { staff: StaffSalaryRow[]; period: string }) {
+export default function SalaryStaffTable({
+  staff,
+  period,
+  viewerIsSuperAdmin,
+}: {
+  staff: StaffSalaryRow[];
+  period: string;
+  viewerIsSuperAdmin: boolean;
+}) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState<"selected" | "all" | null>(null);
@@ -26,7 +36,7 @@ export default function SalaryStaffTable({ staff, period }: { staff: StaffSalary
     null
   );
 
-  const unpaid = staff.filter((s) => !s.paid);
+  const unpaid = staff.filter((s) => !s.paid && s.payrollEnabled);
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -107,27 +117,41 @@ export default function SalaryStaffTable({ staff, period }: { staff: StaffSalary
               <th>Salary / phone</th>
               <th>This month ({period})</th>
               <th></th>
+              {viewerIsSuperAdmin && <th>Payroll</th>}
             </tr>
           </thead>
           <tbody>
             {staff.map((s) => (
               <tr key={s.id}>
                 <td>
-                  {!s.paid && (
+                  {!s.paid && s.payrollEnabled && (
                     <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggle(s.id)} />
                   )}
                 </td>
                 <td>{s.name}</td>
                 <td>{s.roleLabel && <span className="badge-role">{s.roleLabel}</span>}</td>
                 <td>
-                  <StaffSalarySettingsEditor userId={s.id} initialAmount={s.salaryAmount} initialPhone={s.phone} />
+                  {s.payrollEnabled ? (
+                    <StaffSalarySettingsEditor userId={s.id} initialAmount={s.salaryAmount} initialPhone={s.phone} />
+                  ) : (
+                    <span style={{ fontSize: 12.5, color: "var(--text-faint)" }}>—</span>
+                  )}
                 </td>
                 <td>
-                  <SalaryPaymentControl userId={s.id} period={period} initialPaid={s.paid} salaryAmount={s.salaryAmount} />
+                  {s.payrollEnabled ? (
+                    <SalaryPaymentControl userId={s.id} period={period} initialPaid={s.paid} salaryAmount={s.salaryAmount} />
+                  ) : (
+                    <span style={{ fontSize: 12.5, color: "var(--text-faint)" }}>Not on payroll</span>
+                  )}
                 </td>
                 <td>
                   <SalaryPaymentHistory userId={s.id} name={s.name} />
                 </td>
+                {viewerIsSuperAdmin && (
+                  <td>
+                    <PayrollToggle userId={s.id} enabled={s.payrollEnabled} />
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
