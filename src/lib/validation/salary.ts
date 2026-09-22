@@ -6,3 +6,9 @@ export const staffSalarySettingsSchema = z.object({
 });
 
 export type StaffSalarySettingsInput = z.infer<typeof staffSalarySettingsSchema>;
+
+export const staffSmsSchema = z.object({
+  message: z.string().trim().min(1, "Enter a message").max(1000, "Message is too long (max 1000 characters)"),
+});
+
+export type StaffSmsInput = z.infer<typeof staffSmsSchema>;

@@ -11,9 +11,10 @@ export default async function SalaryPage() {
   const isSuperAdmin = user?.role === "SUPER_ADMIN";
   const period = todayISO().slice(0, 7);
 
-  const [staff, paymentsThisPeriod] = await Promise.all([
+  const [staff, paymentsThisPeriod, smsTemplates] = await Promise.all([
     prisma.user.findMany({ orderBy: [{ role: "asc" }, { name: "asc" }] }),
     prisma.salaryPayment.findMany({ where: { period } }),
+    prisma.smsTemplate.findMany({ orderBy: { name: "asc" } }),
   ]);
   const paidUserIds = new Set(paymentsThisPeriod.map((p) => p.userId));
   const payrollStaff = staff.filter((u) => u.payrollEnabled);
@@ -38,7 +39,7 @@ export default async function SalaryPage() {
     <div>
       <div className="topbar">
         <div>
-          <h1>Staffs</h1>
+          <h1>Staff</h1>
           <div className="sub">
             Set each staff member&apos;s monthly salary and phone, then mark it paid once it&apos;s handled — they get
             an SMS the moment you do.
@@ -71,7 +72,7 @@ export default async function SalaryPage() {
       </div>
 
       <div className="card">
-        <SalaryStaffTable staff={staffRows} period={period} viewerIsSuperAdmin={isSuperAdmin} />
+        <SalaryStaffTable staff={staffRows} period={period} viewerIsSuperAdmin={isSuperAdmin} smsTemplates={smsTemplates} />
       </div>
     </div>
   );

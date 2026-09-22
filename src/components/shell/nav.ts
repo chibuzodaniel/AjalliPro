@@ -32,7 +32,7 @@ export const NAV_SECTIONS: NavSection[] = [
     section: "HR",
     items: [
       { href: "/drivers", label: "Drivers", icon: "🚚", hiddenFromSalesStaff: true },
-      { href: "/salary", label: "Staffs", icon: "💰", approverOnly: true },
+      { href: "/salary", label: "Staff", icon: "💰", approverOnly: true },
       { href: "/packers", label: "Packers", icon: "📦", hiddenFromSalesStaff: true },
       { href: "/customers", label: "Customers", icon: "👥", hiddenFromSalesStaff: true },
     ],

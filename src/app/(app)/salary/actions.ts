@@ -7,11 +7,48 @@ import { logActivity } from "@/lib/activity";
 import { isSmsConfigured, sendSms } from "@/lib/sms";
 import { timeOfDayGreeting } from "@/lib/greeting";
 import { formatMoney } from "@/lib/money";
-import { staffSalarySettingsSchema } from "@/lib/validation/salary";
+import { staffSalarySettingsSchema, staffSmsSchema } from "@/lib/validation/salary";
 
 export interface SalaryActionResult {
   ok: boolean;
   error?: string;
+}
+
+export interface SendStaffSmsResult {
+  ok: boolean;
+  error?: string;
+}
+
+/** One-off SMS to a single staff member's phone — same pattern as the customer/driver/packer "Send SMS" button. */
+export async function sendStaffSms(userId: string, input: unknown): Promise<SendStaffSmsResult> {
+  const guard = await requireRoleSafe(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const admin = guard.user;
+
+  if (!isSmsConfigured()) {
+    return {
+      ok: false,
+      error: "SMS isn't configured yet — set BULKSMSNIGERIA_API_TOKEN and BULKSMSNIGERIA_SENDER_ID in .env first.",
+    };
+  }
+
+  const parsed = staffSmsSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const target = await prisma.user.findUnique({ where: { id: userId } });
+  if (!target) return { ok: false, error: "Staff member not found." };
+  if (!target.phone) return { ok: false, error: `"${target.name}" has no phone number on file.` };
+
+  try {
+    await sendSms(target.phone, parsed.data.message);
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Could not send SMS" };
+  }
+
+  await logActivity(`${admin.name} sent an SMS to staff member "${target.name}".`, admin.id);
+  return { ok: true };
 }
 
 export async function setStaffSalarySettings(userId: string, input: unknown): Promise<SalaryActionResult> {

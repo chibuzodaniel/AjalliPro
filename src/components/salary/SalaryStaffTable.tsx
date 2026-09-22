@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { markSalaryPaidBulk } from "@/app/(app)/salary/actions";
+import { markSalaryPaidBulk, sendStaffSms } from "@/app/(app)/salary/actions";
 import StaffSalarySettingsEditor from "./StaffSalarySettingsEditor";
+import StaffNameDetail from "./StaffNameDetail";
 import SalaryPaymentControl from "./SalaryPaymentControl";
 import SalaryPaymentHistory from "./SalaryPaymentHistory";
 import PayrollToggle from "./PayrollToggle";
+import SendEntitySmsButton, { type SmsTemplateOption } from "@/components/shared/SendEntitySmsButton";
 
 export interface StaffSalaryRow {
   id: string;
@@ -23,10 +25,12 @@ export default function SalaryStaffTable({
   staff,
   period,
   viewerIsSuperAdmin,
+  smsTemplates,
 }: {
   staff: StaffSalaryRow[];
   period: string;
   viewerIsSuperAdmin: boolean;
+  smsTemplates: SmsTemplateOption[];
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -128,7 +132,16 @@ export default function SalaryStaffTable({
                     <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggle(s.id)} />
                   )}
                 </td>
-                <td>{s.name}</td>
+                <td>
+                  <StaffNameDetail
+                    name={s.name}
+                    roleLabel={s.roleLabel}
+                    phone={s.phone}
+                    salaryAmount={s.salaryAmount}
+                    payrollEnabled={s.payrollEnabled}
+                    paid={s.paid}
+                  />
+                </td>
                 <td>{s.roleLabel && <span className="badge-role">{s.roleLabel}</span>}</td>
                 <td>
                   {s.payrollEnabled ? (
@@ -144,8 +157,11 @@ export default function SalaryStaffTable({
                     <span style={{ fontSize: 12.5, color: "var(--text-faint)" }}>Not on payroll</span>
                   )}
                 </td>
-                <td>
+                <td style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                   <SalaryPaymentHistory userId={s.id} name={s.name} />
+                  {s.phone && (
+                    <SendEntitySmsButton entityId={s.id} entityName={s.name} templates={smsTemplates} sendAction={sendStaffSms} />
+                  )}
                 </td>
                 {viewerIsSuperAdmin && (
                   <td>

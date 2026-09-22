@@ -10,6 +10,7 @@ import { formatMoney } from "@/lib/money";
 import { getWeeklyIncentiveSettings } from "@/lib/settings";
 import KpiCard from "@/components/ui/KpiCard";
 import NetRevenueCard, { type PeriodRow } from "@/components/dashboard/NetRevenueCard";
+import AnnouncementButton from "@/components/dashboard/AnnouncementButton";
 import { LineTrendChart, BarTrendChart } from "@/components/charts/DynamicTrendChart";
 import type { DailyRecordFull } from "@/lib/records";
 
@@ -38,17 +39,32 @@ export default async function DashboardPage() {
   const user = await getCurrentUser();
   const approver = user ? isApprover(user.role) : false;
 
-  const [approvedRecords, allApprovedRecordsEver, customers, drivers, activity, pendingDailyCount, pendingDriverCount, weeklySettings] =
-    await Promise.all([
-      getApprovedRecordsSorted(),
-      getAllApprovedRecordsEverSorted(),
-      prisma.customer.findMany(),
-      prisma.driver.findMany({ where: { status: "APPROVED" } }),
-      prisma.activityLog.findMany({ orderBy: { createdAt: "desc" }, take: 6 }),
-      prisma.dailyRecord.count({ where: { status: "PENDING" } }),
-      prisma.driver.count({ where: { status: "PENDING" } }),
-      getWeeklyIncentiveSettings(),
-    ]);
+  const [
+    approvedRecords,
+    allApprovedRecordsEver,
+    customers,
+    drivers,
+    staffUsers,
+    packers,
+    smsTemplates,
+    activity,
+    pendingDailyCount,
+    pendingDriverCount,
+    weeklySettings,
+  ] = await Promise.all([
+    getApprovedRecordsSorted(),
+    getAllApprovedRecordsEverSorted(),
+    prisma.customer.findMany(),
+    prisma.driver.findMany({ where: { status: "APPROVED" } }),
+    prisma.user.findMany({ select: { id: true, name: true, phone: true } }),
+    prisma.packer.findMany({ select: { id: true, name: true, phone: true } }),
+    prisma.smsTemplate.findMany({ orderBy: { name: "asc" } }),
+    prisma.activityLog.findMany({ orderBy: { createdAt: "desc" }, take: 6 }),
+    prisma.dailyRecord.count({ where: { status: "PENDING" } }),
+    prisma.driver.count({ where: { status: "PENDING" } }),
+    getWeeklyIncentiveSettings(),
+  ]);
+  const canAnnounce = user ? user.role === "ADMIN_STAFF" || approver : false;
 
   const stock = approvedRecords.length ? approvedRecords[approvedRecords.length - 1].closingStock : 0;
   const today = todayISO();
@@ -167,9 +183,20 @@ export default async function DashboardPage() {
             {new Date().toLocaleDateString("en-NG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
           </div>
         </div>
-        <Link href="/reports" className="btn btn-ghost no-print">
-          📈 View reports
-        </Link>
+        <div style={{ display: "flex", gap: 10 }}>
+          {canAnnounce && (
+            <AnnouncementButton
+              staff={staffUsers}
+              drivers={drivers}
+              customers={customers}
+              packers={packers}
+              templates={smsTemplates}
+            />
+          )}
+          <Link href="/reports" className="btn btn-ghost no-print">
+            📈 View reports
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-3" style={{ marginBottom: 18 }}>
