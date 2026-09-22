@@ -103,6 +103,9 @@ export default function SendEntitySmsButton({
                   onChange={(e) => handleBagsChange(e.target.value)}
                   placeholder="0"
                 />
+                <div className="hint">
+                  Use {"{{quantity}}"} or {"{{amount}}"} in your message to include this.
+                </div>
                 {Number(bags) > 0 && (
                   <div className="hint">
                     {bags} bags × {formatMoney(pricePerBag)}/bag = <b>{formatMoney(amount)}</b> payable
