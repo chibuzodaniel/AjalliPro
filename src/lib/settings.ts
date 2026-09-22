@@ -65,6 +65,20 @@ export async function saveEmailTemplateSettings(input: EmailTemplateSettings): P
   });
 }
 
+/** Phone number (Super Admin, set on the Reports page) that auto-receives the full day's report by SMS on approval. */
+export async function getDailyReportSmsPhone(): Promise<string | null> {
+  const row = await prisma.dailyReportSmsSetting.findUnique({ where: { id: SETTINGS_ID } });
+  return row?.phoneNumber ?? null;
+}
+
+export async function saveDailyReportSmsPhone(phoneNumber: string | null): Promise<void> {
+  await prisma.dailyReportSmsSetting.upsert({
+    where: { id: SETTINGS_ID },
+    create: { id: SETTINGS_ID, phoneNumber },
+    update: { phoneNumber },
+  });
+}
+
 export interface PricingSettings {
   factoryPricePerBag: number;
   packerPricePerBag: number;

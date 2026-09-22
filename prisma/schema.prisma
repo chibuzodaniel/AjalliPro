@@ -283,6 +283,16 @@ model EmailTemplateSetting {
 }
 
 /**
+ * Super-Admin-set phone number (Reports page) that automatically receives
+ * the full day's report by SMS the moment a daily record is approved.
+ */
+model DailyReportSmsSetting {
+  id          String   @id @default("singleton")
+  phoneNumber String?
+  updatedAt   DateTime @updatedAt
+}
+
+/**
  * Reusable SMS message templates (e.g. "Delivery Successful") that Super
  * Admin creates on Settings. Sent manually — picking a template on the
  * per-customer "Send SMS" modal fills in its body (with {{name}} replaced),

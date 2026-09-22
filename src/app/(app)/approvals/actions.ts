@@ -7,6 +7,10 @@ import { requireRole } from "@/lib/auth-helpers";
 import { canApproveDailyRecords } from "@/lib/roles";
 import { logActivity } from "@/lib/activity";
 import { sendPushToUsers } from "@/lib/push";
+import { dailyRecordInclude } from "@/lib/records";
+import { buildDailyReportSmsText } from "@/lib/dailyReport";
+import { getDailyReportSmsPhone } from "@/lib/settings";
+import { isSmsConfigured, sendSms } from "@/lib/sms";
 
 async function requireDailyRecordApprover() {
   const user = await requireRole(["ADMIN", "SUPER_ADMIN"]);
@@ -22,15 +26,26 @@ export async function approveDailyRecord(id: string) {
   const record = await prisma.dailyRecord.update({
     where: { id },
     data: { status: "APPROVED", approvedById: user.id },
+    include: dailyRecordInclude,
   });
   await logActivity(`${user.name} approved the daily record for ${record.date}.`, user.id);
-  after(() =>
-    sendPushToUsers([record.createdById], {
+  after(async () => {
+    await sendPushToUsers([record.createdById], {
       title: "Daily record approved",
       body: `${user.name} approved your daily record for ${record.date}.`,
       url: "/daily-record",
-    })
-  );
+    });
+    if (isSmsConfigured()) {
+      const phone = await getDailyReportSmsPhone();
+      if (phone) {
+        try {
+          await sendSms(phone, buildDailyReportSmsText(record));
+        } catch (err) {
+          console.error("Failed to send daily report SMS:", err);
+        }
+      }
+    }
+  });
   revalidatePath("/", "layout");
 }
 

@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/lib/auth-helpers";
-import { isApprover } from "@/lib/roles";
+import { isApprover, isSuperAdmin } from "@/lib/roles";
 import {
   getApprovedRecordsSorted,
   recordProdTotal,
@@ -10,11 +10,13 @@ import {
 import { computeRevenue } from "@/lib/revenue";
 import { filterRecordsByRange, parseRange, RANGE_OPTIONS, RANGE_LABEL } from "@/lib/ranges";
 import { formatMoney } from "@/lib/money";
+import { getDailyReportSmsPhone } from "@/lib/settings";
 import KpiCard from "@/components/ui/KpiCard";
 import RangeTabs from "@/components/ui/RangeTabs";
 import ViewAllModal from "@/components/ui/ViewAllModal";
 import { LineTrendChart } from "@/components/charts/DynamicTrendChart";
 import PrintButton from "@/components/shared/PrintButton";
+import DailyReportSmsPhoneEditor from "@/components/reports/DailyReportSmsPhoneEditor";
 
 export default async function ReportsPage({
   searchParams,
@@ -25,6 +27,8 @@ export default async function ReportsPage({
   const range = parseRange(sp.range);
   const user = await getCurrentUser();
   const approver = user ? isApprover(user.role) : false;
+  const superAdmin = user ? isSuperAdmin(user.role) : false;
+  const dailyReportSmsPhone = superAdmin ? await getDailyReportSmsPhone() : null;
 
   const approvedRecords = await getApprovedRecordsSorted();
   const records = filterRecordsByRange(approvedRecords, range);
@@ -94,6 +98,8 @@ export default async function ReportsPage({
         <PrintButton />
       </div>
       <RangeTabs basePath="/reports" current={range} options={RANGE_OPTIONS} />
+
+      {superAdmin && <DailyReportSmsPhoneEditor initialPhone={dailyReportSmsPhone} />}
 
       <div className="grid grid-4" style={{ marginBottom: 18 }}>
         <KpiCard label="Total Bags Sold" value={bagsSold} />
