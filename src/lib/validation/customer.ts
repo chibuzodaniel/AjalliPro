@@ -16,6 +16,15 @@ export const customerPricingSchema = z.object({
 
 export type CustomerPricingInput = z.infer<typeof customerPricingSchema>;
 
+export const customerDetailsSchema = z.object({
+  name: z.string().trim().min(1, "Customer name is required"),
+  email: z.email("Enter a valid email").optional().or(z.literal("")),
+  phone: z.string().trim().optional(),
+  address: z.string().trim().optional(),
+});
+
+export type CustomerDetailsInput = z.infer<typeof customerDetailsSchema>;
+
 export const customerSmsSchema = z.object({
   message: z.string().trim().min(1, "Enter a message").max(1000, "Message is too long (max 1000 characters)"),
 });

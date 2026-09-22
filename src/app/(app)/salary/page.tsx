@@ -38,7 +38,7 @@ export default async function SalaryPage() {
     <div>
       <div className="topbar">
         <div>
-          <h1>Salary</h1>
+          <h1>Staffs</h1>
           <div className="sub">
             Set each staff member&apos;s monthly salary and phone, then mark it paid once it&apos;s handled — they get
             an SMS the moment you do.

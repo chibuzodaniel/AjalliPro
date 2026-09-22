@@ -50,12 +50,14 @@ export default async function DriversPage() {
             <tr key={d.id}>
               <td>
                 <DriverNameDetail
+                  driverId={d.id}
                   name={d.name}
                   phone={d.phone}
                   pricePerBag={d.pricePerBag}
                   loadingFee={d.loadingFee}
                   status={d.status}
                   weeklyBags={wkBags}
+                  canEdit={user ? canManageDrivers(user.role) : false}
                 />
               </td>
               <td>{d.phone || "—"}</td>

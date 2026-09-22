@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRoleSafe } from "@/lib/auth-helpers";
 import { logActivity } from "@/lib/activity";
-import { customerSchema, customerPricingSchema, customerSmsSchema } from "@/lib/validation/customer";
+import { customerSchema, customerPricingSchema, customerDetailsSchema, customerSmsSchema } from "@/lib/validation/customer";
 import { getApprovedRecordsSorted, getAllApprovedRecordsEverSorted } from "@/lib/records";
 import { computeIncentiveData } from "@/lib/incentives";
 import { currentWeekKey } from "@/lib/week";
@@ -53,6 +53,37 @@ export async function updateCustomerPricing(id: string, input: unknown): Promise
     data: { pricePerBag: parsed.data.pricePerBag },
   });
   await logActivity(`${user.name} set "${customer.name}"'s price to ₦${parsed.data.pricePerBag}/bag.`, user.id);
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export interface UpdateCustomerDetailsResult {
+  ok: boolean;
+  error?: string;
+}
+
+export async function updateCustomerDetails(id: string, input: unknown): Promise<UpdateCustomerDetailsResult> {
+  const guard = await requireRoleSafe(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
+  const parsed = customerDetailsSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const customer = await prisma.customer.findUnique({ where: { id } });
+  if (!customer) return { ok: false, error: "Customer not found." };
+
+  await prisma.customer.update({
+    where: { id },
+    data: {
+      name: parsed.data.name,
+      email: parsed.data.email || null,
+      phone: parsed.data.phone || null,
+      address: parsed.data.address || null,
+    },
+  });
+  await logActivity(`${user.name} updated "${customer.name}"'s details.`, user.id);
   revalidatePath("/", "layout");
   return { ok: true };
 }

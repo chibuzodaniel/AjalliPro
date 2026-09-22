@@ -7,7 +7,7 @@ import { requireRole, requireRoleSafe } from "@/lib/auth-helpers";
 import { needsApproval } from "@/lib/roles";
 import { logActivity } from "@/lib/activity";
 import { notifyReviewers, sendPushToUsers } from "@/lib/push";
-import { driverSchema, driverPricingSchema, driverSmsSchema } from "@/lib/validation/driver";
+import { driverSchema, driverPricingSchema, driverDetailsSchema, driverSmsSchema } from "@/lib/validation/driver";
 import { isSmsConfigured, sendSms } from "@/lib/sms";
 
 export async function createDriver(input: unknown) {
@@ -68,6 +68,32 @@ export async function updateDriverPricing(id: string, input: unknown) {
   );
   revalidatePath("/", "layout");
   return { ok: true as const };
+}
+
+export interface UpdateDriverDetailsResult {
+  ok: boolean;
+  error?: string;
+}
+
+export async function updateDriverDetails(id: string, input: unknown): Promise<UpdateDriverDetailsResult> {
+  const guard = await requireRoleSafe(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
+  const parsed = driverDetailsSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const driver = await prisma.driver.findUnique({ where: { id } });
+  if (!driver) return { ok: false, error: "Driver not found." };
+
+  await prisma.driver.update({
+    where: { id },
+    data: { name: parsed.data.name, phone: parsed.data.phone || null },
+  });
+  await logActivity(`${user.name} updated "${driver.name}"'s details.`, user.id);
+  revalidatePath("/", "layout");
+  return { ok: true };
 }
 
 export interface DeleteDriverResult {

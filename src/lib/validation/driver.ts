@@ -16,6 +16,13 @@ export const driverPricingSchema = z.object({
 
 export type DriverPricingInput = z.infer<typeof driverPricingSchema>;
 
+export const driverDetailsSchema = z.object({
+  name: z.string().trim().min(1, "Driver name is required"),
+  phone: z.string().trim().optional(),
+});
+
+export type DriverDetailsInput = z.infer<typeof driverDetailsSchema>;
+
 export const driverSmsSchema = z.object({
   message: z.string().trim().min(1, "Enter a message").max(1000, "Message is too long (max 1000 characters)"),
 });

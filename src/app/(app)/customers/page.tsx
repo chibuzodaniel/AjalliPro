@@ -54,6 +54,7 @@ export default async function CustomersPage() {
             <tr key={c.id}>
               <td>
                 <CustomerNameDetail
+                  customerId={c.id}
                   name={c.name}
                   email={c.email}
                   phone={c.phone}
@@ -61,6 +62,7 @@ export default async function CustomersPage() {
                   pricePerBag={c.pricePerBag}
                   weeklyBags={wkBags}
                   yearlyBags={yrBags}
+                  canEdit={user ? canManageCustomers(user.role) : false}
                 />
               </td>
               <td>{c.phone || "—"}</td>
