@@ -87,6 +87,16 @@ export function recordExpenseTotal(r: DailyRecordFull): number {
   return r.expenseItems.reduce((s, e) => s + e.amount, 0);
 }
 
+/** Packer pay is no longer an ExpenseItem (see PackerPayment) — derived straight from that day's production. */
+export function recordPackerPayTotal(r: DailyRecordFull): number {
+  return r.productionLines.reduce((s, p) => s + p.bags * p.pricePerBag, 0);
+}
+
+/** Logged expense items plus that day's packer pay — the true cost total for revenue/reporting purposes. */
+export function recordTotalCosts(r: DailyRecordFull): number {
+  return recordExpenseTotal(r) + recordPackerPayTotal(r);
+}
+
 /**
  * "Loading fee — X" expense lines are regenerated fresh from driverSales/
  * production on every create or update — never carry them into an editable

@@ -1,5 +1,5 @@
 import type { DailyRecordFull } from "./records";
-import { recordExpenseTotal } from "./records";
+import { recordTotalCosts } from "./records";
 
 export interface RevenueSummary {
   gross: number;
@@ -24,8 +24,8 @@ export function computeRevenue(records: DailyRecordFull[]): RevenueSummary {
     }
     // Truck fuel/hired cost is now its own "Truck fuel — X" / "Hired truck — X"
     // expense line (see buildTruckCostExpenses), so it's already counted via
-    // recordExpenseTotal below — adding it again here would double-count it.
-    exp += recordExpenseTotal(r);
+    // recordTotalCosts below — adding it again here would double-count it.
+    exp += recordTotalCosts(r);
   }
   const rev = pumpWaterTotal + sachetTotal;
   return { gross: rev, pumpWaterTotal, sachetTotal, expenses: exp, net: rev - exp };

@@ -5,7 +5,7 @@ import {
   recordProdTotal,
   recordDriverBagsTotal,
   recordTruckDeliveryBagsTotal,
-  recordExpenseTotal,
+  recordTotalCosts,
 } from "@/lib/records";
 import { computeRevenue } from "@/lib/revenue";
 import { filterRecordsByRange, parseRange, RANGE_OPTIONS, RANGE_LABEL } from "@/lib/ranges";
@@ -79,7 +79,7 @@ export default async function ReportsPage({
               <td>{recordTruckDeliveryBagsTotal(r)} bags</td>
               <td>{formatMoney(r.pumpWaterAmount)}</td>
               <td>{r.leakageBags}</td>
-              <td>{formatMoney(recordExpenseTotal(r))}</td>
+              <td>{formatMoney(recordTotalCosts(r))}</td>
               <td>{r.closingStock}</td>
             </tr>
           ))

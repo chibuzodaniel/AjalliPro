@@ -1,5 +1,11 @@
 import type { DailyRecordFull } from "./records";
-import { recordProdTotal, recordDriverBagsTotal, recordTruckDeliveryBagsTotal, recordExpenseTotal } from "./records";
+import {
+  recordProdTotal,
+  recordDriverBagsTotal,
+  recordTruckDeliveryBagsTotal,
+  recordExpenseTotal,
+  recordPackerPayTotal,
+} from "./records";
 import { computeRevenue } from "./revenue";
 import { formatMoney } from "./money";
 
@@ -17,6 +23,14 @@ export function buildDailyReportSmsText(r: DailyRecordFull): string {
   lines.push("");
   lines.push(`Produced: ${recordProdTotal(r)} bags`);
   lines.push(`Opening stock: ${r.openingStock} | Closing stock: ${r.closingStock}`);
+
+  if (r.productionLines.length > 0) {
+    lines.push("");
+    lines.push(`Packer pay (${formatMoney(recordPackerPayTotal(r))}):`);
+    for (const p of r.productionLines) {
+      lines.push(`- ${p.packer.name}: ${p.bags} @ ${formatMoney(p.pricePerBag)} = ${formatMoney(p.bags * p.pricePerBag)}`);
+    }
+  }
 
   if (r.factoryBags > 0) {
     const suffix = r.factoryBagsFromLeakage > 0 ? ` (${r.factoryBagsFromLeakage} rebagged)` : "";
