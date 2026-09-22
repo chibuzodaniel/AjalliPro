@@ -82,7 +82,13 @@ export default async function CustomersPage() {
               </td>
               <td style={{ display: "flex", gap: 6, alignItems: "center" }}>
                 {user && canManageCustomers(user.role) && c.phone && (
-                  <SendEntitySmsButton entityId={c.id} entityName={c.name} templates={smsTemplates} sendAction={sendCustomerSms} />
+                  <SendEntitySmsButton
+                    entityId={c.id}
+                    entityName={c.name}
+                    templates={smsTemplates}
+                    sendAction={sendCustomerSms}
+                    pricePerBag={c.pricePerBag}
+                  />
                 )}
                 {canDelete && <DeleteCustomerButton id={c.id} name={c.name} />}
               </td>

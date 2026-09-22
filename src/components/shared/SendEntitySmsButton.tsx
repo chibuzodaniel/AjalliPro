@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Modal from "@/components/ui/Modal";
 import { timeOfDayGreeting } from "@/lib/greeting";
+import { formatMoney } from "@/lib/money";
 
 const MAX_LENGTH = 1000;
 
@@ -17,36 +18,54 @@ export default function SendEntitySmsButton({
   entityName,
   templates = [],
   sendAction,
+  pricePerBag,
 }: {
   entityId: string;
   entityName: string;
   templates?: SmsTemplateOption[];
   sendAction: (id: string, input: unknown) => Promise<{ ok: boolean; error?: string }>;
+  /** When set (customers), shows a "Bags" field and lets templates use {{quantity}}/{{amount}} — amount = bags × this rate. */
+  pricePerBag?: number;
 }) {
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [templateId, setTemplateId] = useState("");
+  const [bags, setBags] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+
+  const amount = (Number(bags) || 0) * (pricePerBag ?? 0);
 
   function close() {
     setOpen(false);
     setMessage("");
     setTemplateId("");
+    setBags("");
     setError(null);
     setSent(false);
   }
 
+  function fillFromTemplate(id: string, bagsValue: string) {
+    const template = templates.find((t) => t.id === id);
+    if (!template) return;
+    const filled = template.body
+      .replace(/\{\{\s*name\s*\}\}/gi, entityName)
+      .replace(/\{\{\s*greeting\s*\}\}/gi, timeOfDayGreeting())
+      .replace(/\{\{\s*quantity\s*\}\}/gi, bagsValue || "0")
+      .replace(/\{\{\s*amount\s*\}\}/gi, formatMoney((Number(bagsValue) || 0) * (pricePerBag ?? 0)));
+    setMessage(filled.slice(0, MAX_LENGTH));
+  }
+
   function applyTemplate(id: string) {
     setTemplateId(id);
-    const template = templates.find((t) => t.id === id);
-    if (template) {
-      const filled = template.body
-        .replace(/\{\{\s*name\s*\}\}/gi, entityName)
-        .replace(/\{\{\s*greeting\s*\}\}/gi, timeOfDayGreeting());
-      setMessage(filled.slice(0, MAX_LENGTH));
-    }
+    fillFromTemplate(id, bags);
+  }
+
+  function handleBagsChange(value: string) {
+    setBags(value);
+    // Keep an already-applied template's {{quantity}}/{{amount}} in sync as bags changes.
+    if (templateId) fillFromTemplate(templateId, value);
   }
 
   async function handleSend() {
@@ -74,6 +93,23 @@ export default function SendEntitySmsButton({
       {open && (
         <Modal open={open} onClose={close} title={`Send SMS — ${entityName}`} maxWidth={440}>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {pricePerBag !== undefined && (
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label>Order quantity (bags)</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={bags}
+                  onChange={(e) => handleBagsChange(e.target.value)}
+                  placeholder="0"
+                />
+                {Number(bags) > 0 && (
+                  <div className="hint">
+                    {bags} bags × {formatMoney(pricePerBag)}/bag = <b>{formatMoney(amount)}</b> payable
+                  </div>
+                )}
+              </div>
+            )}
             {templates.length > 0 && (
               <div className="field" style={{ marginBottom: 0 }}>
                 <label>Template (optional)</label>

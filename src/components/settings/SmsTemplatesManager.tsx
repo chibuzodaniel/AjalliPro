@@ -63,8 +63,9 @@ function TemplateForm({
         <label>Message</label>
         <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} maxLength={1000} style={fieldStyle} />
         <div className="hint">
-          Use {"{{name}}"} for the customer's name and {"{{greeting}}"} for a time-of-day greeting (Good
-          morning/afternoon/night). Sent manually — pick this template when texting a customer.
+          Placeholders: {"{{name}}"} (name), {"{{greeting}}"} (Good morning/afternoon/night), and — when sending to a
+          customer — {"{{quantity}}"} (bags entered at send time) and {"{{amount}}"} (quantity × that customer's
+          price/bag, auto-calculated). Sent manually — pick this template when texting.
         </div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
