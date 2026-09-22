@@ -25,10 +25,16 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: "/daily-record", label: "Daily Record", icon: "📝" },
       { href: "/production", label: "Total Produced", icon: "🏭", hiddenFromSalesStaff: true },
-      { href: "/packers", label: "Packers", icon: "📦", hiddenFromSalesStaff: true },
-      { href: "/drivers", label: "Drivers", icon: "🚚", hiddenFromSalesStaff: true },
-      { href: "/customers", label: "Customers", icon: "👥", hiddenFromSalesStaff: true },
       { href: "/incentives", label: "Incentive Tracking", icon: "🎁", hiddenFromSalesStaff: true },
+    ],
+  },
+  {
+    section: "HR",
+    items: [
+      { href: "/drivers", label: "Drivers", icon: "🚚", hiddenFromSalesStaff: true },
+      { href: "/salary", label: "Staffs", icon: "💰", approverOnly: true },
+      { href: "/packers", label: "Packers", icon: "📦", hiddenFromSalesStaff: true },
+      { href: "/customers", label: "Customers", icon: "👥", hiddenFromSalesStaff: true },
     ],
   },
   {
@@ -39,9 +45,5 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/reports", label: "Reports", icon: "📈", hiddenFromSalesStaff: true },
       { href: "/settings", label: "Settings", icon: "⚙️", approverOnly: true },
     ],
-  },
-  {
-    section: "HR",
-    items: [{ href: "/salary", label: "Staffs", icon: "💰", approverOnly: true }],
   },
 ];
