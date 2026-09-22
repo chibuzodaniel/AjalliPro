@@ -4,9 +4,7 @@ import { roleLabel } from "@/lib/roles";
 import { todayISO } from "@/lib/week";
 import { formatMoney } from "@/lib/money";
 import { isSmsConfigured } from "@/lib/sms";
-import StaffSalarySettingsEditor from "@/components/salary/StaffSalarySettingsEditor";
-import SalaryPaymentControl from "@/components/salary/SalaryPaymentControl";
-import SalaryPaymentHistory from "@/components/salary/SalaryPaymentHistory";
+import SalaryStaffTable, { type StaffSalaryRow } from "@/components/salary/SalaryStaffTable";
 
 export default async function SalaryPage() {
   const user = await getCurrentUser();
@@ -22,6 +20,17 @@ export default async function SalaryPage() {
   const paidThisMonth = staff
     .filter((u) => paidUserIds.has(u.id))
     .reduce((s, u) => s + (paymentsThisPeriod.find((p) => p.userId === u.id)?.amount ?? 0), 0);
+
+  // Super Admin is a hidden role — only another Super Admin viewing this
+  // list can tell who holds it.
+  const staffRows: StaffSalaryRow[] = staff.map((s) => ({
+    id: s.id,
+    name: s.name,
+    roleLabel: s.role === "SUPER_ADMIN" ? (isSuperAdmin ? "Super Admin" : null) : roleLabel(s.role),
+    salaryAmount: s.salaryAmount,
+    phone: s.phone,
+    paid: paidUserIds.has(s.id),
+  }));
 
   return (
     <div>
@@ -60,50 +69,7 @@ export default async function SalaryPage() {
       </div>
 
       <div className="card">
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Role</th>
-                <th>Salary / phone</th>
-                <th>This month ({period})</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {staff.map((s) => (
-                <tr key={s.id}>
-                  <td>{s.name}</td>
-                  <td>
-                    {s.role === "SUPER_ADMIN" ? (
-                      // Super Admin is a hidden role — only another Super Admin viewing
-                      // this list can tell who holds it.
-                      isSuperAdmin && <span className="badge-role">Super Admin</span>
-                    ) : (
-                      <span className="badge-role">{roleLabel(s.role)}</span>
-                    )}
-                  </td>
-                  <td>
-                    <StaffSalarySettingsEditor userId={s.id} initialAmount={s.salaryAmount} initialPhone={s.phone} />
-                  </td>
-                  <td>
-                    <SalaryPaymentControl
-                      userId={s.id}
-                      period={period}
-                      initialPaid={paidUserIds.has(s.id)}
-                      salaryAmount={s.salaryAmount}
-                    />
-                  </td>
-                  <td>
-                    <SalaryPaymentHistory userId={s.id} name={s.name} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {staff.length === 0 && <div className="empty">No staff accounts yet.</div>}
+        <SalaryStaffTable staff={staffRows} period={period} />
       </div>
     </div>
   );

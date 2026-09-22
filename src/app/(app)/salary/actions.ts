@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRoleSafe } from "@/lib/auth-helpers";
 import { logActivity } from "@/lib/activity";
 import { isSmsConfigured, sendSms } from "@/lib/sms";
+import { timeOfDayGreeting } from "@/lib/greeting";
 import { formatMoney } from "@/lib/money";
 import { staffSalarySettingsSchema } from "@/lib/validation/salary";
 
@@ -37,6 +38,47 @@ export async function setStaffSalarySettings(userId: string, input: unknown): Pr
   return { ok: true };
 }
 
+type StaffForPayment = { id: string; name: string; phone: string | null; salaryAmount: number };
+
+/** Shared by the single and bulk mark-paid actions. Assumes the caller already checked permissions. */
+async function markOnePaid(
+  admin: { id: string; name?: string | null },
+  target: StaffForPayment,
+  period: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (target.salaryAmount <= 0) {
+    return { ok: false, error: `Set "${target.name}"'s salary amount first.` };
+  }
+
+  const existing = await prisma.salaryPayment.findUnique({
+    where: { userId_period: { userId: target.id, period } },
+  });
+  if (existing) {
+    return { ok: false, error: `"${target.name}"'s salary for ${period} is already marked paid.` };
+  }
+
+  await prisma.salaryPayment.create({
+    data: { userId: target.id, period, amount: target.salaryAmount, paidById: admin.id },
+  });
+  await logActivity(
+    `${admin.name} marked "${target.name}"'s salary (₦${target.salaryAmount}, ${period}) as paid.`,
+    admin.id
+  );
+
+  if (target.phone && isSmsConfigured()) {
+    try {
+      await sendSms(
+        target.phone,
+        `${timeOfDayGreeting()} ${target.name}, your salary of ${formatMoney(target.salaryAmount)} for ${period} has been paid. Thank you - Cusica Intl`
+      );
+    } catch {
+      // Payment is already recorded — an SMS failure shouldn't undo it or block the admin's flow.
+    }
+  }
+
+  return { ok: true };
+}
+
 /** Marks the given month ('YYYY-MM') as paid for a staff member, and SMSes them if a phone/SMS is configured. */
 export async function markSalaryPaid(userId: string, period: string): Promise<SalaryActionResult> {
   const guard = await requireRoleSafe(["ADMIN", "SUPER_ADMIN"]);
@@ -49,38 +91,55 @@ export async function markSalaryPaid(userId: string, period: string): Promise<Sa
 
   const target = await prisma.user.findUnique({ where: { id: userId } });
   if (!target) return { ok: false, error: "User not found" };
-  if (target.salaryAmount <= 0) {
-    return { ok: false, error: `Set "${target.name}"'s salary amount first.` };
+
+  const result = await markOnePaid(admin, target, period);
+  if (!result.ok) return result;
+
+  revalidatePath("/salary");
+  return { ok: true };
+}
+
+export interface MarkSalaryPaidBulkResult {
+  ok: boolean;
+  paidCount: number;
+  skipped: { name: string; reason: string }[];
+  error?: string;
+}
+
+/**
+ * Marks every listed staff member's salary as paid for the given period —
+ * used for both "mark selected as paid" and "mark all as paid" (the caller
+ * just passes every unpaid staff id for "all"). Staff already paid for that
+ * period, or with no salary amount set, are skipped rather than failing the
+ * whole batch.
+ */
+export async function markSalaryPaidBulk(userIds: string[], period: string): Promise<MarkSalaryPaidBulkResult> {
+  const guard = await requireRoleSafe(["ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, paidCount: 0, skipped: [], error: guard.error };
+  const admin = guard.user;
+
+  if (!/^\d{4}-\d{2}$/.test(period)) {
+    return { ok: false, paidCount: 0, skipped: [], error: "Invalid period" };
+  }
+  if (userIds.length === 0) {
+    return { ok: false, paidCount: 0, skipped: [], error: "No staff selected." };
   }
 
-  const existing = await prisma.salaryPayment.findUnique({
-    where: { userId_period: { userId, period } },
-  });
-  if (existing) {
-    return { ok: false, error: `"${target.name}"'s salary for ${period} is already marked paid.` };
-  }
+  const targets = await prisma.user.findMany({ where: { id: { in: userIds } } });
+  let paidCount = 0;
+  const skipped: { name: string; reason: string }[] = [];
 
-  await prisma.salaryPayment.create({
-    data: { userId, period, amount: target.salaryAmount, paidById: admin.id },
-  });
-  await logActivity(
-    `${admin.name} marked "${target.name}"'s salary (₦${target.salaryAmount}, ${period}) as paid.`,
-    admin.id
-  );
-
-  if (target.phone && isSmsConfigured()) {
-    try {
-      await sendSms(
-        target.phone,
-        `Hi ${target.name}, your salary of ${formatMoney(target.salaryAmount)} for ${period} has been paid. Thank you - Cusica Intl`
-      );
-    } catch {
-      // Payment is already recorded — an SMS failure shouldn't undo it or block the admin's flow.
+  for (const target of targets) {
+    const result = await markOnePaid(admin, target, period);
+    if (result.ok) {
+      paidCount += 1;
+    } else {
+      skipped.push({ name: target.name, reason: result.error });
     }
   }
 
   revalidatePath("/salary");
-  return { ok: true };
+  return { ok: true, paidCount, skipped };
 }
 
 export async function revertSalaryPayment(userId: string, period: string): Promise<SalaryActionResult> {

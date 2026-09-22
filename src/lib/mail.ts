@@ -1,5 +1,6 @@
 import { BrevoClient } from "@getbrevo/brevo";
 import type { EmailTemplateSettings } from "./settings";
+import { timeOfDayGreeting } from "./greeting";
 
 let client: BrevoClient | null = null;
 
@@ -56,7 +57,7 @@ export async function sendWeeklyCustomerEmail(payload: WeeklyCustomerMailPayload
     subject,
     htmlContent: `
       <div style="font-family:sans-serif;color:#1a1a1a;">
-        <p>Hi ${escapeHtml(payload.customerName)},</p>
+        <p>${timeOfDayGreeting()}, ${escapeHtml(payload.customerName)}!</p>
         <p>${textToHtml(payload.template.introText)}</p>
         <ul>
           <li>This week: <b>${payload.weeklyBags} bags</b></li>

@@ -62,7 +62,10 @@ function TemplateForm({
       <div className="field" style={{ marginBottom: 0 }}>
         <label>Message</label>
         <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} maxLength={1000} style={fieldStyle} />
-        <div className="hint">Use {"{{name}}"} to insert the customer's name. Sent manually — pick this template when texting a customer.</div>
+        <div className="hint">
+          Use {"{{name}}"} for the customer's name and {"{{greeting}}"} for a time-of-day greeting (Good
+          morning/afternoon/night). Sent manually — pick this template when texting a customer.
+        </div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <button className="btn btn-ghost" onClick={handleSubmit} disabled={loading || !name.trim() || !body.trim()}>

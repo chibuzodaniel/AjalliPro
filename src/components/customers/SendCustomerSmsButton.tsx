@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Modal from "@/components/ui/Modal";
 import { sendCustomerSms } from "@/app/(app)/customers/actions";
+import { timeOfDayGreeting } from "@/lib/greeting";
 
 const MAX_LENGTH = 1000;
 
@@ -40,7 +41,10 @@ export default function SendCustomerSmsButton({
     setTemplateId(id);
     const template = templates.find((t) => t.id === id);
     if (template) {
-      setMessage(template.body.replace(/\{\{\s*name\s*\}\}/gi, customerName).slice(0, MAX_LENGTH));
+      const filled = template.body
+        .replace(/\{\{\s*name\s*\}\}/gi, customerName)
+        .replace(/\{\{\s*greeting\s*\}\}/gi, timeOfDayGreeting());
+      setMessage(filled.slice(0, MAX_LENGTH));
     }
   }
 

@@ -1,3 +1,5 @@
+import { timeOfDayGreeting } from "./greeting";
+
 const BULKSMS_API_URL = "https://www.bulksmsnigeria.com/api/v2/sms";
 
 export function isSmsConfigured(): boolean {
@@ -64,6 +66,6 @@ export async function sendWeeklyCustomerSms(payload: WeeklyCustomerSmsPayload): 
   const bonusLine = payload.qualifies
     ? `You've qualified for +${payload.bonus} bonus bags this week!`
     : `${Math.max(0, payload.threshold - payload.weeklyBags)} bags away from this week's +${payload.bonus}-bag bonus.`;
-  const body = `Hi ${payload.customerName}, this week: ${payload.weeklyBags} bags. YTD: ${payload.yearlyBags} bags. ${bonusLine} - Cusica Intl`;
+  const body = `${timeOfDayGreeting()} ${payload.customerName}, this week: ${payload.weeklyBags} bags. YTD: ${payload.yearlyBags} bags. ${bonusLine} - Cusica Intl`;
   await sendSms(payload.to, body);
 }
