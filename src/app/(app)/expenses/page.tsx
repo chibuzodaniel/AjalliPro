@@ -2,7 +2,7 @@ import { getCurrentUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { canViewExpenses } from "@/lib/roles";
 import { formatMoney } from "@/lib/money";
-import { currentWeekKey, weekKeyOf, MONTH_NAMES, todayISO } from "@/lib/week";
+import { currentWeekKey, weekKeyOf, MONTH_NAMES, todayISO, isLastDayOfMonth } from "@/lib/week";
 import { getPackerTotalsMap } from "@/lib/packerPay";
 import KpiCard from "@/components/ui/KpiCard";
 import RangeTabs from "@/components/ui/RangeTabs";
@@ -72,7 +72,9 @@ export default async function ExpensesPage({
   // Salary is more sensitive than routine expenses — Admin Staff can see
   // everything else on this page, but salary stays Admin/Super Admin only.
   const canSeeSalary = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
-  const period = todayISO().slice(0, 7);
+  const today = todayISO();
+  const period = today.slice(0, 7);
+  const payrollDue = isLastDayOfMonth(today);
 
   const [items, allTotals, unpaidCount, rollsEntriesRaw, packingBagsEntriesRaw, packers, packerTotalsMap, staff, paymentsThisPeriod] =
     await Promise.all([
@@ -108,20 +110,22 @@ export default async function ExpensesPage({
 
   // Same idea for this month's salary — Super Admin is a hidden role, so
   // their own salary line only shows to another Super Admin viewing this.
+  // An unpaid month only counts as a recognized expense once it's actually
+  // due (the last day of the month) — before that it's still accruing, not
+  // yet owed. Already-paid staff show immediately regardless of the date,
+  // since that's a real transaction that already happened (e.g. paid early).
   const paymentByUserId = new Map(paymentsThisPeriod.map((p) => [p.userId, p]));
-  const salaryRows = staff
-    .filter((s) => s.role !== "SUPER_ADMIN" || isSuperAdmin)
+  const recognizedSalaryStaff = staff.filter(
+    (s) => (s.role !== "SUPER_ADMIN" || isSuperAdmin) && (paymentByUserId.has(s.id) || payrollDue)
+  );
+  const salaryRows = recognizedSalaryStaff
     .map((s) => ({ staffUser: s, payment: paymentByUserId.get(s.id) ?? null }))
     .filter(({ payment }) => (status === "all" ? true : status === "paid" ? payment !== null : payment === null));
 
   const packerAmount = [...packerTotalsMap.values()].reduce((s, t) => s + t.earned, 0);
   const packerPaid = [...packerTotalsMap.values()].reduce((s, t) => s + t.paid, 0);
-  const salaryAmountTotal = staff
-    .filter((s) => s.role !== "SUPER_ADMIN" || isSuperAdmin)
-    .reduce((s, u) => s + u.salaryAmount, 0);
-  const salaryPaidTotal = staff
-    .filter((s) => s.role !== "SUPER_ADMIN" || isSuperAdmin)
-    .reduce((s, u) => s + (paymentByUserId.get(u.id)?.amount ?? 0), 0);
+  const salaryAmountTotal = recognizedSalaryStaff.reduce((s, u) => s + u.salaryAmount, 0);
+  const salaryPaidTotal = recognizedSalaryStaff.reduce((s, u) => s + (paymentByUserId.get(u.id)?.amount ?? 0), 0);
 
   const totalAmount = allTotals.reduce((s, e) => s + e.amount, 0) + packerAmount + salaryAmountTotal;
   const totalPaid = allTotals.reduce((s, e) => s + e.amountPaid, 0) + packerPaid + salaryPaidTotal;
@@ -129,7 +133,7 @@ export default async function ExpensesPage({
   const unpaidTotalCount =
     unpaidCount +
     [...packerTotalsMap.values()].filter((t) => t.owing > 0).length +
-    staff.filter((s) => (s.role !== "SUPER_ADMIN" || isSuperAdmin) && !paymentByUserId.has(s.id)).length;
+    recognizedSalaryStaff.filter((s) => !paymentByUserId.has(s.id)).length;
 
   const rolls = materialHistory(rollsEntriesRaw.map((e) => ({ date: e.dailyRecord.date, qty: e.rollsKg ?? 0 })));
   const packingBags = materialHistory(
@@ -264,7 +268,7 @@ export default async function ExpensesPage({
           <h1>Expenses</h1>
           <div className="sub">
             Every expense line logged on a daily record, across all days — plus packer pay (running total per
-            packer){canSeeSalary ? " and this month's staff salaries" : ""}
+            packer){canSeeSalary ? " and staff salaries (added once due, at month-end, or once paid)" : ""}
           </div>
         </div>
       </div>

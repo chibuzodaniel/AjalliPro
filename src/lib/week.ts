@@ -31,6 +31,19 @@ export function currentWeekKey(): string {
   return weekKeyOf(todayISO());
 }
 
+/**
+ * True once a date is the last calendar day of its month — used to decide
+ * when an as-yet-unpaid month's salary should start counting as a real,
+ * due expense (see Expenses page) rather than a forward-looking commitment
+ * still accruing. Staff can still be marked paid early any time from the
+ * Staff page; this only governs when it shows up as "owing" on Expenses.
+ */
+export function isLastDayOfMonth(dateStr: string): boolean {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  return day === daysInMonth;
+}
+
 export const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
