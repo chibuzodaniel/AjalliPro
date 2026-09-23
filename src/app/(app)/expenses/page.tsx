@@ -2,7 +2,7 @@ import { getCurrentUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { canViewExpenses } from "@/lib/roles";
 import { formatMoney } from "@/lib/money";
-import { currentWeekKey, weekKeyOf, MONTH_NAMES } from "@/lib/week";
+import { currentWeekKey, weekKeyOf, MONTH_NAMES, todayISO } from "@/lib/week";
 import { getPackerTotalsMap } from "@/lib/packerPay";
 import KpiCard from "@/components/ui/KpiCard";
 import RangeTabs from "@/components/ui/RangeTabs";
@@ -14,6 +14,8 @@ import DeleteExpenseButton from "@/components/expenses/DeleteExpenseButton";
 import MaterialUsageCard, { type MaterialQtyRow } from "@/components/expenses/MaterialUsageCard";
 import PackerPaymentControl from "@/components/packers/PackerPaymentControl";
 import PackerPaymentHistory from "@/components/packers/PackerPaymentHistory";
+import SalaryPaymentControl from "@/components/salary/SalaryPaymentControl";
+import SalaryPaymentHistory from "@/components/salary/SalaryPaymentHistory";
 
 function groupQtyByPeriod(
   entries: { date: string; qty: number }[],
@@ -67,8 +69,9 @@ export default async function ExpensesPage({
   const isSuperAdmin = user?.role === "SUPER_ADMIN";
   const canRecordPayment = user ? canViewExpenses(user.role) : false;
   const canRecordPackerPayment = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
+  const period = todayISO().slice(0, 7);
 
-  const [items, allTotals, unpaidCount, rollsEntriesRaw, packingBagsEntriesRaw, packers, packerTotalsMap] =
+  const [items, allTotals, unpaidCount, rollsEntriesRaw, packingBagsEntriesRaw, packers, packerTotalsMap, staff, paymentsThisPeriod] =
     await Promise.all([
       prisma.expenseItem.findMany({
         where: status === "all" ? {} : { paid: status === "paid" },
@@ -87,6 +90,8 @@ export default async function ExpensesPage({
       }),
       prisma.packer.findMany(),
       getPackerTotalsMap(),
+      prisma.user.findMany({ where: { payrollEnabled: true, salaryAmount: { gt: 0 } } }),
+      prisma.salaryPayment.findMany({ where: { period } }),
     ]);
 
   // Packer pay isn't per-day expense lines any more (see PackerPayment) — it's
@@ -98,10 +103,30 @@ export default async function ExpensesPage({
     .filter(({ totals }) => totals.earned > 0)
     .filter(({ totals }) => (status === "all" ? true : status === "paid" ? totals.owing <= 0 : totals.owing > 0));
 
-  const totalAmount = allTotals.reduce((s, e) => s + e.amount, 0) + [...packerTotalsMap.values()].reduce((s, t) => s + t.earned, 0);
-  const totalPaid = allTotals.reduce((s, e) => s + e.amountPaid, 0) + [...packerTotalsMap.values()].reduce((s, t) => s + t.paid, 0);
+  // Same idea for this month's salary — Super Admin is a hidden role, so
+  // their own salary line only shows to another Super Admin viewing this.
+  const paymentByUserId = new Map(paymentsThisPeriod.map((p) => [p.userId, p]));
+  const salaryRows = staff
+    .filter((s) => s.role !== "SUPER_ADMIN" || isSuperAdmin)
+    .map((s) => ({ staffUser: s, payment: paymentByUserId.get(s.id) ?? null }))
+    .filter(({ payment }) => (status === "all" ? true : status === "paid" ? payment !== null : payment === null));
+
+  const packerAmount = [...packerTotalsMap.values()].reduce((s, t) => s + t.earned, 0);
+  const packerPaid = [...packerTotalsMap.values()].reduce((s, t) => s + t.paid, 0);
+  const salaryAmountTotal = staff
+    .filter((s) => s.role !== "SUPER_ADMIN" || isSuperAdmin)
+    .reduce((s, u) => s + u.salaryAmount, 0);
+  const salaryPaidTotal = staff
+    .filter((s) => s.role !== "SUPER_ADMIN" || isSuperAdmin)
+    .reduce((s, u) => s + (paymentByUserId.get(u.id)?.amount ?? 0), 0);
+
+  const totalAmount = allTotals.reduce((s, e) => s + e.amount, 0) + packerAmount + salaryAmountTotal;
+  const totalPaid = allTotals.reduce((s, e) => s + e.amountPaid, 0) + packerPaid + salaryPaidTotal;
   const totalOutstanding = totalAmount - totalPaid;
-  const unpaidTotalCount = unpaidCount + [...packerTotalsMap.values()].filter((t) => t.owing > 0).length;
+  const unpaidTotalCount =
+    unpaidCount +
+    [...packerTotalsMap.values()].filter((t) => t.owing > 0).length +
+    staff.filter((s) => (s.role !== "SUPER_ADMIN" || isSuperAdmin) && !paymentByUserId.has(s.id)).length;
 
   const rolls = materialHistory(rollsEntriesRaw.map((e) => ({ date: e.dailyRecord.date, qty: e.rollsKg ?? 0 })));
   const packingBags = materialHistory(
@@ -152,6 +177,41 @@ export default async function ExpensesPage({
             </tr>
           );
         })}
+        {salaryRows.map(({ staffUser, payment }) => {
+          const paid = payment !== null;
+          const amountPaid = payment?.amount ?? 0;
+          const remaining = staffUser.salaryAmount - amountPaid;
+          const pillStatus = paid ? "APPROVED" : "REJECTED";
+          return (
+            <tr key={`salary-${staffUser.id}`}>
+              <td>{period}</td>
+              <td>Salary — {staffUser.name}</td>
+              <td>{formatMoney(staffUser.salaryAmount)}</td>
+              <td>—</td>
+              <td>{formatMoney(amountPaid)}</td>
+              <td>{formatMoney(Math.max(0, remaining))}</td>
+              <td>
+                <Pill status={pillStatus}>{paid ? "paid" : "unpaid"}</Pill>
+              </td>
+              <td>—</td>
+              <td style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                {canRecordPackerPayment ? (
+                  <SalaryPaymentControl
+                    userId={staffUser.id}
+                    period={period}
+                    initialPaid={paid}
+                    salaryAmount={staffUser.salaryAmount}
+                  />
+                ) : paid ? (
+                  <span style={{ fontSize: 12.5, color: "var(--green)" }}>Paid in full</span>
+                ) : (
+                  <span style={{ fontSize: 12.5, color: "var(--text-faint)" }}>{formatMoney(staffUser.salaryAmount)} owing</span>
+                )}
+                <SalaryPaymentHistory userId={staffUser.id} name={staffUser.name} />
+              </td>
+            </tr>
+          );
+        })}
         {items.map((item) => {
           const remaining = item.amount - item.amountPaid;
           const pillStatus = item.paid ? "APPROVED" : item.amountPaid > 0 ? "PENDING" : "REJECTED";
@@ -192,14 +252,17 @@ export default async function ExpensesPage({
     </table>
   );
 
-  const totalRowCount = packerRows.length + items.length;
+  const totalRowCount = packerRows.length + salaryRows.length + items.length;
 
   return (
     <div>
       <div className="topbar">
         <div>
           <h1>Expenses</h1>
-          <div className="sub">Every expense line logged on a daily record, across all days — packer pay shown as one running total per packer</div>
+          <div className="sub">
+            Every expense line logged on a daily record, across all days — plus packer pay (running total per
+            packer) and this month&apos;s staff salaries
+          </div>
         </div>
       </div>
       <div className="grid grid-5" style={{ marginBottom: 18 }}>
