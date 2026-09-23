@@ -1,6 +1,7 @@
 import { prisma } from "./prisma";
 
 export interface PackerTotals {
+  bags: number; // total bags packed across every approved production line ever logged for this packer
   earned: number; // sum of bags × pricePerBag across every approved production line ever logged for this packer
   paid: number; // sum of PackerPayment.amount
   owing: number; // earned - paid
@@ -16,8 +17,10 @@ export async function getPackerTotalsMap(): Promise<Map<string, PackerTotals>> {
     prisma.packerPayment.groupBy({ by: ["packerId"], _sum: { amount: true } }),
   ]);
 
+  const bagsByPacker = new Map<string, number>();
   const earnedByPacker = new Map<string, number>();
   for (const l of lines) {
+    bagsByPacker.set(l.packerId, (bagsByPacker.get(l.packerId) ?? 0) + l.bags);
     earnedByPacker.set(l.packerId, (earnedByPacker.get(l.packerId) ?? 0) + l.bags * l.pricePerBag);
   }
   const paidByPacker = new Map(payments.map((p) => [p.packerId, p._sum.amount ?? 0]));
@@ -25,9 +28,10 @@ export async function getPackerTotalsMap(): Promise<Map<string, PackerTotals>> {
   const result = new Map<string, PackerTotals>();
   const allIds = new Set([...earnedByPacker.keys(), ...paidByPacker.keys()]);
   for (const id of allIds) {
+    const bags = bagsByPacker.get(id) ?? 0;
     const earned = earnedByPacker.get(id) ?? 0;
     const paid = paidByPacker.get(id) ?? 0;
-    result.set(id, { earned, paid, owing: earned - paid });
+    result.set(id, { bags, earned, paid, owing: earned - paid });
   }
   return result;
 }

@@ -137,31 +137,40 @@ export interface PackerPaymentResult {
 }
 
 /**
- * Pays off a packer's entire current running balance in one go, records it
- * as a PackerPayment, and texts them the amount — same pattern as marking
- * a staff salary paid. An SMS failure doesn't undo the recorded payment.
+ * Records a payment against a packer's running balance — the full amount
+ * owing, or a partial amount (paying them in installments), your choice.
+ * Each call adds one PackerPayment row and texts them that specific amount
+ * paid. An SMS failure doesn't undo the recorded payment.
  */
-export async function markPackerPaid(packerId: string): Promise<PackerPaymentResult> {
+export async function payPackerAmount(packerId: string, amount: number): Promise<PackerPaymentResult> {
   const guard = await requireRoleSafe(["ADMIN", "SUPER_ADMIN"]);
   if (!guard.ok) return { ok: false, error: guard.error };
   const admin = guard.user;
 
+  if (!Number.isInteger(amount) || amount <= 0) {
+    return { ok: false, error: "Enter a valid amount." };
+  }
+
   const packer = await prisma.packer.findUnique({ where: { id: packerId } });
   if (!packer) return { ok: false, error: "Packer not found." };
 
-  const totals = (await getPackerTotalsMap()).get(packerId) ?? { earned: 0, paid: 0, owing: 0 };
+  const totals = (await getPackerTotalsMap()).get(packerId) ?? { bags: 0, earned: 0, paid: 0, owing: 0 };
   if (totals.owing <= 0) {
     return { ok: false, error: `"${packer.name}" has nothing owing right now.` };
   }
+  if (amount > totals.owing) {
+    return { ok: false, error: `"${packer.name}" is only owed ${formatMoney(totals.owing)}.` };
+  }
 
   await prisma.packerPayment.create({
-    data: { packerId, amount: totals.owing, paidById: admin.id },
+    data: { packerId, amount, paidById: admin.id },
   });
-  await logActivity(`${admin.name} marked "${packer.name}"'s pay (${formatMoney(totals.owing)}) as paid.`, admin.id);
+  const label = amount === totals.owing ? "as paid" : "as partially paid";
+  await logActivity(`${admin.name} marked "${packer.name}"'s pay (${formatMoney(amount)}) ${label}.`, admin.id);
 
   if (packer.phone && isSmsConfigured()) {
     try {
-      await sendPackerPaidSms({ to: packer.phone, packerName: packer.name, amount: totals.owing });
+      await sendPackerPaidSms({ to: packer.phone, packerName: packer.name, amount });
     } catch {
       // Payment is already recorded — an SMS failure shouldn't undo it or block the admin's flow.
     }

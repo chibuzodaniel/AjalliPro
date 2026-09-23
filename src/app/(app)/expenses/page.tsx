@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { canViewExpenses } from "@/lib/roles";
 import { formatMoney } from "@/lib/money";
 import { currentWeekKey, weekKeyOf, MONTH_NAMES } from "@/lib/week";
+import { getPackerTotalsMap } from "@/lib/packerPay";
 import KpiCard from "@/components/ui/KpiCard";
 import RangeTabs from "@/components/ui/RangeTabs";
 import Pill from "@/components/ui/Pill";
@@ -11,6 +12,8 @@ import ExpensePaymentControl from "@/components/expenses/ExpensePaymentControl";
 import ExpensePaymentHistory from "@/components/expenses/ExpensePaymentHistory";
 import DeleteExpenseButton from "@/components/expenses/DeleteExpenseButton";
 import MaterialUsageCard, { type MaterialQtyRow } from "@/components/expenses/MaterialUsageCard";
+import PackerPaymentControl from "@/components/packers/PackerPaymentControl";
+import PackerPaymentHistory from "@/components/packers/PackerPaymentHistory";
 
 function groupQtyByPeriod(
   entries: { date: string; qty: number }[],
@@ -63,28 +66,42 @@ export default async function ExpensesPage({
   const user = await getCurrentUser();
   const isSuperAdmin = user?.role === "SUPER_ADMIN";
   const canRecordPayment = user ? canViewExpenses(user.role) : false;
+  const canRecordPackerPayment = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
 
-  const [items, allTotals, unpaidCount, rollsEntriesRaw, packingBagsEntriesRaw] = await Promise.all([
-    prisma.expenseItem.findMany({
-      where: status === "all" ? {} : { paid: status === "paid" },
-      include: { dailyRecord: true, paidBy: true, _count: { select: { payments: true } } },
-      orderBy: { dailyRecord: { date: "desc" } },
-    }),
-    prisma.expenseItem.findMany({ select: { amount: true, amountPaid: true } }),
-    prisma.expenseItem.count({ where: { paid: false } }),
-    prisma.expenseItem.findMany({
-      where: { rollsKg: { not: null } },
-      select: { rollsKg: true, dailyRecord: { select: { date: true } } },
-    }),
-    prisma.expenseItem.findMany({
-      where: { packingBagsBundles: { not: null } },
-      select: { packingBagsBundles: true, dailyRecord: { select: { date: true } } },
-    }),
-  ]);
+  const [items, allTotals, unpaidCount, rollsEntriesRaw, packingBagsEntriesRaw, packers, packerTotalsMap] =
+    await Promise.all([
+      prisma.expenseItem.findMany({
+        where: status === "all" ? {} : { paid: status === "paid" },
+        include: { dailyRecord: true, paidBy: true, _count: { select: { payments: true } } },
+        orderBy: { dailyRecord: { date: "desc" } },
+      }),
+      prisma.expenseItem.findMany({ select: { amount: true, amountPaid: true } }),
+      prisma.expenseItem.count({ where: { paid: false } }),
+      prisma.expenseItem.findMany({
+        where: { rollsKg: { not: null } },
+        select: { rollsKg: true, dailyRecord: { select: { date: true } } },
+      }),
+      prisma.expenseItem.findMany({
+        where: { packingBagsBundles: { not: null } },
+        select: { packingBagsBundles: true, dailyRecord: { select: { date: true } } },
+      }),
+      prisma.packer.findMany(),
+      getPackerTotalsMap(),
+    ]);
 
-  const totalAmount = allTotals.reduce((s, e) => s + e.amount, 0);
-  const totalPaid = allTotals.reduce((s, e) => s + e.amountPaid, 0);
+  // Packer pay isn't per-day expense lines any more (see PackerPayment) — it's
+  // folded into this page as one consolidated row per packer, filtered by the
+  // same paid/unpaid/all tabs as everything else, so it shows up here without
+  // being counted twice against any real ExpenseItem.
+  const packerRows = packers
+    .map((p) => ({ packer: p, totals: packerTotalsMap.get(p.id) ?? { bags: 0, earned: 0, paid: 0, owing: 0 } }))
+    .filter(({ totals }) => totals.earned > 0)
+    .filter(({ totals }) => (status === "all" ? true : status === "paid" ? totals.owing <= 0 : totals.owing > 0));
+
+  const totalAmount = allTotals.reduce((s, e) => s + e.amount, 0) + [...packerTotalsMap.values()].reduce((s, t) => s + t.earned, 0);
+  const totalPaid = allTotals.reduce((s, e) => s + e.amountPaid, 0) + [...packerTotalsMap.values()].reduce((s, t) => s + t.paid, 0);
   const totalOutstanding = totalAmount - totalPaid;
+  const unpaidTotalCount = unpaidCount + [...packerTotalsMap.values()].filter((t) => t.owing > 0).length;
 
   const rolls = materialHistory(rollsEntriesRaw.map((e) => ({ date: e.dailyRecord.date, qty: e.rollsKg ?? 0 })));
   const packingBags = materialHistory(
@@ -107,6 +124,34 @@ export default async function ExpensesPage({
         </tr>
       </thead>
       <tbody>
+        {packerRows.map(({ packer, totals }) => {
+          const pillStatus = totals.owing <= 0 ? "APPROVED" : totals.paid > 0 ? "PENDING" : "REJECTED";
+          const label = totals.owing <= 0 ? "paid" : totals.paid > 0 ? "partial" : "unpaid";
+          return (
+            <tr key={`packer-${packer.id}`}>
+              <td>Ongoing</td>
+              <td>Packer pay — {packer.name}</td>
+              <td>{formatMoney(totals.earned)}</td>
+              <td>{totals.bags} bags</td>
+              <td>{formatMoney(totals.paid)}</td>
+              <td>{formatMoney(Math.max(0, totals.owing))}</td>
+              <td>
+                <Pill status={pillStatus}>{label}</Pill>
+              </td>
+              <td>—</td>
+              <td style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                {canRecordPackerPayment ? (
+                  <PackerPaymentControl packerId={packer.id} owing={totals.owing} paid={totals.paid} />
+                ) : totals.owing <= 0 ? (
+                  <span style={{ fontSize: 12.5, color: "var(--green)" }}>Paid in full</span>
+                ) : (
+                  <span style={{ fontSize: 12.5, color: "var(--text-faint)" }}>{formatMoney(totals.owing)} owing</span>
+                )}
+                <PackerPaymentHistory packerId={packer.id} name={packer.name} />
+              </td>
+            </tr>
+          );
+        })}
         {items.map((item) => {
           const remaining = item.amount - item.amountPaid;
           const pillStatus = item.paid ? "APPROVED" : item.amountPaid > 0 ? "PENDING" : "REJECTED";
@@ -147,19 +192,21 @@ export default async function ExpensesPage({
     </table>
   );
 
+  const totalRowCount = packerRows.length + items.length;
+
   return (
     <div>
       <div className="topbar">
         <div>
           <h1>Expenses</h1>
-          <div className="sub">Every expense line logged on a daily record, across all days</div>
+          <div className="sub">Every expense line logged on a daily record, across all days — packer pay shown as one running total per packer</div>
         </div>
       </div>
       <div className="grid grid-5" style={{ marginBottom: 18 }}>
         <KpiCard
           label="Outstanding"
           value={formatMoney(totalOutstanding)}
-          delta={`${unpaidCount} item${unpaidCount === 1 ? "" : "s"}`}
+          delta={`${unpaidTotalCount} item${unpaidTotalCount === 1 ? "" : "s"}`}
           deltaTone="neg"
         />
         <KpiCard label="Paid" value={formatMoney(totalPaid)} />
@@ -196,7 +243,7 @@ export default async function ExpensesPage({
           <ViewAllModal title="All Expenses">{expensesTable}</ViewAllModal>
         </div>
         <div className="table-wrap">{expensesTable}</div>
-        {items.length === 0 && <div className="empty">No {status === "all" ? "" : status} expenses.</div>}
+        {totalRowCount === 0 && <div className="empty">No {status === "all" ? "" : status} expenses.</div>}
       </div>
     </div>
   );

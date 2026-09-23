@@ -1,7 +1,6 @@
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { canManagePackers } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
-import { getApprovedRecordsSorted } from "@/lib/records";
 import { getPricingSettings } from "@/lib/settings";
 import { getPackerTotalsMap } from "@/lib/packerPay";
 import { formatMoney } from "@/lib/money";
@@ -17,9 +16,8 @@ import { sendPackerSms } from "./actions";
 
 export default async function PackersPage() {
   const user = await getCurrentUser();
-  const [packers, approvedRecords, pricing, totalsMap, smsTemplates] = await Promise.all([
+  const [packers, pricing, totalsMap, smsTemplates] = await Promise.all([
     prisma.packer.findMany({ orderBy: { createdAt: "desc" } }),
-    getApprovedRecordsSorted(),
     getPricingSettings(),
     getPackerTotalsMap(),
     prisma.smsTemplate.findMany({ orderBy: { name: "asc" } }),
@@ -28,13 +26,6 @@ export default async function PackersPage() {
   const canManage = user ? canManagePackers(user.role) : false;
   const canRecordPayment = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
   const canDelete = user?.role === "SUPER_ADMIN";
-
-  const bagsByPacker = new Map<string, number>();
-  for (const r of approvedRecords) {
-    for (const p of r.productionLines) {
-      bagsByPacker.set(p.packerId, (bagsByPacker.get(p.packerId) ?? 0) + p.bags);
-    }
-  }
 
   const packersTable = (
     <table>
@@ -50,8 +41,7 @@ export default async function PackersPage() {
       </thead>
       <tbody>
         {packers.map((p) => {
-          const bags = bagsByPacker.get(p.id) ?? 0;
-          const totals = totalsMap.get(p.id) ?? { earned: 0, paid: 0, owing: 0 };
+          const totals = totalsMap.get(p.id) ?? { bags: 0, earned: 0, paid: 0, owing: 0 };
           return (
             <tr key={p.id}>
               <td>
@@ -59,7 +49,7 @@ export default async function PackersPage() {
                   packerId={p.id}
                   name={p.name}
                   phone={p.phone}
-                  bagsPacked={bags}
+                  bagsPacked={totals.bags}
                   owing={totals.owing}
                   paid={totals.paid}
                 />
@@ -71,7 +61,7 @@ export default async function PackersPage() {
                   p.phone || "—"
                 )}
               </td>
-              <td>{bags}</td>
+              <td>{totals.bags}</td>
               <td>
                 <span style={{ color: totals.owing > 0 ? "var(--red)" : "var(--text-faint)" }}>
                   {formatMoney(totals.owing)}
@@ -79,7 +69,7 @@ export default async function PackersPage() {
               </td>
               <td>{formatMoney(totals.paid)}</td>
               <td style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-                {canRecordPayment && <PackerPaymentControl packerId={p.id} owing={totals.owing} />}
+                {canRecordPayment && <PackerPaymentControl packerId={p.id} owing={totals.owing} paid={totals.paid} />}
                 {canManage && <PackerPaymentHistory packerId={p.id} name={p.name} />}
                 {canManage && p.phone && (
                   <SendEntitySmsButton entityId={p.id} entityName={p.name} templates={smsTemplates} sendAction={sendPackerSms} />
