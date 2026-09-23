@@ -40,6 +40,20 @@ function toGsmSafeAscii(text: string): string {
     .replace(/[^\x00-\x7F]/g, ""); // anything else non-ASCII — drop rather than let the gateway turn it into "?"
 }
 
+/**
+ * BulkSMSNigeria support flagged that a clean, dialable-looking phone
+ * number inside the message BODY (e.g. an "enquiries, call 0801..." line
+ * typed into a template) can trip spam/content filtering and cause a
+ * message to silently fail to deliver — their advice was to break the
+ * digits up with separators so it stays human-readable but no longer
+ * matches a plain phone-number pattern. This only touches numbers found
+ * inside the message text; the actual "to" recipient is handled
+ * separately in sendSms and is never touched by this.
+ */
+function obscurePhoneNumbersInBody(text: string): string {
+  return text.replace(/\b0\d{10}\b/g, (match) => `${match.slice(0, 3)}_${match.slice(3, 6)}-${match.slice(6, 9)}_${match.slice(9, 11)}`);
+}
+
 /** Low-level send — one free-text message to one Nigerian phone number. */
 export async function sendSms(to: string, body: string): Promise<void> {
   const token = process.env.BULKSMSNIGERIA_API_TOKEN;
@@ -56,7 +70,7 @@ export async function sendSms(to: string, body: string): Promise<void> {
       "Content-Type": "application/json",
       Accept: "application/json",
     },
-    body: JSON.stringify({ from: senderId, to: normalizedTo, body: toGsmSafeAscii(body) }),
+    body: JSON.stringify({ from: senderId, to: normalizedTo, body: toGsmSafeAscii(obscurePhoneNumbersInBody(body)) }),
   });
 
   const rawText = await res.text();

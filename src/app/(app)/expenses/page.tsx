@@ -69,6 +69,9 @@ export default async function ExpensesPage({
   const isSuperAdmin = user?.role === "SUPER_ADMIN";
   const canRecordPayment = user ? canViewExpenses(user.role) : false;
   const canRecordPackerPayment = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
+  // Salary is more sensitive than routine expenses — Admin Staff can see
+  // everything else on this page, but salary stays Admin/Super Admin only.
+  const canSeeSalary = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
   const period = todayISO().slice(0, 7);
 
   const [items, allTotals, unpaidCount, rollsEntriesRaw, packingBagsEntriesRaw, packers, packerTotalsMap, staff, paymentsThisPeriod] =
@@ -90,8 +93,8 @@ export default async function ExpensesPage({
       }),
       prisma.packer.findMany(),
       getPackerTotalsMap(),
-      prisma.user.findMany({ where: { payrollEnabled: true, salaryAmount: { gt: 0 } } }),
-      prisma.salaryPayment.findMany({ where: { period } }),
+      canSeeSalary ? prisma.user.findMany({ where: { payrollEnabled: true, salaryAmount: { gt: 0 } } }) : Promise.resolve([]),
+      canSeeSalary ? prisma.salaryPayment.findMany({ where: { period } }) : Promise.resolve([]),
     ]);
 
   // Packer pay isn't per-day expense lines any more (see PackerPayment) — it's
@@ -261,7 +264,7 @@ export default async function ExpensesPage({
           <h1>Expenses</h1>
           <div className="sub">
             Every expense line logged on a daily record, across all days — plus packer pay (running total per
-            packer) and this month&apos;s staff salaries
+            packer){canSeeSalary ? " and this month's staff salaries" : ""}
           </div>
         </div>
       </div>
