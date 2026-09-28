@@ -51,6 +51,7 @@ model User {
   salaryPayments       SalaryPayment[]    @relation("SalaryPaymentFor")
   salaryPaymentsMarked SalaryPayment[]    @relation("SalaryPaymentMarkedBy")
   packerPaymentsMarked PackerPayment[]    @relation("PackerPaymentMarkedBy")
+  incentiveAwardsMade  IncentiveAward[]
 }
 
 model PushSubscription {
@@ -80,6 +81,7 @@ model DailyRecord {
   leakageBags            Int            @default(0) // NEW leakage logged today, added to the pile
   leakageWasteBags       Int            @default(0) // bags lost/spoiled while rebagging leakage stock — not sellable, not carried forward
   leakageClosing         Int            @default(0) // leakageOpening + leakageBags - factoryBagsFromLeakage - leakageWasteBags
+  incentiveBonusBags     Int            @default(0) // cumulative weekly-incentive bonus bags approved+deducted from stock on this day — see IncentiveAward
   status                 ApprovalStatus @default(PENDING)
   createdById            String
   createdBy              User           @relation("DailyRecordCreatedBy", fields: [createdById], references: [id])
@@ -96,6 +98,7 @@ model DailyRecord {
   driverSales     DriverSale[]
   truckDeliveries TruckDelivery[]
   expenseItems    ExpenseItem[]
+  incentiveAwards IncentiveAward[]
 
   @@index([status])
   @@index([date])
@@ -195,7 +198,8 @@ model Driver {
   approvedBy   User?          @relation("DriverApprovedBy", fields: [approvedById], references: [id])
   createdAt    DateTime       @default(now())
 
-  sales DriverSale[]
+  sales           DriverSale[]
+  incentiveAwards IncentiveAward[]
 }
 
 model DriverSale {
@@ -255,6 +259,39 @@ model Customer {
   driverSalesAsCustomer  DriverSale[]    @relation("DriverSaleCustomer")
   truckDeliveries        TruckDelivery[]
   mailLogs               MailLog[]
+  incentiveAwards        IncentiveAward[]
+}
+
+/**
+ * A one-time record of an admin/super-admin approving a weekly incentive
+ * bonus (a customer/driver crossing the 500/1000-bag threshold) — approving
+ * deducts bonusBags from stock on dailyRecord (the day it was approved,
+ * not the day the threshold was crossed) and this row is both the
+ * idempotency guard (never award the same entity+week twice) and the audit
+ * trail of who approved it.
+ */
+model IncentiveAward {
+  id         String @id @default(cuid())
+  entityType String // "CUSTOMER" | "DRIVER"
+
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+  driverId   String?
+  driver     Driver?   @relation(fields: [driverId], references: [id])
+
+  weekKey   String // e.g. "2026-W39" — the week the threshold was reached
+  bonusBags Int
+
+  dailyRecordId String // the day this was approved on — stock was deducted here
+  dailyRecord   DailyRecord @relation(fields: [dailyRecordId], references: [id])
+
+  approvedAt   DateTime @default(now())
+  approvedById String
+  approvedBy   User     @relation(fields: [approvedById], references: [id])
+
+  @@index([weekKey])
+  @@index([customerId])
+  @@index([driverId])
 }
 
 model MailLog {

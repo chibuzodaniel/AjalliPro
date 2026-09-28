@@ -20,6 +20,8 @@ export interface ClosingStockInput {
   truckDeliveryBagsTotal: number;
   truckDeliveryBonusBagsTotal: number;
   leakageBagsNew: number;
+  /** Approved weekly-incentive bonus bags deducted on this day — see IncentiveAward. Defaults to 0 for callers that don't track it. */
+  incentiveBonusBags?: number;
 }
 
 /**
@@ -27,7 +29,9 @@ export interface ClosingStockInput {
  * stock the day they leaked, so subtracting them again here would double-count
  * the loss. Bonus bags handed out as an instant driver/customer incentive
  * still leave the warehouse, so they count the same as a regular sale for
- * stock purposes.
+ * stock purposes. Weekly-threshold incentive bags (incentiveBonusBags) leave
+ * the warehouse the same way, just approved and deducted separately — see
+ * approveIncentiveAward.
  */
 export function computeClosingStock(input: ClosingStockInput): number {
   return (
@@ -38,7 +42,8 @@ export function computeClosingStock(input: ClosingStockInput): number {
     input.driverBonusBagsTotal -
     input.truckDeliveryBagsTotal -
     input.truckDeliveryBonusBagsTotal -
-    input.leakageBagsNew
+    input.leakageBagsNew -
+    (input.incentiveBonusBags ?? 0)
   );
 }
 

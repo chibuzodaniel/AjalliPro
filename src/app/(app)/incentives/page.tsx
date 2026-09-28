@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth-helpers";
 import { getApprovedRecordsSorted, getAllApprovedRecordsEverSorted } from "@/lib/records";
 import {
   computeIncentiveData,
@@ -14,6 +15,7 @@ import KpiCard from "@/components/ui/KpiCard";
 import RangeTabs from "@/components/ui/RangeTabs";
 import ViewAllModal from "@/components/ui/ViewAllModal";
 import IncentiveHistoryButton from "@/components/incentives/IncentiveHistoryButton";
+import RevertIncentiveAwardButton from "@/components/incentives/RevertIncentiveAwardButton";
 
 function monthLabel(key: string) {
   return `${MONTH_NAMES[Number(key.slice(5, 7)) - 1]} ${key.slice(0, 4)}`;
@@ -42,13 +44,20 @@ export default async function IncentivesPage({
 }) {
   const sp = await searchParams;
   const tab = sp.tab === "drivers" ? "drivers" : "customers";
+  const user = await getCurrentUser();
+  const canRevertAward = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
 
-  const [customers, drivers, approvedRecords, allApprovedRecordsEver, weeklySettings] = await Promise.all([
+  const [customers, drivers, approvedRecords, allApprovedRecordsEver, weeklySettings, awardHistory] = await Promise.all([
     prisma.customer.findMany({ orderBy: { name: "asc" } }),
     prisma.driver.findMany({ where: { status: "APPROVED" }, orderBy: { name: "asc" } }),
     getApprovedRecordsSorted(),
     getAllApprovedRecordsEverSorted(),
     getWeeklyIncentiveSettings(),
+    prisma.incentiveAward.findMany({
+      include: { customer: true, driver: true, approvedBy: true, dailyRecord: true },
+      orderBy: { approvedAt: "desc" },
+      take: 50,
+    }),
   ]);
   // "This week" figures reflect only the current session (since the last archive).
   // Everything else here — all-time weeks qualified, year-to-date totals — keeps
@@ -283,6 +292,48 @@ export default async function IncentivesPage({
           </div>
         </div>
       )}
+
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="section-title">Weekly bonus approval history</div>
+        <div className="section-sub">
+          Every approved weekly-bonus deduction — bonus bags come off stock on the day they're approved, not the day
+          the threshold was reached.
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Week</th>
+                <th>Bonus bags</th>
+                <th>Deducted on</th>
+                <th>Approved by</th>
+                <th>Approved at</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {awardHistory.map((a) => (
+                <tr key={a.id}>
+                  <td>
+                    {a.customer?.name ?? a.driver?.name ?? "Unknown"}{" "}
+                    <span style={{ fontSize: 11, color: "var(--text-faint)" }}>
+                      ({a.entityType === "CUSTOMER" ? "customer" : "driver"})
+                    </span>
+                  </td>
+                  <td>{a.weekKey}</td>
+                  <td>+{a.bonusBags}</td>
+                  <td>{a.dailyRecord.date}</td>
+                  <td>{a.approvedBy.name}</td>
+                  <td>{a.approvedAt.toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" })}</td>
+                  <td>{canRevertAward && <RevertIncentiveAwardButton awardId={a.id} />}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {awardHistory.length === 0 && <div className="empty">No weekly bonuses approved yet.</div>}
+        </div>
+      </div>
     </div>
   );
 }

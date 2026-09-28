@@ -8,9 +8,11 @@ import { computeIncentiveData, weeksQualifiedInYear, yearTotal } from "@/lib/inc
 import { currentWeekKey, todayISO, weekKeyOf, MONTH_NAMES } from "@/lib/week";
 import { formatMoney } from "@/lib/money";
 import { getWeeklyIncentiveSettings } from "@/lib/settings";
+import { getPendingIncentiveAwards } from "@/lib/incentiveAwards";
 import KpiCard from "@/components/ui/KpiCard";
 import NetRevenueCard, { type PeriodRow } from "@/components/dashboard/NetRevenueCard";
 import AnnouncementButton from "@/components/dashboard/AnnouncementButton";
+import IncentiveAwardNotice from "@/components/dashboard/IncentiveAwardNotice";
 import { LineTrendChart, BarTrendChart } from "@/components/charts/DynamicTrendChart";
 import type { DailyRecordFull } from "@/lib/records";
 
@@ -65,6 +67,7 @@ export default async function DashboardPage() {
     getWeeklyIncentiveSettings(),
   ]);
   const canAnnounce = user ? user.role === "ADMIN_STAFF" || approver : false;
+  const pendingIncentiveAwards = approver ? await getPendingIncentiveAwards() : [];
 
   const stock = approvedRecords.length ? approvedRecords[approvedRecords.length - 1].closingStock : 0;
   const today = todayISO();
@@ -176,6 +179,7 @@ export default async function DashboardPage() {
 
   return (
     <div>
+      {approver && <IncentiveAwardNotice pending={pendingIncentiveAwards} />}
       <div className="topbar">
         <div>
           <h1>Dashboard</h1>
