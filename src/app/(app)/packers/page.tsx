@@ -27,6 +27,13 @@ export default async function PackersPage() {
   const canRecordPayment = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
   const canDelete = user?.role === "SUPER_ADMIN";
 
+  // Packers we still owe money to belong at the top of the list, highest
+  // balance first — paid-up packers sink to the bottom (stable-sorted among
+  // themselves by their original createdAt-desc order).
+  const sortedPackers = [...packers].sort(
+    (a, b) => (totalsMap.get(b.id)?.owing ?? 0) - (totalsMap.get(a.id)?.owing ?? 0)
+  );
+
   const packersTable = (
     <table>
       <thead>
@@ -40,7 +47,7 @@ export default async function PackersPage() {
         </tr>
       </thead>
       <tbody>
-        {packers.map((p) => {
+        {sortedPackers.map((p) => {
           const totals = totalsMap.get(p.id) ?? { bags: 0, earned: 0, paid: 0, owing: 0 };
           return (
             <tr key={p.id}>

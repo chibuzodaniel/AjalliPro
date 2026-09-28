@@ -2,9 +2,11 @@ import { getCurrentUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { recordSoldTotal, recordProdTotal, dailyRecordInclude } from "@/lib/records";
 import { roleLabel, isApprover, canApproveDailyRecords } from "@/lib/roles";
+import { getPricingSettings } from "@/lib/settings";
 import ApproveRejectButtons from "@/components/shared/ApproveRejectButtons";
 import ViewAllModal from "@/components/ui/ViewAllModal";
 import DailyRecordDetail from "@/components/daily-record/DailyRecordDetail";
+import EditDailyRecordButton from "@/components/daily-record/EditDailyRecordButton";
 import DeleteDailyRecordButton from "@/components/daily-record/DeleteDailyRecordButton";
 import PendingDriverDetail from "@/components/approvals/PendingDriverDetail";
 import { approveDailyRecord, rejectDailyRecord } from "./actions";
@@ -17,7 +19,7 @@ export default async function ApprovalsPage() {
   const dbUser = user ? await prisma.user.findUnique({ where: { id: user.id }, select: { dailyRecordApprover: true } }) : null;
   const canSeeDailyRecords = user ? canApproveDailyRecords(user.role, dbUser?.dailyRecordApprover ?? false) : false;
 
-  const [pendingRecords, pendingDrivers] = await Promise.all([
+  const [pendingRecords, pendingDrivers, editDrivers, editCustomers, pricing] = await Promise.all([
     canSeeDailyRecords
       ? prisma.dailyRecord.findMany({
           where: { status: "PENDING" },
@@ -30,6 +32,9 @@ export default async function ApprovalsPage() {
       include: { createdBy: true },
       orderBy: { createdAt: "desc" },
     }),
+    approver ? prisma.driver.findMany({ where: { status: "APPROVED" }, orderBy: { name: "asc" } }) : Promise.resolve([]),
+    approver ? prisma.customer.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    approver ? getPricingSettings() : Promise.resolve(null),
   ]);
 
   const pendingRecordsTable = (
@@ -57,8 +62,24 @@ export default async function ApprovalsPage() {
                 {net >= 0 ? "+" : ""}
                 {net} bags
               </td>
-              <td style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <td style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                 <ApproveRejectButtons id={r.id} onApprove={approveDailyRecord} onReject={rejectDailyRecord} />
+                {approver && pricing && (
+                  <EditDailyRecordButton
+                    record={r}
+                    drivers={editDrivers.map((d) => ({ id: d.id, name: d.name, pricePerBag: d.pricePerBag, loadingFee: d.loadingFee }))}
+                    customers={editCustomers.map((c) => ({ id: c.id, name: c.name, pricePerBag: c.pricePerBag }))}
+                    canEditOpeningStock={user?.role === "SUPER_ADMIN"}
+                    canEditFactoryPrice={user?.role === "ADMIN" || user?.role === "SUPER_ADMIN"}
+                    canEditLeakageOpening={user?.role === "SUPER_ADMIN"}
+                    packerPricePerBag={pricing.packerPricePerBag}
+                    truckLoadingFeePerBag={pricing.truckLoadingFeePerBag}
+                    truckOffloadingFeePerBag={pricing.truckOffloadingFeePerBag}
+                    truckHiredCostPerBag={pricing.truckHiredCostPerBag}
+                    rollsPricePerKg={pricing.rollsPricePerKg}
+                    packingBagsPricePerBundle={pricing.packingBagsPricePerBundle}
+                  />
+                )}
                 {approver && <DeleteDailyRecordButton id={r.id} date={r.date} status={r.status} />}
               </td>
             </tr>
