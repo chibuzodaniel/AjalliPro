@@ -24,20 +24,30 @@ import {
 } from "@/lib/records";
 
 function buildLoadingFeeExpenses(
-  driverSales: { driverId: string; bags: number; loadingFeeWaived: boolean }[],
-  driverById: Map<string, { name: string; loadingFee: number }>
+  driverSales: { driverId: string; bags: number; loadingFeeWaived: boolean; loadingFeePaid: boolean }[],
+  driverById: Map<string, { name: string; loadingFee: number }>,
+  paidById: string
 ) {
-  const expenses: { description: string; amount: number; paid: boolean; paidAt: null; paidById: null }[] = [];
+  const expenses: {
+    description: string;
+    amount: number;
+    amountPaid: number;
+    paid: boolean;
+    paidAt: Date | null;
+    paidById: string | null;
+  }[] = [];
   for (const d of driverSales) {
     if (d.bags <= 0 || d.loadingFeeWaived) continue;
     const driver = driverById.get(d.driverId);
     if (!driver || driver.loadingFee <= 0) continue;
+    const amount = d.bags * driver.loadingFee;
     expenses.push({
       description: `Loading fee — ${driver.name}`,
-      amount: d.bags * driver.loadingFee,
-      paid: false,
-      paidAt: null,
-      paidById: null,
+      amount,
+      amountPaid: d.loadingFeePaid ? amount : 0,
+      paid: d.loadingFeePaid,
+      paidAt: d.loadingFeePaid ? new Date() : null,
+      paidById: d.loadingFeePaid ? paidById : null,
     });
   }
   return expenses;
@@ -60,53 +70,49 @@ function buildTruckCostExpenses(
     loadingFeeWaived: boolean;
     offloadingFeeWaived: boolean;
     hiredCostWaived: boolean;
+    fuelPaid: boolean;
+    hiredCostPaid: boolean;
+    loadingFeePaid: boolean;
+    offloadingFeePaid: boolean;
   }[],
   customerById: Map<string, { name: string }>,
   truckLoadingFeePerBag: number,
   truckOffloadingFeePerBag: number,
-  truckHiredCostPerBag: number
+  truckHiredCostPerBag: number,
+  paidById: string
 ) {
-  const expenses: { description: string; amount: number; paid: boolean; paidAt: null; paidById: null }[] = [];
+  const expenses: {
+    description: string;
+    amount: number;
+    amountPaid: number;
+    paid: boolean;
+    paidAt: Date | null;
+    paidById: string | null;
+  }[] = [];
+  const push = (description: string, amount: number, isPaid: boolean) => {
+    expenses.push({
+      description,
+      amount,
+      amountPaid: isPaid ? amount : 0,
+      paid: isPaid,
+      paidAt: isPaid ? new Date() : null,
+      paidById: isPaid ? paidById : null,
+    });
+  };
   for (const t of truckDeliveries) {
     const customerName = customerById.get(t.customerId)?.name ?? "no customer";
 
     if (t.ownTruck) {
-      if (t.fuelCost > 0) {
-        expenses.push({
-          description: `Truck fuel — ${customerName}`,
-          amount: t.fuelCost,
-          paid: false,
-          paidAt: null,
-          paidById: null,
-        });
-      }
+      if (t.fuelCost > 0) push(`Truck fuel — ${customerName}`, t.fuelCost, t.fuelPaid);
     } else if (t.bags > 0 && !t.hiredCostWaived && truckHiredCostPerBag > 0) {
-      expenses.push({
-        description: `Hired truck — ${customerName}`,
-        amount: t.bags * truckHiredCostPerBag,
-        paid: false,
-        paidAt: null,
-        paidById: null,
-      });
+      push(`Hired truck — ${customerName}`, t.bags * truckHiredCostPerBag, t.hiredCostPaid);
     }
 
     if (t.bags > 0 && !t.loadingFeeWaived && truckLoadingFeePerBag > 0) {
-      expenses.push({
-        description: `Loading fee — ${customerName}`,
-        amount: t.bags * truckLoadingFeePerBag,
-        paid: false,
-        paidAt: null,
-        paidById: null,
-      });
+      push(`Loading fee — ${customerName}`, t.bags * truckLoadingFeePerBag, t.loadingFeePaid);
     }
     if (t.bags > 0 && !t.offloadingFeeWaived && truckOffloadingFeePerBag > 0) {
-      expenses.push({
-        description: `Offloading fee — ${customerName}`,
-        amount: t.bags * truckOffloadingFeePerBag,
-        paid: false,
-        paidAt: null,
-        paidById: null,
-      });
+      push(`Offloading fee — ${customerName}`, t.bags * truckOffloadingFeePerBag, t.offloadingFeePaid);
     }
   }
   return expenses;
@@ -294,13 +300,14 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
                   ? e.amount / fixedPricing.packingBagsPricePerBundle
                   : null,
             })),
-            ...buildLoadingFeeExpenses(data.driverSales, driverById),
+            ...buildLoadingFeeExpenses(data.driverSales, driverById, user.id),
             ...buildTruckCostExpenses(
               data.truckDeliveries,
               truckCustomerById,
               fixedPricing.truckLoadingFeePerBag,
               fixedPricing.truckOffloadingFeePerBag,
-              fixedPricing.truckHiredCostPerBag
+              fixedPricing.truckHiredCostPerBag,
+              user.id
             ),
           ],
         },
@@ -568,13 +575,14 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
                       ? e.amount / fixedPricing.packingBagsPricePerBundle
                       : null,
                 })),
-                ...buildLoadingFeeExpenses(data.driverSales, driverById),
+                ...buildLoadingFeeExpenses(data.driverSales, driverById, user.id),
                 ...buildTruckCostExpenses(
                   data.truckDeliveries,
                   truckCustomerById,
                   fixedPricing.truckLoadingFeePerBag,
                   fixedPricing.truckOffloadingFeePerBag,
-                  fixedPricing.truckHiredCostPerBag
+                  fixedPricing.truckHiredCostPerBag,
+                  user.id
                 ),
               ],
             },

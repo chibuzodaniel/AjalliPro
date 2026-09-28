@@ -10,6 +10,9 @@ export const driverSaleSchema = z.object({
   bags: z.number().int().min(0),
   bonusBags: z.number().int().min(0),
   loadingFeeWaived: z.boolean(),
+  // Whether to create the auto-generated "Loading fee — X" expense already
+  // paid — set via the pre-submit expenses confirmation modal.
+  loadingFeePaid: z.boolean().default(false),
 });
 
 export const truckDeliverySchema = z.object({
@@ -21,6 +24,12 @@ export const truckDeliverySchema = z.object({
   loadingFeeWaived: z.boolean().default(false),
   offloadingFeeWaived: z.boolean().default(false),
   hiredCostWaived: z.boolean().default(false), // hired-truck cost itself is computed server-side from the Settings rate, not submitted
+  // Same idea as driverSaleSchema.loadingFeePaid, one per auto-generated
+  // expense this delivery can produce (fuel/hired cost/loading/offloading).
+  fuelPaid: z.boolean().default(false),
+  hiredCostPaid: z.boolean().default(false),
+  loadingFeePaid: z.boolean().default(false),
+  offloadingFeePaid: z.boolean().default(false),
 });
 
 export const expenseItemSchema = z.object({

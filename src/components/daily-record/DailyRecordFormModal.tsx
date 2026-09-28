@@ -47,6 +47,14 @@ interface ExpenseRow {
   paid: boolean;
 }
 
+type AutoFeeKind = "driverLoadingFee" | "truckFuel" | "truckHiredCost" | "truckLoadingFee" | "truckOffloadingFee";
+interface AutoFeeItem {
+  id: string;
+  kind: AutoFeeKind;
+  label: string;
+  amount: number;
+}
+
 let rowKeySeq = 0;
 function nextKey() {
   rowKeySeq += 1;
@@ -418,8 +426,64 @@ export default function DailyRecordFormModal({
   const loadingFeeExpenseTotal = driverLoadingFeeTotal + truckLoadingFeeTotal + truckOffloadingFeeTotal;
   const factoryTotal = (Number(factoryBags) || 0) * (Number(factoryPrice) || 0);
 
-  async function handleSubmit(e: React.FormEvent) {
+  // Mirrors buildLoadingFeeExpenses/buildTruckCostExpenses on the server —
+  // every auto-generated expense line this submission is about to create,
+  // so the pre-submit confirmation modal can offer a "paid" checkbox for
+  // each one instead of them always silently landing as unpaid.
+  const autoFeeItems: AutoFeeItem[] = useMemo(() => {
+    const items: AutoFeeItem[] = [];
+    for (const d of driverSales) {
+      const bags = Number(d.bags) || 0;
+      if (bags <= 0 || d.loadingFeeWaived) continue;
+      const driver = driverById.get(d.driverId);
+      if (!driver || driver.loadingFee <= 0) continue;
+      items.push({ id: `driverLoadingFee:${d.key}`, kind: "driverLoadingFee", label: `Loading fee — ${driver.name}`, amount: bags * driver.loadingFee });
+    }
+    for (const t of truckDeliveries) {
+      const bags = Number(t.bags) || 0;
+      const customerName = customerById.get(t.customerId)?.name ?? "no customer";
+      if (t.ownTruck) {
+        const fuel = Number(t.fuelCost) || 0;
+        if (fuel > 0) items.push({ id: `truckFuel:${t.key}`, kind: "truckFuel", label: `Truck fuel — ${customerName}`, amount: fuel });
+      } else if (bags > 0 && !t.hiredCostWaived && truckHiredCostPerBag > 0) {
+        items.push({ id: `truckHiredCost:${t.key}`, kind: "truckHiredCost", label: `Hired truck — ${customerName}`, amount: bags * truckHiredCostPerBag });
+      }
+      if (bags > 0 && !t.loadingFeeWaived && truckLoadingFeePerBag > 0) {
+        items.push({ id: `truckLoadingFee:${t.key}`, kind: "truckLoadingFee", label: `Loading fee — ${customerName}`, amount: bags * truckLoadingFeePerBag });
+      }
+      if (bags > 0 && !t.offloadingFeeWaived && truckOffloadingFeePerBag > 0) {
+        items.push({ id: `truckOffloadingFee:${t.key}`, kind: "truckOffloadingFee", label: `Offloading fee — ${customerName}`, amount: bags * truckOffloadingFeePerBag });
+      }
+    }
+    return items;
+  }, [driverSales, truckDeliveries, driverById, customerById, truckLoadingFeePerBag, truckOffloadingFeePerBag, truckHiredCostPerBag]);
+
+  const manualExpenseItems = expenses.filter((e) => e.description.trim().length > 0 && (Number(e.amount) || 0) > 0);
+
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [autoFeePaid, setAutoFeePaid] = useState<Map<string, boolean>>(new Map());
+
+  function toggleAutoFeePaid(id: string) {
+    setAutoFeePaid((prev) => {
+      const next = new Map(prev);
+      next.set(id, !(prev.get(id) ?? false));
+      return next;
+    });
+  }
+
+  function handleFormSubmit(e: React.FormEvent) {
     e.preventDefault();
+    // Nothing to review — skip straight to saving rather than popping an
+    // empty confirmation modal.
+    if (autoFeeItems.length === 0 && manualExpenseItems.length === 0) {
+      doSubmit();
+      return;
+    }
+    setConfirmOpen(true);
+  }
+
+  async function doSubmit() {
+    setConfirmOpen(false);
     setLoading(true);
     setError(null);
     const payload = {
@@ -441,6 +505,7 @@ export default function DailyRecordFormModal({
           bags: Number(d.bags) || 0,
           bonusBags: Number(d.bonusBags) || 0,
           loadingFeeWaived: d.loadingFeeWaived,
+          loadingFeePaid: autoFeePaid.get(`driverLoadingFee:${d.key}`) ?? false,
         })),
       truckDeliveries: truckDeliveries
         .filter((t) => (Number(t.bags) || 0) > 0 && t.customerId)
@@ -453,6 +518,10 @@ export default function DailyRecordFormModal({
           loadingFeeWaived: t.loadingFeeWaived,
           offloadingFeeWaived: t.offloadingFeeWaived,
           hiredCostWaived: t.hiredCostWaived,
+          fuelPaid: autoFeePaid.get(`truckFuel:${t.key}`) ?? false,
+          hiredCostPaid: autoFeePaid.get(`truckHiredCost:${t.key}`) ?? false,
+          loadingFeePaid: autoFeePaid.get(`truckLoadingFee:${t.key}`) ?? false,
+          offloadingFeePaid: autoFeePaid.get(`truckOffloadingFee:${t.key}`) ?? false,
         })),
       leakageBags: Number(leakageBags) || 0,
       leakageWasteBags: Number(leakageWasteBags) || 0,
@@ -485,13 +554,14 @@ export default function DailyRecordFormModal({
   }
 
   return (
+    <>
     <Modal
       open={open}
       onClose={onClose}
       title={effectiveMode === "create" ? "New Daily Record" : `Edit Daily Record — ${foundExistingDate ?? initial.date}`}
       maxWidth={720}
     >
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleFormSubmit}>
         {restoredDraft && (
           <div className="calc-box" style={{ marginBottom: 14, alignItems: "center" }}>
             <span>Restored your unsaved entry from before you were logged out.</span>
@@ -1064,11 +1134,76 @@ export default function DailyRecordFormModal({
             ? effectiveMode === "create"
               ? "Saving…"
               : "Updating…"
-            : effectiveMode === "create"
-              ? "Save daily record"
-              : "Update record"}
+            : autoFeeItems.length > 0 || manualExpenseItems.length > 0
+              ? "Review expenses & save"
+              : effectiveMode === "create"
+                ? "Save daily record"
+                : "Update record"}
         </button>
       </form>
     </Modal>
+    <Modal open={confirmOpen} onClose={() => setConfirmOpen(false)} title="Confirm expenses before saving" maxWidth={480}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, fontSize: 13.5 }}>
+        <div className="section-sub" style={{ margin: 0 }}>
+          Tick anything that&apos;s already been paid — everything else lands on the Expenses page as unpaid.
+        </div>
+
+        {manualExpenseItems.length > 0 && (
+          <div>
+            <div style={{ color: "var(--text-faint)", fontSize: 11, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 6 }}>
+              Expenses entered
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {manualExpenseItems.map((e) => (
+                <div key={e.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}>
+                  <span>{e.description.trim()}</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <b>{formatMoney(Number(e.amount) || 0)}</b>
+                    <span style={{ fontSize: 11.5, color: e.paid ? "var(--green)" : "var(--text-faint)" }}>
+                      {e.paid ? "paid" : "unpaid"}
+                    </span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {autoFeeItems.length > 0 && (
+          <div>
+            <div style={{ color: "var(--text-faint)", fontSize: 11, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 6 }}>
+              Auto-added fees (loading, offloading, truck cost)
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {autoFeeItems.map((item) => (
+                <label key={item.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, cursor: "pointer" }}>
+                  <span>{item.label}</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <b>{formatMoney(item.amount)}</b>
+                    <input
+                      type="checkbox"
+                      checked={autoFeePaid.get(item.id) ?? false}
+                      onChange={() => toggleAutoFeePaid(item.id)}
+                    />
+                    <span style={{ fontSize: 11.5, color: "var(--text-dim)" }}>Paid</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {error && <div className="field-error">{error}</div>}
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button className="btn btn-ghost" onClick={() => setConfirmOpen(false)} disabled={loading}>
+            Back
+          </button>
+          <button className="btn btn-sm btn-approve" style={{ padding: "10px 18px" }} onClick={doSubmit} disabled={loading}>
+            {loading ? "Saving…" : "Confirm & save"}
+          </button>
+        </div>
+      </div>
+    </Modal>
+    </>
   );
 }
