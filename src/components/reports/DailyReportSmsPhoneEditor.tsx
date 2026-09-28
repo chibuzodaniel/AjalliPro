@@ -16,7 +16,7 @@ export default function DailyReportSmsPhoneEditor({ initialPhones }: { initialPh
   }
 
   function removeOne(index: number) {
-    setPhones((prev) => (prev.length === 1 ? [""] : prev.filter((_, i) => i !== index)));
+    setPhones((prev) => prev.filter((_, i) => i !== index));
   }
 
   function addOne() {
@@ -44,6 +44,9 @@ export default function DailyReportSmsPhoneEditor({ initialPhones }: { initialPh
         Everyone listed here gets the full report for the day, by SMS, the moment a daily record is approved.
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {phones.length === 0 && (
+          <div className="hint">No numbers configured yet — click "+ Add number" to add one.</div>
+        )}
         {phones.map((phone, i) => (
           <div key={i} style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <input
@@ -57,7 +60,6 @@ export default function DailyReportSmsPhoneEditor({ initialPhones }: { initialPh
               className="btn btn-sm btn-ghost"
               style={{ padding: "6px 10px", fontSize: 12 }}
               onClick={() => removeOne(i)}
-              disabled={phones.length === 1 && !phone}
             >
               Remove
             </button>
