@@ -426,6 +426,24 @@ export default function DailyRecordFormModal({
   const loadingFeeExpenseTotal = driverLoadingFeeTotal + truckLoadingFeeTotal + truckOffloadingFeeTotal;
   const factoryTotal = (Number(factoryBags) || 0) * (Number(factoryPrice) || 0);
 
+  // Running totals shown to the admin while they fill in the form — same
+  // gross-income / cost semantics as the SMS report (see dailyReport.ts):
+  // income is everything sold today on its own, never netted against costs.
+  const prodBagsTotal = production.reduce((s, p) => s + (Number(p.bags) || 0), 0);
+  const driverBagsSoldTotal = driverSales.reduce((s, d) => s + (Number(d.bags) || 0), 0);
+  const truckBagsSoldTotal = truckDeliveries.reduce((s, t) => s + (Number(t.bags) || 0), 0);
+  const bagsSoldTotal = (Number(factoryBags) || 0) + driverBagsSoldTotal + truckBagsSoldTotal;
+  const driverSalesMoneyTotal = driverSales.reduce((s, d) => {
+    const driver = driverById.get(d.driverId);
+    return s + (Number(d.bags) || 0) * (driver?.pricePerBag ?? 0);
+  }, 0);
+  const truckDeliveriesMoneyTotal = truckDeliveries.reduce((s, t) => {
+    const customer = customerById.get(t.customerId);
+    return s + (Number(t.bags) || 0) * (customer?.pricePerBag ?? 0);
+  }, 0);
+  const packerPayTotal = production.reduce((s, p) => s + (Number(p.bags) || 0) * packerPricePerBag, 0);
+  const totalIncomeSoFar = factoryTotal + driverSalesMoneyTotal + truckDeliveriesMoneyTotal + (Number(pumpWaterAmount) || 0);
+
   // Mirrors buildLoadingFeeExpenses/buildTruckCostExpenses on the server —
   // every auto-generated expense line this submission is about to create,
   // so the pre-submit confirmation modal can offer a "paid" checkbox for
@@ -459,6 +477,9 @@ export default function DailyRecordFormModal({
   }, [driverSales, truckDeliveries, driverById, customerById, truckLoadingFeePerBag, truckOffloadingFeePerBag, truckHiredCostPerBag]);
 
   const manualExpenseItems = expenses.filter((e) => e.description.trim().length > 0 && (Number(e.amount) || 0) > 0);
+  const manualExpensesTotal = manualExpenseItems.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const autoFeeTotal = autoFeeItems.reduce((s, item) => s + item.amount, 0);
+  const totalExpensesSoFar = manualExpensesTotal + autoFeeTotal + packerPayTotal;
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [autoFeePaid, setAutoFeePaid] = useState<Map<string, boolean>>(new Map());
@@ -1122,6 +1143,25 @@ export default function DailyRecordFormModal({
         >
           + Add expense
         </button>
+
+        <div className="calc-box" style={{ flexDirection: "column", alignItems: "stretch", gap: 6 }}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span>Bags produced</span>
+            <b>{prodBagsTotal} bags</b>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span>Bags sold (factory + drivers + trucks)</span>
+            <b>{bagsSoldTotal} bags</b>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span>Total income so far</span>
+            <b>{formatMoney(totalIncomeSoFar)}</b>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span>Total expenses so far</span>
+            <b>{formatMoney(totalExpensesSoFar)}</b>
+          </div>
+        </div>
 
         <div className="calc-box">
           <span>Projected closing stock</span>
