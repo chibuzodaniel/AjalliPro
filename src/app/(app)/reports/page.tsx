@@ -17,6 +17,7 @@ import ViewAllModal from "@/components/ui/ViewAllModal";
 import { LineTrendChart } from "@/components/charts/DynamicTrendChart";
 import PrintButton from "@/components/shared/PrintButton";
 import DailyReportSmsPhoneEditor from "@/components/reports/DailyReportSmsPhoneEditor";
+import SendDailyReportSmsButton from "@/components/reports/SendDailyReportSmsButton";
 
 export default async function ReportsPage({
   searchParams,
@@ -32,6 +33,7 @@ export default async function ReportsPage({
 
   const approvedRecords = await getApprovedRecordsSorted();
   const records = filterRecordsByRange(approvedRecords, range);
+  const mostRecentApproved = approvedRecords[approvedRecords.length - 1];
 
   const bagsSold = records.reduce(
     (s, r) => s + r.factoryBags + recordDriverBagsTotal(r) + recordTruckDeliveryBagsTotal(r),
@@ -99,7 +101,12 @@ export default async function ReportsPage({
       </div>
       <RangeTabs basePath="/reports" current={range} options={RANGE_OPTIONS} />
 
-      {superAdmin && <DailyReportSmsPhoneEditor initialPhones={dailyReportSmsPhones} />}
+      {superAdmin && (
+        <DailyReportSmsPhoneEditor
+          initialPhones={dailyReportSmsPhones}
+          latestApprovedRecord={mostRecentApproved ? { id: mostRecentApproved.id, date: mostRecentApproved.date } : null}
+        />
+      )}
 
       <div className="grid grid-4" style={{ marginBottom: 18 }}>
         <KpiCard label="Total Bags Sold" value={bagsSold} />

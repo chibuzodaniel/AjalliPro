@@ -3,8 +3,15 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { updateDailyReportSmsPhones } from "@/app/(app)/reports/actions";
+import SendDailyReportSmsButton from "@/components/reports/SendDailyReportSmsButton";
 
-export default function DailyReportSmsPhoneEditor({ initialPhones }: { initialPhones: string[] }) {
+export default function DailyReportSmsPhoneEditor({
+  initialPhones,
+  latestApprovedRecord,
+}: {
+  initialPhones: string[];
+  latestApprovedRecord?: { id: string; date: string } | null;
+}) {
   const router = useRouter();
   const [phones, setPhones] = useState<string[]>(initialPhones.length > 0 ? initialPhones : [""]);
   const [loading, setLoading] = useState(false);
@@ -75,6 +82,11 @@ export default function DailyReportSmsPhoneEditor({ initialPhones }: { initialPh
           {saved && <span style={{ fontSize: 12, color: "var(--green)" }}>Saved.</span>}
           {error && <span className="field-error">{error}</span>}
         </div>
+        {latestApprovedRecord && (
+          <div style={{ borderTop: "1px solid var(--border)", marginTop: 10, paddingTop: 10 }}>
+            <SendDailyReportSmsButton recordId={latestApprovedRecord.id} recordDate={latestApprovedRecord.date} />
+          </div>
+        )}
       </div>
     </div>
   );
