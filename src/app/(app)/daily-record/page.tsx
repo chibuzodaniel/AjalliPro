@@ -36,6 +36,7 @@ export default async function DailyRecordPage({
   const view = sp.view === "archived" ? "archived" : "active";
   const user = await getCurrentUser();
   const approver = user ? isApprover(user.role) : false;
+  const isAdmin = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
 
   const [records, activeCount, drivers, customers, opening, leakageOpening, pricing] = await Promise.all([
     view === "archived" && approver ? getArchivedRecordsSorted() : getAllRecordsSorted(),
@@ -52,7 +53,7 @@ export default async function DailyRecordPage({
     return (
       <tr key={r.id}>
         <td>
-          <DailyRecordDetail record={r} />
+          <DailyRecordDetail record={r} isAdmin={isAdmin} />
         </td>
         <td>{r.openingStock}</td>
         <td>{recordProdTotal(r)}</td>

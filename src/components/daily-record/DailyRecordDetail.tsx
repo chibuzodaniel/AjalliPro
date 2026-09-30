@@ -6,6 +6,7 @@ import Pill from "@/components/ui/Pill";
 import { formatMoney } from "@/lib/money";
 import { roleLabel } from "@/lib/roles";
 import { expenseStatusSuffix, type DailyRecordFull } from "@/lib/records";
+import { sendDailyReportSmsNow } from "@/app/(app)/reports/actions";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -155,9 +156,25 @@ function printDailyRecordPdf(record: DailyRecordFull) {
   setTimeout(triggerPrint, 300);
 }
 
-export default function DailyRecordDetail({ record }: { record: DailyRecordFull }) {
+export default function DailyRecordDetail({ record, isAdmin }: { record: DailyRecordFull; isAdmin?: boolean }) {
   const [open, setOpen] = useState(false);
+  const [smsLoading, setSmsLoading] = useState(false);
+  const [smsError, setSmsError] = useState<string | null>(null);
+  const [smsSent, setSmsSent] = useState(false);
   const prodTotal = record.productionLines.reduce((s, p) => s + p.bags, 0);
+
+  async function handleSendSms() {
+    setSmsLoading(true);
+    setSmsError(null);
+    setSmsSent(false);
+    const result = await sendDailyReportSmsNow(record.id);
+    setSmsLoading(false);
+    if (!result.ok) {
+      setSmsError(result.error ?? "Could not send SMS report");
+      return;
+    }
+    setSmsSent(true);
+  }
 
   return (
     <>
@@ -177,14 +194,29 @@ export default function DailyRecordDetail({ record }: { record: DailyRecordFull 
       </button>
       <Modal open={open} onClose={() => setOpen(false)} title={`Daily Record — ${record.date}`} maxWidth={640}>
         <div style={{ display: "flex", flexDirection: "column", gap: 16, fontSize: 13.5 }}>
-          <button
-            type="button"
-            className="btn btn-ghost no-print"
-            style={{ alignSelf: "flex-start", padding: "6px 12px", fontSize: 12.5 }}
-            onClick={() => printDailyRecordPdf(record)}
-          >
-            🖨️ Print / Save as PDF
-          </button>
+          <div className="no-print" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              style={{ padding: "6px 12px", fontSize: 12.5 }}
+              onClick={() => printDailyRecordPdf(record)}
+            >
+              🖨️ Print / Save as PDF
+            </button>
+            {isAdmin && record.status === "APPROVED" && (
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{ padding: "6px 12px", fontSize: 12.5 }}
+                onClick={handleSendSms}
+                disabled={smsLoading}
+              >
+                {smsLoading ? "Sending…" : "📩 Send SMS report"}
+              </button>
+            )}
+            {smsSent && <span style={{ fontSize: 12, color: "var(--green)" }}>Sent.</span>}
+            {smsError && <span className="field-error">{smsError}</span>}
+          </div>
 
           <Section title="Status">
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
