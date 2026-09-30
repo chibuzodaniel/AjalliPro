@@ -14,7 +14,10 @@ export function buildDailyReportSmsText(r: DailyRecordFull): string {
   const driverSalesTotal = r.driverSales.reduce((s, d) => s + d.bags * d.pricePerBag, 0);
   const truckDeliveriesTotal = r.truckDeliveries.reduce((s, t) => s + t.bags * t.pricePerBag, 0);
   const totalExpenses = recordTotalCosts(r);
-  const totalIncome = computeRevenue([r]).net;
+  // Gross, not net — "total income" here means everything sold today, on
+  // its own, independent of what was spent today (that's the separate
+  // "Total expenses" line above it).
+  const totalIncome = computeRevenue([r]).gross;
 
   const lines = [
     `Daily Report — ${r.date}`,
@@ -22,7 +25,7 @@ export function buildDailyReportSmsText(r: DailyRecordFull): string {
     `Produced: ${recordProdTotal(r)} bags`,
     `Factory sale: ${formatMoney(factorySale)}`,
     `Total Drivers sales: ${formatMoney(driverSalesTotal)}`,
-    `Total Deliveries: ${formatMoney(truckDeliveriesTotal)}`,
+    `Truck deliveries (our own dispatch): ${formatMoney(truckDeliveriesTotal)}`,
     `Pump water: ${formatMoney(r.pumpWaterAmount)}`,
     `Total expenses: ${formatMoney(totalExpenses)}`,
     `Total income for the day: ${formatMoney(totalIncome)}`,
