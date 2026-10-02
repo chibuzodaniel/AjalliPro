@@ -26,6 +26,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/daily-record", label: "Daily Record", icon: "📝" },
       { href: "/production", label: "Total Produced", icon: "🏭", hiddenFromSalesStaff: true },
       { href: "/incentives", label: "Incentive Tracking", icon: "🎁", hiddenFromSalesStaff: true },
+      { href: "/todo", label: "Factory To-Do", icon: "🛠️", staffOrAboveOnly: true },
     ],
   },
   {

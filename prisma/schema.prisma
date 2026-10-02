@@ -52,6 +52,8 @@ model User {
   salaryPaymentsMarked SalaryPayment[]    @relation("SalaryPaymentMarkedBy")
   packerPaymentsMarked PackerPayment[]    @relation("PackerPaymentMarkedBy")
   incentiveAwardsMade  IncentiveAward[]
+  todosCreated         TodoItem[]         @relation("TodoCreatedBy")
+  todosDone            TodoItem[]         @relation("TodoDoneBy")
 }
 
 model PushSubscription {
@@ -255,8 +257,8 @@ model Customer {
   createdBy   User     @relation(fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
 
-  factorySalesAsCustomer DailyRecord[]   @relation("FactoryCustomer")
-  driverSalesAsCustomer  DriverSale[]    @relation("DriverSaleCustomer")
+  factorySalesAsCustomer DailyRecord[]    @relation("FactoryCustomer")
+  driverSalesAsCustomer  DriverSale[]     @relation("DriverSaleCustomer")
   truckDeliveries        TruckDelivery[]
   mailLogs               MailLog[]
   incentiveAwards        IncentiveAward[]
@@ -292,6 +294,21 @@ model IncentiveAward {
   @@index([weekKey])
   @@index([customerId])
   @@index([driverId])
+}
+
+model TodoItem {
+  id          String   @id @default(cuid())
+  description String
+  createdAt   DateTime @default(now())
+  createdById String
+  createdBy   User     @relation("TodoCreatedBy", fields: [createdById], references: [id])
+
+  done     Boolean   @default(false)
+  doneAt   DateTime?
+  doneById String?
+  doneBy   User?     @relation("TodoDoneBy", fields: [doneById], references: [id])
+
+  @@index([done])
 }
 
 model MailLog {

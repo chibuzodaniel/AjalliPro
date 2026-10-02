@@ -18,6 +18,9 @@ export function canManagePackers(role: Role): boolean {
 export function canViewExpenses(role: Role): boolean {
   return role === "ADMIN_STAFF" || isApprover(role);
 }
+export function canManageTodos(role: Role): boolean {
+  return role === "ADMIN_STAFF" || isApprover(role);
+}
 export function needsApproval(role: Role): boolean {
   return !isApprover(role);
 }

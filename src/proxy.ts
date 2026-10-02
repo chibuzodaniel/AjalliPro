@@ -5,9 +5,10 @@ import { getToken } from "next-auth/jwt";
 const PUBLIC_PATHS = ["/login", "/register"];
 
 const APPROVER_ONLY = ["/approvals", "/settings", "/salary"];
-// Expenses is viewable by Admin Staff too (not just Admin/Super Admin) —
-// the page itself hides payment-recording controls from non-approvers.
-const STAFF_OR_ABOVE = ["/expenses"];
+// Expenses and the factory to-do list are viewable by Admin Staff too (not
+// just Admin/Super Admin) — each page itself hides stricter controls from
+// non-approvers where needed.
+const STAFF_OR_ABOVE = ["/expenses", "/todo"];
 // /settings is reachable by Admin+ (page itself hides Super-Admin-only
 // sections from a plain Admin); nothing currently needs a stricter,
 // Super-Admin-only route gate.
