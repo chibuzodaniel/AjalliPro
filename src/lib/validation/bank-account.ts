@@ -9,6 +9,7 @@ export const bankAccountSchema = z.object({
     .min(1, "Account number is required")
     .max(30)
     .regex(/^[0-9]+$/, "Account number should contain digits only"),
+  startingBalance: z.number().int().min(0).default(0),
 });
 
 export type BankAccountInput = z.infer<typeof bankAccountSchema>;

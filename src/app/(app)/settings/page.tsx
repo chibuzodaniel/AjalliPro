@@ -15,6 +15,7 @@ import UsersList from "@/components/settings/UsersList";
 import ResetSystemButton from "@/components/settings/ResetSystemButton";
 import SmsTemplatesManager from "@/components/settings/SmsTemplatesManager";
 import BankAccountsManager from "@/components/settings/BankAccountsManager";
+import { getBankAccountsWithBalances } from "@/lib/bankAccounts";
 import { getResetPreviewCounts, updateRollsPriceSetting, updatePackingBagsPriceSetting } from "./actions";
 
 export default async function SettingsPage() {
@@ -29,7 +30,7 @@ export default async function SettingsPage() {
     getEmailTemplateSettings(),
     getPricingSettings(),
     prisma.smsTemplate.findMany({ orderBy: { name: "asc" } }),
-    isSuperAdmin ? prisma.bankAccount.findMany({ orderBy: { createdAt: "asc" } }) : Promise.resolve([]),
+    isSuperAdmin ? getBankAccountsWithBalances() : Promise.resolve([]),
     canSeeUsers
       ? prisma.user.findMany({
           orderBy: [{ role: "asc" }, { name: "asc" }],
@@ -169,7 +170,9 @@ export default async function SettingsPage() {
             <div className="section-title">Company bank accounts</div>
             <div className="section-sub">
               Shown on the Daily Record form so whoever logs the day's sales can tick which account the money was
-              sent to. Deactivating an account hides it from that picker without affecting past records.
+              sent to. Each account's balance below is its starting balance plus every approved day's income sent to
+              it — set the starting balance once and the rest tracks itself. Deactivating an account hides it from
+              that picker without affecting past records.
             </div>
             <BankAccountsManager accounts={bankAccounts} />
           </div>

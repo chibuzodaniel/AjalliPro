@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { formatMoney } from "@/lib/money";
 import {
   createBankAccount,
   updateBankAccount,
@@ -14,13 +15,16 @@ export interface BankAccountRow {
   bankName: string;
   accountName: string;
   accountNumber: string;
+  startingBalance: number;
   active: boolean;
+  balance: number;
 }
 
 function AccountForm({
   initialBankName = "",
   initialAccountName = "",
   initialAccountNumber = "",
+  initialStartingBalance = 0,
   submitLabel,
   onSubmit,
   onCancel,
@@ -28,21 +32,28 @@ function AccountForm({
   initialBankName?: string;
   initialAccountName?: string;
   initialAccountNumber?: string;
+  initialStartingBalance?: number;
   submitLabel: string;
-  onSubmit: (data: { bankName: string; accountName: string; accountNumber: string }) => Promise<{ ok: boolean; error?: string }>;
+  onSubmit: (data: {
+    bankName: string;
+    accountName: string;
+    accountNumber: string;
+    startingBalance: number;
+  }) => Promise<{ ok: boolean; error?: string }>;
   onCancel?: () => void;
 }) {
   const router = useRouter();
   const [bankName, setBankName] = useState(initialBankName);
   const [accountName, setAccountName] = useState(initialAccountName);
   const [accountNumber, setAccountNumber] = useState(initialAccountNumber);
+  const [startingBalance, setStartingBalance] = useState(initialStartingBalance ? String(initialStartingBalance) : "");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit() {
     setLoading(true);
     setError(null);
-    const result = await onSubmit({ bankName, accountName, accountNumber });
+    const result = await onSubmit({ bankName, accountName, accountNumber, startingBalance: Number(startingBalance) || 0 });
     setLoading(false);
     if (!result.ok) {
       setError(result.error ?? "Could not save");
@@ -78,6 +89,19 @@ function AccountForm({
           maxLength={30}
           placeholder="e.g. 0123456789"
         />
+      </div>
+      <div className="field" style={{ marginBottom: 0 }}>
+        <label>Starting balance (₦) — what&apos;s in the account right now</label>
+        <input
+          type="number"
+          min={0}
+          value={startingBalance}
+          onChange={(e) => setStartingBalance(e.target.value)}
+          placeholder="0"
+        />
+        <div className="hint">
+          From here on, every approved daily record sent to this account adds its income on top of this.
+        </div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <button
@@ -136,6 +160,7 @@ function AccountRow({ account }: { account: BankAccountRow }) {
           initialBankName={account.bankName}
           initialAccountName={account.accountName}
           initialAccountNumber={account.accountNumber}
+          initialStartingBalance={account.startingBalance}
           submitLabel="Save changes"
           onSubmit={(data) => updateBankAccount(account.id, data)}
           onCancel={() => setEditing(false)}
@@ -152,6 +177,9 @@ function AccountRow({ account }: { account: BankAccountRow }) {
           <div style={{ fontSize: 13, color: "var(--text-dim)", marginTop: 4 }}>
             {account.accountName} · {account.accountNumber}
             {!account.active && <span style={{ color: "var(--text-faint)" }}> · deactivated</span>}
+          </div>
+          <div style={{ fontSize: 14, marginTop: 6 }}>
+            Balance: <b style={{ color: "var(--green)" }}>{formatMoney(account.balance)}</b>
           </div>
         </div>
         <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>

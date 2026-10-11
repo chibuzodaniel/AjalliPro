@@ -394,14 +394,15 @@ model SmsTemplate {
  * Company bank accounts, managed by Super Admin — selected on the Daily Record form to mark which one that day's money was sent to.
  */
 model BankAccount {
-  id            String   @id @default(cuid())
-  bankName      String
-  accountName   String
-  accountNumber String
-  active        Boolean  @default(true) // Super Admin can retire an account without breaking past daily records that reference it
-  createdById   String?
-  createdBy     User?    @relation(fields: [createdById], references: [id])
-  createdAt     DateTime @default(now())
+  id              String   @id @default(cuid())
+  bankName        String
+  accountName     String
+  accountNumber   String
+  startingBalance Int      @default(0) // the balance Super Admin set as the account's baseline — current balance = this plus every approved daily record's income sent here
+  active          Boolean  @default(true) // Super Admin can retire an account without breaking past daily records that reference it
+  createdById     String?
+  createdBy       User?    @relation(fields: [createdById], references: [id])
+  createdAt       DateTime @default(now())
 
   dailyRecords DailyRecord[]
 }
