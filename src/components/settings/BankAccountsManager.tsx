@@ -327,9 +327,10 @@ function AccountRow({
               {formatMoney(account.totalExpenses)} debited in manual expenses
             </div>
           )}
-          {account.dailyExpensesDebited > 0 && (
+          {account.isDefaultExpenseAccount && (
             <div style={{ fontSize: 12.5, marginTop: 2, color: "var(--text-faint)" }}>
-              {formatMoney(account.dailyExpensesDebited)} auto-debited from daily record expenses
+              {formatMoney(account.dailyExpensesDebited)} auto-debited from daily record expenses since becoming the
+              default — not the backlog from before
             </div>
           )}
         </div>

@@ -402,16 +402,17 @@ model SmsTemplate {
  * Company bank accounts, managed by Super Admin — selected on the Daily Record form to mark which one that day's money was sent to.
  */
 model BankAccount {
-  id                      String   @id @default(cuid())
-  bankName                String
-  accountName             String
-  accountNumber           String
-  startingBalance         Int      @default(0) // the balance Super Admin set as the account's baseline — current balance = this plus confirmed-received transfers minus expenses debited against it
-  active                  Boolean  @default(true) // Super Admin can retire an account without breaking past daily records that reference it
-  isDefaultExpenseAccount Boolean  @default(false) // the one account that every approved daily record's logged expenses auto-debit from — only one account can hold this at a time
-  createdById             String?
-  createdBy               User?    @relation(fields: [createdById], references: [id])
-  createdAt               DateTime @default(now())
+  id                         String    @id @default(cuid())
+  bankName                   String
+  accountName                String
+  accountNumber              String
+  startingBalance            Int       @default(0) // the balance Super Admin set as the account's baseline — current balance = this plus confirmed-received transfers minus expenses debited against it
+  active                     Boolean   @default(true) // Super Admin can retire an account without breaking past daily records that reference it
+  isDefaultExpenseAccount    Boolean   @default(false) // the one account that every approved daily record's logged expenses auto-debit from — only one account can hold this at a time
+  defaultExpenseAccountSetAt DateTime? // when it became the default — only expenses on daily records logged from this point on count, not the backlog from before
+  createdById                String?
+  createdBy                  User?     @relation(fields: [createdById], references: [id])
+  createdAt                  DateTime  @default(now())
 
   dailyRecords DailyRecord[]
   expenses     BankAccountExpense[]

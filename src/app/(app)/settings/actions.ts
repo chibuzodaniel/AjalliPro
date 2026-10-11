@@ -735,9 +735,18 @@ export async function setDefaultExpenseAccount(bankAccountId: string | null): Pr
   }
 
   await prisma.$transaction([
-    prisma.bankAccount.updateMany({ where: { isDefaultExpenseAccount: true }, data: { isDefaultExpenseAccount: false } }),
+    prisma.bankAccount.updateMany({
+      where: { isDefaultExpenseAccount: true },
+      data: { isDefaultExpenseAccount: false, defaultExpenseAccountSetAt: null },
+    }),
     ...(bankAccountId
-      ? [prisma.bankAccount.update({ where: { id: bankAccountId }, data: { isDefaultExpenseAccount: true } })]
+      ? [
+          prisma.bankAccount.update({
+            where: { id: bankAccountId },
+            // Starts counting from right now — doesn't pull in the backlog of expenses logged before this.
+            data: { isDefaultExpenseAccount: true, defaultExpenseAccountSetAt: new Date() },
+          }),
+        ]
       : []),
   ]);
 
