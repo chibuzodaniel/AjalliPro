@@ -12,6 +12,7 @@ import { getPendingIncentiveAwards } from "@/lib/incentiveAwards";
 import KpiCard from "@/components/ui/KpiCard";
 import NetRevenueCard, { type PeriodRow } from "@/components/dashboard/NetRevenueCard";
 import AnnouncementButton from "@/components/dashboard/AnnouncementButton";
+import AddBankExpenseButton from "@/components/dashboard/AddBankExpenseButton";
 import IncentiveAwardNotice from "@/components/dashboard/IncentiveAwardNotice";
 import { LineTrendChart, BarTrendChart } from "@/components/charts/DynamicTrendChart";
 import type { DailyRecordFull } from "@/lib/records";
@@ -40,6 +41,7 @@ function groupByPeriod(
 export default async function DashboardPage() {
   const user = await getCurrentUser();
   const approver = user ? isApprover(user.role) : false;
+  const isAdminOrSuperAdmin = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
 
   const [
     approvedRecords,
@@ -53,6 +55,7 @@ export default async function DashboardPage() {
     pendingDailyCount,
     pendingDriverCount,
     weeklySettings,
+    bankAccounts,
   ] = await Promise.all([
     getApprovedRecordsSorted(),
     getAllApprovedRecordsEverSorted(),
@@ -65,6 +68,13 @@ export default async function DashboardPage() {
     prisma.dailyRecord.count({ where: { status: "PENDING" } }),
     prisma.driver.count({ where: { status: "PENDING" } }),
     getWeeklyIncentiveSettings(),
+    isAdminOrSuperAdmin
+      ? prisma.bankAccount.findMany({
+          where: { active: true },
+          select: { id: true, bankName: true, accountName: true, accountNumber: true },
+          orderBy: { createdAt: "asc" },
+        })
+      : Promise.resolve([]),
   ]);
   const canAnnounce = user ? user.role === "ADMIN_STAFF" || approver : false;
   const pendingIncentiveAwards = approver ? await getPendingIncentiveAwards() : [];
@@ -197,6 +207,7 @@ export default async function DashboardPage() {
               templates={smsTemplates}
             />
           )}
+          {isAdminOrSuperAdmin && <AddBankExpenseButton accounts={bankAccounts} />}
           <Link href="/reports" className="btn btn-ghost no-print">
             📈 View reports
           </Link>
