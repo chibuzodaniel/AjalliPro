@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Modal from "@/components/ui/Modal";
 import Pill from "@/components/ui/Pill";
 import { formatMoney } from "@/lib/money";
 import { roleLabel } from "@/lib/roles";
 import { expenseStatusSuffix, type DailyRecordFull } from "@/lib/records";
 import { sendDailyReportSmsNow } from "@/app/(app)/reports/actions";
+import { confirmBankMoneyReceived } from "@/app/(app)/daily-record/actions";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -138,7 +140,12 @@ function printDailyRecordPdf(record: DailyRecordFull) {
 
   <div class="totals"><span>Pump water sales</span><span>${formatMoney(record.pumpWaterAmount)}</span></div>
 
-  ${record.bankAccount ? `<div class="totals"><span>Money sent to</span><span>${esc(record.bankAccount.bankName)} — ${esc(record.bankAccount.accountNumber)}</span></div>` : ""}
+  ${
+    record.bankAccount
+      ? `<div class="totals"><span>Money sent to</span><span>${esc(record.bankAccount.bankName)} — ${esc(record.bankAccount.accountNumber)}</span></div>
+  <div class="totals"><span>Amount sent (${record.bankMoneyReceived ? "confirmed received" : "not yet confirmed"})</span><span>${formatMoney(record.bankAmountSent)}</span></div>`
+      : ""
+  }
 
   <div class="totals"><span>Leakage balance carried forward</span><span>${record.leakageClosing} bags</span></div>
 
@@ -168,11 +175,26 @@ function printDailyRecordPdf(record: DailyRecordFull) {
 }
 
 export default function DailyRecordDetail({ record, isAdmin }: { record: DailyRecordFull; isAdmin?: boolean }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [smsLoading, setSmsLoading] = useState(false);
   const [smsError, setSmsError] = useState<string | null>(null);
   const [smsSent, setSmsSent] = useState(false);
+  const [bankLoading, setBankLoading] = useState(false);
+  const [bankError, setBankError] = useState<string | null>(null);
   const prodTotal = record.productionLines.reduce((s, p) => s + p.bags, 0);
+
+  async function handleToggleBankReceived(received: boolean) {
+    setBankLoading(true);
+    setBankError(null);
+    const result = await confirmBankMoneyReceived(record.id, received);
+    setBankLoading(false);
+    if (!result.ok) {
+      setBankError(result.error ?? "Could not update");
+      return;
+    }
+    router.refresh();
+  }
 
   async function handleSendSms() {
     setSmsLoading(true);
@@ -312,11 +334,41 @@ export default function DailyRecordDetail({ record, isAdmin }: { record: DailyRe
           </div>
 
           {record.bankAccount && (
-            <div className="calc-box">
-              <span>Money sent to</span>
-              <b>
-                {record.bankAccount.bankName} — {record.bankAccount.accountNumber}
-              </b>
+            <div className="calc-box" style={{ flexDirection: "column", alignItems: "stretch", gap: 6 }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>Money sent to</span>
+                <b>
+                  {record.bankAccount.bankName} — {record.bankAccount.accountNumber}
+                </b>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>Amount sent</span>
+                <b>{formatMoney(record.bankAmountSent)}</b>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                {record.bankMoneyReceived ? (
+                  <span style={{ color: "var(--green)" }}>
+                    Confirmed received{record.bankReceivedBy ? ` by ${record.bankReceivedBy.name}` : ""}
+                    {record.bankReceivedAt
+                      ? ` on ${new Date(record.bankReceivedAt).toLocaleDateString("en-NG", { year: "numeric", month: "short", day: "numeric" })}`
+                      : ""}
+                  </span>
+                ) : (
+                  <span style={{ color: "var(--text-faint)" }}>Not yet confirmed received</span>
+                )}
+                {isAdmin && (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost no-print"
+                    style={{ padding: "6px 10px", fontSize: 12 }}
+                    onClick={() => handleToggleBankReceived(!record.bankMoneyReceived)}
+                    disabled={bankLoading}
+                  >
+                    {bankLoading ? "…" : record.bankMoneyReceived ? "Un-confirm" : "Confirm received"}
+                  </button>
+                )}
+              </div>
+              {bankError && <div className="field-error">{bankError}</div>}
             </div>
           )}
 

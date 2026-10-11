@@ -18,6 +18,7 @@ export interface BankAccountRow {
   startingBalance: number;
   active: boolean;
   balance: number;
+  pendingAmount: number;
 }
 
 function AccountForm({
@@ -100,7 +101,7 @@ function AccountForm({
           placeholder="0"
         />
         <div className="hint">
-          From here on, every approved daily record sent to this account adds its income on top of this.
+          From here on, every confirmed-received transfer logged against this account adds to this.
         </div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -181,6 +182,11 @@ function AccountRow({ account }: { account: BankAccountRow }) {
           <div style={{ fontSize: 14, marginTop: 6 }}>
             Balance: <b style={{ color: "var(--green)" }}>{formatMoney(account.balance)}</b>
           </div>
+          {account.pendingAmount > 0 && (
+            <div style={{ fontSize: 12.5, marginTop: 2, color: "var(--text-faint)" }}>
+              {formatMoney(account.pendingAmount)} sent but not yet confirmed received
+            </div>
+          )}
         </div>
         <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
           <button className="btn btn-sm btn-ghost" style={{ padding: "6px 10px", fontSize: 12 }} onClick={() => setEditing(true)} disabled={busy}>

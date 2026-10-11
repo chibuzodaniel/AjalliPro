@@ -169,10 +169,10 @@ export default async function SettingsPage() {
           <div className="card" style={{ marginTop: 16 }}>
             <div className="section-title">Company bank accounts</div>
             <div className="section-sub">
-              Shown on the Daily Record form so whoever logs the day's sales can tick which account the money was
-              sent to. Each account's balance below is its starting balance plus every approved day's income sent to
-              it — set the starting balance once and the rest tracks itself. Deactivating an account hides it from
-              that picker without affecting past records.
+              Shown on the Daily Record form so whoever logs the day's sales can tick which account the money will be
+              sent to and how much. Admin/Super Admin then confirms it actually landed, from the record's detail
+              view — only confirmed amounts count toward the balance below. Set the starting balance once and the
+              rest tracks itself. Deactivating an account hides it from that picker without affecting past records.
             </div>
             <BankAccountsManager accounts={bankAccounts} />
           </div>

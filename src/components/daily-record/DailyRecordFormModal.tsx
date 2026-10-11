@@ -86,6 +86,7 @@ interface DraftState {
   leakageWasteBags: string;
   expenses: ExpenseRow[];
   bankAccountId: string;
+  bankAmountSent: string;
 }
 
 function readDraft(key: string): DraftState | null {
@@ -121,6 +122,7 @@ export interface DailyRecordFormInitial {
   leakageWasteBags: number;
   expenses: { description: string; amount: number; paid: boolean }[];
   bankAccountId: string | null;
+  bankAmountSent: number;
 }
 
 function toProductionRows(rows: DailyRecordFormInitial["production"]): ProductionRow[] {
@@ -264,6 +266,9 @@ export default function DailyRecordFormModal({
     draft ? rekeyRows(draft.expenses) : toExpenseRows(initial.expenses)
   );
   const [bankAccountId, setBankAccountId] = useState(draft?.bankAccountId ?? (initial.bankAccountId ?? ""));
+  const [bankAmountSent, setBankAmountSent] = useState(
+    draft?.bankAmountSent ?? (initial.bankAmountSent ? String(initial.bankAmountSent) : "")
+  );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -290,6 +295,7 @@ export default function DailyRecordFormModal({
     leakageWasteBags: number;
     expenses: DailyRecordFormInitial["expenses"];
     bankAccountId?: string | null;
+    bankAmountSent?: number;
   }) {
     setOpeningValue(data.openingStock ? String(data.openingStock) : "");
     setLeakageOpeningValue(data.leakageOpening ? String(data.leakageOpening) : "");
@@ -305,6 +311,7 @@ export default function DailyRecordFormModal({
     setLeakageWasteBags(data.leakageWasteBags ? String(data.leakageWasteBags) : "");
     setExpenses(toExpenseRows(data.expenses));
     setBankAccountId(data.bankAccountId ?? "");
+    setBankAmountSent(data.bankAmountSent ? String(data.bankAmountSent) : "");
   }
 
   useEffect(() => {
@@ -355,6 +362,7 @@ export default function DailyRecordFormModal({
       leakageWasteBags,
       expenses,
       bankAccountId,
+      bankAmountSent,
     };
     try {
       localStorage.setItem(draftKey, JSON.stringify(toSave));
@@ -378,6 +386,7 @@ export default function DailyRecordFormModal({
     leakageWasteBags,
     expenses,
     bankAccountId,
+    bankAmountSent,
   ]);
 
   function discardDraft() {
@@ -565,6 +574,7 @@ export default function DailyRecordFormModal({
         .filter((e) => e.description.trim().length > 0 && (Number(e.amount) || 0) > 0)
         .map((e) => ({ description: e.description.trim(), amount: Number(e.amount) || 0, paid: e.paid })),
       bankAccountId: bankAccountId || null,
+      bankAmountSent: bankAccountId ? Number(bankAmountSent) || 0 : 0,
     };
     let result;
     try {
@@ -1190,6 +1200,22 @@ export default function DailyRecordFormModal({
                 </label>
               ))}
             </div>
+            {bankAccountId && (
+              <div className="field">
+                <label>Amount sent (₦)</label>
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="0"
+                  value={bankAmountSent}
+                  onChange={(e) => setBankAmountSent(e.target.value)}
+                />
+                <div className="hint">
+                  Not everything made today has to be banked — enter the actual amount sent. Admin/Super Admin
+                  confirms separately once it lands.
+                </div>
+              </div>
+            )}
           </>
         )}
 

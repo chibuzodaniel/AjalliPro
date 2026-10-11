@@ -8,6 +8,7 @@ export const dailyRecordInclude = {
   expenseItems: { include: { paidBy: true } },
   factoryCustomer: true,
   bankAccount: true,
+  bankReceivedBy: true,
   createdBy: true,
   approvedBy: true,
   archivedBy: true,

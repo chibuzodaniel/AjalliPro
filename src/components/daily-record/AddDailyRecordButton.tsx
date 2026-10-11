@@ -72,6 +72,7 @@ export default function AddDailyRecordButton({
     leakageWasteBags: 0,
     expenses: [],
     bankAccountId: null,
+    bankAmountSent: 0,
   };
 
   return (

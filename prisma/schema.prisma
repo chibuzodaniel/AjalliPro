@@ -39,6 +39,7 @@ model User {
   dailyRecordsCreated  DailyRecord[]      @relation("DailyRecordCreatedBy")
   dailyRecordsApproved DailyRecord[]      @relation("DailyRecordApprovedBy")
   dailyRecordsArchived DailyRecord[]      @relation("DailyRecordArchivedBy")
+  bankMoneyConfirmedBy DailyRecord[]      @relation("DailyRecordBankReceivedBy")
   smsTemplatesCreated  SmsTemplate[]
   driversCreated       Driver[]           @relation("DriverCreatedBy")
   driversApproved      Driver[]           @relation("DriverApprovedBy")
@@ -85,8 +86,13 @@ model DailyRecord {
   leakageWasteBags       Int            @default(0) // bags lost/spoiled while rebagging leakage stock — not sellable, not carried forward
   leakageClosing         Int            @default(0) // leakageOpening + leakageBags - factoryBagsFromLeakage - leakageWasteBags
   incentiveBonusBags     Int            @default(0) // cumulative weekly-incentive bonus bags approved+deducted from stock on this day — see IncentiveAward
-  bankAccountId          String? // which company bank account the day's money was sent to — ticked by whoever logs the record
+  bankAccountId          String? // which company bank account the day's money will be sent to — ticked by whoever logs the record
   bankAccount            BankAccount?   @relation(fields: [bankAccountId], references: [id])
+  bankAmountSent         Int            @default(0) // how much was actually sent to that account — entered by whoever logs the record, independent of total income (not everything made in a day necessarily gets banked)
+  bankMoneyReceived      Boolean        @default(false) // confirmed landed in the account — only Admin/Super Admin can tick this; only confirmed amounts count toward the account's balance
+  bankReceivedAt         DateTime?
+  bankReceivedById       String?
+  bankReceivedBy         User?          @relation("DailyRecordBankReceivedBy", fields: [bankReceivedById], references: [id])
   status                 ApprovalStatus @default(PENDING)
   createdById            String
   createdBy              User           @relation("DailyRecordCreatedBy", fields: [createdById], references: [id])
@@ -158,12 +164,13 @@ model ProductionLine {
 }
 
 model Packer {
-  id          String   @id @default(cuid())
-  name        String
-  phone       String?
-  createdById String
-  createdBy   User     @relation("PackerCreatedBy", fields: [createdById], references: [id])
-  createdAt   DateTime @default(now())
+  id                String   @id @default(cuid())
+  name              String
+  phone             String?
+  balanceAdjustment Int      @default(0) // Super Admin correction to what's owing — positive adds to it, negative reduces it; added on top of earned-minus-paid
+  createdById       String
+  createdBy         User     @relation("PackerCreatedBy", fields: [createdById], references: [id])
+  createdAt         DateTime @default(now())
 
   productionLines ProductionLine[]
   expenseItems    ExpenseItem[]
