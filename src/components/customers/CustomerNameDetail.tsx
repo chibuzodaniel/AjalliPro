@@ -76,12 +76,15 @@ export default function CustomerNameDetail({
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", padding: 0, font: "inherit", textDecoration: "underline" }}
-      >
-        {name}
-      </button>
+      <div>
+        <button
+          onClick={() => setOpen(true)}
+          style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", padding: 0, font: "inherit", textDecoration: "underline" }}
+        >
+          {name}
+        </button>
+        {address && <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>{address}</div>}
+      </div>
       <Modal open={open} onClose={() => { setOpen(false); setEditing(false); }} title={editing ? `Edit — ${name}` : name}>
         {editing ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 13.5 }}>

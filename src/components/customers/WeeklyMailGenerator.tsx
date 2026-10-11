@@ -165,6 +165,12 @@ export default function WeeklyMailGenerator({ threshold, bonus }: { threshold: n
               />
               <div>
                 <b>{c.name}</b> — {c.email || "no email on file"} · {c.phone || "no phone on file"}
+                {c.address && (
+                  <>
+                    <br />
+                    <span style={{ fontSize: 11.5, color: "var(--text-faint)" }}>{c.address}</span>
+                  </>
+                )}
                 <br />
                 <span style={{ fontSize: 12.5, color: "var(--text-dim)" }}>
                   This week: {c.weeklyBags} bags · Year to date: {c.yearlyBags} bags

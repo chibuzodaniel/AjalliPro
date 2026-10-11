@@ -9,6 +9,7 @@ export interface PendingAward {
   entityType: "CUSTOMER" | "DRIVER";
   entityId: string;
   name: string;
+  address?: string | null;
   weeklyBags: number;
   threshold: number;
   bonusBags: number;
@@ -72,6 +73,9 @@ export default function IncentiveAwardNotice({ pending }: { pending: PendingAwar
                 <span style={{ fontSize: 11.5, color: "var(--text-faint)" }}>
                   ({item.entityType === "CUSTOMER" ? "customer" : "driver"})
                 </span>
+                {item.entityType === "CUSTOMER" && item.address && (
+                  <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>{item.address}</div>
+                )}
                 <br />
                 <span style={{ fontSize: 12, color: "var(--text-dim)" }}>
                   {item.weeklyBags}/{item.threshold} bags — qualifies for +{item.bonusBags} bonus bags

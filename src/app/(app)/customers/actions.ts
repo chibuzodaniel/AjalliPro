@@ -168,6 +168,7 @@ export interface MailPreviewEntry {
   name: string;
   email: string | null;
   phone: string | null;
+  address: string | null;
   weeklyBags: number;
   yearlyBags: number;
   qualifies: boolean;
@@ -194,6 +195,7 @@ async function computeWeeklyMailEntries() {
       name: c.name,
       email: c.email,
       phone: c.phone,
+      address: c.address,
       weeklyBags,
       yearlyBags,
       qualifies: weeklyBags >= weeklySettings.customerWeeklyThreshold,

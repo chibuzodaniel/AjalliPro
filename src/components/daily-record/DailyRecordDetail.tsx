@@ -27,11 +27,14 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Row({ left, right }: { left: React.ReactNode; right: React.ReactNode }) {
+function Row({ left, right, below }: { left: React.ReactNode; right: React.ReactNode; below?: React.ReactNode }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px solid var(--border)" }}>
-      <span>{left}</span>
-      <b>{right}</b>
+    <div style={{ padding: "4px 0", borderBottom: "1px solid var(--border)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between" }}>
+        <span>{left}</span>
+        <b>{right}</b>
+      </div>
+      {below && <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>{below}</div>}
     </div>
   );
 }
@@ -52,6 +55,8 @@ function printDailyRecordPdf(record: DailyRecordFull) {
         .map(
           (d) =>
             `<tr><td>${esc(d.driver.name)}${d.customer ? ` → ${esc(d.customer.name)}` : ""}${
+              d.customer?.address ? `<div class="sub">${esc(d.customer.address)}</div>` : ""
+            }${
               d.loadingFeeWaived ? `<div class="sub">Loading fee: not applicable</div>` : ""
             }</td><td class="num">${d.bags} bags${d.bonusBags > 0 ? ` +${d.bonusBags} bonus` : ""}</td></tr>`
         )
@@ -62,7 +67,9 @@ function printDailyRecordPdf(record: DailyRecordFull) {
     ? record.truckDeliveries
         .map(
           (t) =>
-            `<tr><td>${esc(t.customer?.name ?? "Unknown customer")}<div class="sub">${
+            `<tr><td>${esc(t.customer?.name ?? "Unknown customer")}${
+              t.customer?.address ? `<div class="sub">${esc(t.customer.address)}</div>` : ""
+            }<div class="sub">${
               t.ownTruck ? `Own truck — fuel ${formatMoney(t.fuelCost)}` : `Hired truck — ${formatMoney(t.hiredCost)}`
             }</div></td><td class="num">${t.bags} bags${t.bonusBags > 0 ? ` +${t.bonusBags} bonus` : ""}</td></tr>`
         )
@@ -116,7 +123,9 @@ function printDailyRecordPdf(record: DailyRecordFull) {
   <table><tbody>
     <tr><td>${record.factoryBags} bags @ ${formatMoney(record.factoryPricePerBag)}${
       record.factoryBagsFromLeakage > 0 ? ` (${record.factoryBagsFromLeakage} rebagged)` : ""
-    }${record.factoryCustomer ? ` — ${esc(record.factoryCustomer.name)}` : ""}</td><td class="num">${formatMoney(
+    }${record.factoryCustomer ? ` — ${esc(record.factoryCustomer.name)}` : ""}${
+      record.factoryCustomer?.address ? `<div class="sub">${esc(record.factoryCustomer.address)}</div>` : ""
+    }</td><td class="num">${formatMoney(
       record.factoryBags * record.factoryPricePerBag
     )}</td></tr>
   </tbody></table>
@@ -253,6 +262,7 @@ export default function DailyRecordDetail({ record, isAdmin }: { record: DailyRe
                 record.factoryBagsFromLeakage > 0 ? ` (${record.factoryBagsFromLeakage} rebagged)` : ""
               }${record.factoryCustomer ? ` — ${record.factoryCustomer.name}` : ""}`}
               right={formatMoney(record.factoryBags * record.factoryPricePerBag)}
+              below={record.factoryCustomer?.address}
             />
           </Section>
 
@@ -267,6 +277,7 @@ export default function DailyRecordDetail({ record, isAdmin }: { record: DailyRe
                     d.loadingFeeWaived ? " · loading fee N/A" : ""
                   }`}
                   right={`${d.bags} bags${d.bonusBags > 0 ? ` +${d.bonusBags} bonus` : ""}`}
+                  below={d.customer?.address}
                 />
               ))
             )}
@@ -284,6 +295,9 @@ export default function DailyRecordDetail({ record, isAdmin }: { record: DailyRe
                       {t.bags} bags{t.bonusBags > 0 ? ` +${t.bonusBags} bonus` : ""}
                     </b>
                   </div>
+                  {t.customer?.address && (
+                    <div style={{ color: "var(--text-faint)", fontSize: 11.5 }}>{t.customer.address}</div>
+                  )}
                   <div style={{ color: "var(--text-dim)", fontSize: 12 }}>
                     {t.ownTruck ? `Own truck — fuel ${formatMoney(t.fuelCost)}` : `Hired truck — ${formatMoney(t.hiredCost)}`}
                   </div>

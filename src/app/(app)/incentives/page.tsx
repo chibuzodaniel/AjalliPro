@@ -165,7 +165,10 @@ export default async function IncentivesPage({
       <tbody>
         {custRows.map(({ c, wkBags, qualifies, instantWeek, instantYear, yearBonusBags, weeklyRows, monthlyRows }) => (
           <tr key={c.id}>
-            <td>{c.name}</td>
+            <td>
+              {c.name}
+              {c.address && <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>{c.address}</div>}
+            </td>
             <td>{wkBags} bags</td>
             <ProgressBar bags={wkBags} threshold={customerWeeklyThreshold} qualifies={qualifies} />
             <td>
@@ -320,6 +323,9 @@ export default async function IncentivesPage({
                     <span style={{ fontSize: 11, color: "var(--text-faint)" }}>
                       ({a.entityType === "CUSTOMER" ? "customer" : "driver"})
                     </span>
+                    {a.entityType === "CUSTOMER" && a.customer?.address && (
+                      <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>{a.customer.address}</div>
+                    )}
                   </td>
                   <td>{a.weekKey}</td>
                   <td>+{a.bonusBags}</td>

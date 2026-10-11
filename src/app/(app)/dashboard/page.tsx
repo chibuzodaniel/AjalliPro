@@ -140,16 +140,16 @@ export default async function DashboardPage() {
     computeIncentiveData(approvedRecords);
   const { customerWeekly: customerWeeklyAll, driverWeekly: driverWeeklyAll, driverInstantYearly, customerInstantYearly } =
     computeIncentiveData(allApprovedRecordsEver);
-  const watchItems: { label: string; bags: number; threshold: number }[] = [];
+  const watchItems: { label: string; address: string | null; bags: number; threshold: number }[] = [];
   for (const c of customers) {
     const b = customerWeekly.get(c.id)?.[wk] ?? 0;
     if (b > 0 && b < weeklySettings.customerWeeklyThreshold)
-      watchItems.push({ label: c.name, bags: b, threshold: weeklySettings.customerWeeklyThreshold });
+      watchItems.push({ label: c.name, address: c.address, bags: b, threshold: weeklySettings.customerWeeklyThreshold });
   }
   for (const d of drivers) {
     const b = driverWeekly.get(d.id)?.[wk] ?? 0;
     if (b > 0 && b < weeklySettings.driverWeeklyThreshold)
-      watchItems.push({ label: `${d.name} (driver)`, bags: b, threshold: weeklySettings.driverWeeklyThreshold });
+      watchItems.push({ label: `${d.name} (driver)`, address: null, bags: b, threshold: weeklySettings.driverWeeklyThreshold });
   }
 
   // total incentive bags given out — never part of any sales/revenue total, tracked separately
@@ -348,6 +348,7 @@ export default async function DashboardPage() {
             watchItems.map((w) => (
               <div key={w.label} style={{ fontSize: 12.5, padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
                 {w.label}: {w.bags}/{w.threshold} bags
+                {w.address && <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{w.address}</div>}
               </div>
             ))
           )}

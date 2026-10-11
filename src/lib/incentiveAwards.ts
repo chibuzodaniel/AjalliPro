@@ -8,6 +8,7 @@ export interface PendingIncentiveAward {
   entityType: "CUSTOMER" | "DRIVER";
   entityId: string;
   name: string;
+  address: string | null;
   weeklyBags: number;
   threshold: number;
   bonusBags: number;
@@ -40,6 +41,7 @@ export async function getPendingIncentiveAwards(): Promise<PendingIncentiveAward
         entityType: "CUSTOMER",
         entityId: c.id,
         name: c.name,
+        address: c.address,
         weeklyBags,
         threshold: weeklySettings.customerWeeklyThreshold,
         bonusBags: weeklySettings.customerWeeklyBonus,
@@ -54,6 +56,7 @@ export async function getPendingIncentiveAwards(): Promise<PendingIncentiveAward
         entityType: "DRIVER",
         entityId: d.id,
         name: d.name,
+        address: null,
         weeklyBags,
         threshold: weeklySettings.driverWeeklyThreshold,
         bonusBags: weeklySettings.driverWeeklyBonus,
