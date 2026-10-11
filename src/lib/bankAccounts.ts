@@ -1,5 +1,13 @@
 import { prisma } from "./prisma";
 
+export interface BankAccountExpenseEntry {
+  id: string;
+  description: string;
+  amount: number;
+  createdAt: Date;
+  createdByName: string;
+}
+
 export interface BankAccountWithBalance {
   id: string;
   bankName: string;
@@ -7,24 +15,39 @@ export interface BankAccountWithBalance {
   accountNumber: string;
   startingBalance: number;
   active: boolean;
+  isDefaultExpenseAccount: boolean;
   balance: number;
   pendingAmount: number; // sent, logged against this account, but not yet confirmed received
+  totalExpenses: number; // manual debits (BankAccountExpense) only
+  expenses: BankAccountExpenseEntry[];
+  dailyExpensesDebited: number; // every approved daily record's logged expenses, auto-debited from the default expense account only
 }
 
 /**
- * Current balance = the Super Admin-set starting balance plus every
- * confirmed-received transfer logged against that account — any archive
- * state, since archiving just resets the stock-counting session, not the
- * money that was actually received. A transfer only counts once
- * Admin/Super Admin ticks it as received (see confirmBankMoneyReceived);
- * until then its amount shows separately as "pending".
+ * Current balance = the Super Admin-set starting balance, plus every
+ * confirmed-received transfer logged against that account, minus every
+ * manual expense debited against it directly, minus (for the one account
+ * flagged as the default expense account) every approved daily record's
+ * logged expenses — any archive state, since archiving just resets the
+ * stock-counting session, not the money that was actually received or
+ * spent. A transfer only counts once Admin/Super Admin ticks it as received
+ * (see confirmBankMoneyReceived); until then its amount shows separately as
+ * "pending".
  */
 export async function getBankAccountsWithBalances(): Promise<BankAccountWithBalance[]> {
-  const [accounts, records] = await Promise.all([
+  const [accounts, records, expenses, dailyExpenseTotal] = await Promise.all([
     prisma.bankAccount.findMany({ orderBy: { createdAt: "asc" } }),
     prisma.dailyRecord.findMany({
       where: { status: "APPROVED", bankAccountId: { not: null } },
       select: { bankAccountId: true, bankAmountSent: true, bankMoneyReceived: true },
+    }),
+    prisma.bankAccountExpense.findMany({
+      include: { createdBy: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.expenseItem.aggregate({
+      where: { dailyRecord: { status: "APPROVED" } },
+      _sum: { amount: true },
     }),
   ]);
 
@@ -36,14 +59,32 @@ export async function getBankAccountsWithBalances(): Promise<BankAccountWithBala
     bucket.set(r.bankAccountId, (bucket.get(r.bankAccountId) ?? 0) + r.bankAmountSent);
   }
 
-  return accounts.map((a) => ({
-    id: a.id,
-    bankName: a.bankName,
-    accountName: a.accountName,
-    accountNumber: a.accountNumber,
-    startingBalance: a.startingBalance,
-    active: a.active,
-    balance: a.startingBalance + (receivedByAccount.get(a.id) ?? 0),
-    pendingAmount: pendingByAccount.get(a.id) ?? 0,
-  }));
+  const expensesByAccount = new Map<string, BankAccountExpenseEntry[]>();
+  for (const e of expenses) {
+    const list = expensesByAccount.get(e.bankAccountId) ?? [];
+    list.push({ id: e.id, description: e.description, amount: e.amount, createdAt: e.createdAt, createdByName: e.createdBy.name });
+    expensesByAccount.set(e.bankAccountId, list);
+  }
+
+  const dailyExpensesTotal = dailyExpenseTotal._sum.amount ?? 0;
+
+  return accounts.map((a) => {
+    const accountExpenses = expensesByAccount.get(a.id) ?? [];
+    const totalExpenses = accountExpenses.reduce((s, e) => s + e.amount, 0);
+    const dailyExpensesDebited = a.isDefaultExpenseAccount ? dailyExpensesTotal : 0;
+    return {
+      id: a.id,
+      bankName: a.bankName,
+      accountName: a.accountName,
+      accountNumber: a.accountNumber,
+      startingBalance: a.startingBalance,
+      active: a.active,
+      isDefaultExpenseAccount: a.isDefaultExpenseAccount,
+      balance: a.startingBalance + (receivedByAccount.get(a.id) ?? 0) - totalExpenses - dailyExpensesDebited,
+      pendingAmount: pendingByAccount.get(a.id) ?? 0,
+      totalExpenses,
+      expenses: accountExpenses,
+      dailyExpensesDebited,
+    };
+  });
 }

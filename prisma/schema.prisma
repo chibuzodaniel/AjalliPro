@@ -36,26 +36,27 @@ model User {
   payrollEnabled      Boolean  @default(true) // Super Admin can exclude an account from Salary entirely — off, it's just a normal platform login
   createdAt           DateTime @default(now())
 
-  dailyRecordsCreated  DailyRecord[]      @relation("DailyRecordCreatedBy")
-  dailyRecordsApproved DailyRecord[]      @relation("DailyRecordApprovedBy")
-  dailyRecordsArchived DailyRecord[]      @relation("DailyRecordArchivedBy")
-  bankMoneyConfirmedBy DailyRecord[]      @relation("DailyRecordBankReceivedBy")
+  dailyRecordsCreated  DailyRecord[]        @relation("DailyRecordCreatedBy")
+  dailyRecordsApproved DailyRecord[]        @relation("DailyRecordApprovedBy")
+  dailyRecordsArchived DailyRecord[]        @relation("DailyRecordArchivedBy")
+  bankMoneyConfirmedBy DailyRecord[]        @relation("DailyRecordBankReceivedBy")
   smsTemplatesCreated  SmsTemplate[]
-  driversCreated       Driver[]           @relation("DriverCreatedBy")
-  driversApproved      Driver[]           @relation("DriverApprovedBy")
+  driversCreated       Driver[]             @relation("DriverCreatedBy")
+  driversApproved      Driver[]             @relation("DriverApprovedBy")
   customersCreated     Customer[]
-  packersCreated       Packer[]           @relation("PackerCreatedBy")
+  packersCreated       Packer[]             @relation("PackerCreatedBy")
   activityLogs         ActivityLog[]
-  expensesMarkedPaid   ExpenseItem[]      @relation("ExpensePaidBy")
+  expensesMarkedPaid   ExpenseItem[]        @relation("ExpensePaidBy")
   expensePayments      ExpensePayment[]
   pushSubscriptions    PushSubscription[]
-  salaryPayments       SalaryPayment[]    @relation("SalaryPaymentFor")
-  salaryPaymentsMarked SalaryPayment[]    @relation("SalaryPaymentMarkedBy")
-  packerPaymentsMarked PackerPayment[]    @relation("PackerPaymentMarkedBy")
+  salaryPayments       SalaryPayment[]      @relation("SalaryPaymentFor")
+  salaryPaymentsMarked SalaryPayment[]      @relation("SalaryPaymentMarkedBy")
+  packerPaymentsMarked PackerPayment[]      @relation("PackerPaymentMarkedBy")
   incentiveAwardsMade  IncentiveAward[]
-  todosCreated         TodoItem[]         @relation("TodoCreatedBy")
-  todosDone            TodoItem[]         @relation("TodoDoneBy")
+  todosCreated         TodoItem[]           @relation("TodoCreatedBy")
+  todosDone            TodoItem[]           @relation("TodoDoneBy")
   bankAccountsCreated  BankAccount[]
+  bankAccountExpenses  BankAccountExpense[]
 }
 
 model PushSubscription {
@@ -401,17 +402,35 @@ model SmsTemplate {
  * Company bank accounts, managed by Super Admin — selected on the Daily Record form to mark which one that day's money was sent to.
  */
 model BankAccount {
-  id              String   @id @default(cuid())
-  bankName        String
-  accountName     String
-  accountNumber   String
-  startingBalance Int      @default(0) // the balance Super Admin set as the account's baseline — current balance = this plus every approved daily record's income sent here
-  active          Boolean  @default(true) // Super Admin can retire an account without breaking past daily records that reference it
-  createdById     String?
-  createdBy       User?    @relation(fields: [createdById], references: [id])
-  createdAt       DateTime @default(now())
+  id                      String   @id @default(cuid())
+  bankName                String
+  accountName             String
+  accountNumber           String
+  startingBalance         Int      @default(0) // the balance Super Admin set as the account's baseline — current balance = this plus confirmed-received transfers minus expenses debited against it
+  active                  Boolean  @default(true) // Super Admin can retire an account without breaking past daily records that reference it
+  isDefaultExpenseAccount Boolean  @default(false) // the one account that every approved daily record's logged expenses auto-debit from — only one account can hold this at a time
+  createdById             String?
+  createdBy               User?    @relation(fields: [createdById], references: [id])
+  createdAt               DateTime @default(now())
 
   dailyRecords DailyRecord[]
+  expenses     BankAccountExpense[]
+}
+
+/**
+ * A direct debit against a bank account — not tied to a daily record. Admin/Super Admin can add and remove these.
+ */
+model BankAccountExpense {
+  id            String      @id @default(cuid())
+  bankAccountId String
+  bankAccount   BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  description   String
+  amount        Int
+  createdById   String
+  createdBy     User        @relation(fields: [createdById], references: [id])
+  createdAt     DateTime    @default(now())
+
+  @@index([bankAccountId])
 }
 
 /**

@@ -7,10 +7,11 @@ import { requireRole, requireRoleSafe } from "@/lib/auth-helpers";
 import { SUPER_ADMIN_EMAIL } from "@/lib/auth";
 import { logActivity } from "@/lib/activity";
 import { sendPushToUsers } from "@/lib/push";
+import { formatMoney } from "@/lib/money";
 import { weeklyIncentiveSettingsSchema } from "@/lib/validation/weekly-incentive";
 import { emailTemplateSettingsSchema } from "@/lib/validation/email-template";
 import { smsTemplateSchema } from "@/lib/validation/sms-template";
-import { bankAccountSchema } from "@/lib/validation/bank-account";
+import { bankAccountSchema, bankAccountExpenseSchema } from "@/lib/validation/bank-account";
 import {
   pricingSettingsSchema,
   packerPriceSettingSchema,
@@ -666,6 +667,87 @@ export async function deleteBankAccount(id: string): Promise<BankAccountResult> 
 
   await prisma.bankAccount.delete({ where: { id } });
   await logActivity(`${user.name} deleted company bank account "${existing.bankName} — ${existing.accountName}".`, user.id);
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export interface BankAccountExpenseResult {
+  ok: boolean;
+  error?: string;
+}
+
+/** A direct debit against a bank account — e.g. a bank charge or a withdrawal — not tied to a daily record. */
+export async function addBankAccountExpense(bankAccountId: string, input: unknown): Promise<BankAccountExpenseResult> {
+  const guard = await requireRoleSafe(["ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
+
+  const parsed = bankAccountExpenseSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const account = await prisma.bankAccount.findUnique({ where: { id: bankAccountId } });
+  if (!account) return { ok: false, error: "Bank account not found." };
+
+  await prisma.bankAccountExpense.create({
+    data: { bankAccountId, description: parsed.data.description, amount: parsed.data.amount, createdById: user.id },
+  });
+  await logActivity(
+    `${user.name} debited ${formatMoney(parsed.data.amount)} from "${account.bankName}" for "${parsed.data.description}".`,
+    user.id
+  );
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function deleteBankAccountExpense(id: string): Promise<BankAccountExpenseResult> {
+  const guard = await requireRoleSafe(["ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
+
+  const existing = await prisma.bankAccountExpense.findUnique({ where: { id }, include: { bankAccount: true } });
+  if (!existing) return { ok: false, error: "Expense not found." };
+
+  await prisma.bankAccountExpense.delete({ where: { id } });
+  await logActivity(
+    `${user.name} removed the ${formatMoney(existing.amount)} debit "${existing.description}" from "${existing.bankAccount.bankName}".`,
+    user.id
+  );
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/**
+ * Designates which single bank account every approved daily record's logged
+ * expenses auto-debit from. Only one account can hold this at a time —
+ * setting it on one clears it from whichever account had it before. Pass
+ * null to turn off automatic expense debiting entirely.
+ */
+export async function setDefaultExpenseAccount(bankAccountId: string | null): Promise<BankAccountResult> {
+  const guard = await requireRoleSafe(["SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
+
+  if (bankAccountId) {
+    const account = await prisma.bankAccount.findUnique({ where: { id: bankAccountId } });
+    if (!account) return { ok: false, error: "Bank account not found." };
+  }
+
+  await prisma.$transaction([
+    prisma.bankAccount.updateMany({ where: { isDefaultExpenseAccount: true }, data: { isDefaultExpenseAccount: false } }),
+    ...(bankAccountId
+      ? [prisma.bankAccount.update({ where: { id: bankAccountId }, data: { isDefaultExpenseAccount: true } })]
+      : []),
+  ]);
+
+  const account = bankAccountId ? await prisma.bankAccount.findUnique({ where: { id: bankAccountId } }) : null;
+  await logActivity(
+    account
+      ? `${user.name} set "${account.bankName}" as the account daily expenses auto-debit from.`
+      : `${user.name} turned off automatic expense debiting.`,
+    user.id
+  );
   revalidatePath("/", "layout");
   return { ok: true };
 }

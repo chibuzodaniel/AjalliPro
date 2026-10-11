@@ -13,3 +13,10 @@ export const bankAccountSchema = z.object({
 });
 
 export type BankAccountInput = z.infer<typeof bankAccountSchema>;
+
+export const bankAccountExpenseSchema = z.object({
+  description: z.string().trim().min(1, "Description is required").max(200),
+  amount: z.number().int().min(1, "Enter an amount"),
+});
+
+export type BankAccountExpenseInput = z.infer<typeof bankAccountExpenseSchema>;

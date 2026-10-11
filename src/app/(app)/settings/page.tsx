@@ -21,6 +21,7 @@ import { getResetPreviewCounts, updateRollsPriceSetting, updatePackingBagsPriceS
 export default async function SettingsPage() {
   const user = await getCurrentUser();
   const isSuperAdmin = user?.role === "SUPER_ADMIN";
+  const isAdminOrSuperAdmin = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
   const isSeniorAdmin = (user?.email ?? "").toLowerCase() === SUPER_ADMIN_EMAIL;
   const canSeeUsers = user ? isApprover(user.role) : false;
 
@@ -30,7 +31,7 @@ export default async function SettingsPage() {
     getEmailTemplateSettings(),
     getPricingSettings(),
     prisma.smsTemplate.findMany({ orderBy: { name: "asc" } }),
-    isSuperAdmin ? getBankAccountsWithBalances() : Promise.resolve([]),
+    isAdminOrSuperAdmin ? getBankAccountsWithBalances() : Promise.resolve([]),
     canSeeUsers
       ? prisma.user.findMany({
           orderBy: [{ role: "asc" }, { name: "asc" }],
@@ -139,6 +140,21 @@ export default async function SettingsPage() {
         </div>
       )}
 
+      {isAdminOrSuperAdmin && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <div className="section-title">Company bank accounts</div>
+          <div className="section-sub">
+            Shown on the Daily Record form so whoever logs the day's sales can tick which account the money will be
+            sent to and how much; Admin/Super Admin then confirms it actually landed — only confirmed amounts count
+            toward the balance below. Admin/Super Admin can also debit an account directly (e.g. a bank charge or a
+            withdrawal), and one account can be set as the default that every approved daily record's logged
+            expenses auto-debit from. Super Admin manages the accounts themselves (add, edit, starting balance,
+            deactivate) — deactivating hides an account from the Daily Record picker without affecting past records.
+          </div>
+          <BankAccountsManager accounts={bankAccounts} canManage={isSuperAdmin} canAddExpense={isAdminOrSuperAdmin} />
+        </div>
+      )}
+
       {isSuperAdmin && (
         <>
           <div className="card" style={{ marginTop: 16 }}>
@@ -165,16 +181,6 @@ export default async function SettingsPage() {
               BULKSMSNIGERIA_SENDER_ID to be set before sending works.
             </div>
             <SmsTemplatesManager templates={smsTemplates} />
-          </div>
-          <div className="card" style={{ marginTop: 16 }}>
-            <div className="section-title">Company bank accounts</div>
-            <div className="section-sub">
-              Shown on the Daily Record form so whoever logs the day's sales can tick which account the money will be
-              sent to and how much. Admin/Super Admin then confirms it actually landed, from the record's detail
-              view — only confirmed amounts count toward the balance below. Set the starting balance once and the
-              rest tracks itself. Deactivating an account hides it from that picker without affecting past records.
-            </div>
-            <BankAccountsManager accounts={bankAccounts} />
           </div>
           <div className="card" style={{ marginTop: 16 }}>
             <div className="section-title">Production requirement (today)</div>
