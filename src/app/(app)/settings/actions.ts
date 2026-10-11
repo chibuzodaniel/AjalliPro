@@ -10,6 +10,7 @@ import { sendPushToUsers } from "@/lib/push";
 import { weeklyIncentiveSettingsSchema } from "@/lib/validation/weekly-incentive";
 import { emailTemplateSettingsSchema } from "@/lib/validation/email-template";
 import { smsTemplateSchema } from "@/lib/validation/sms-template";
+import { bankAccountSchema } from "@/lib/validation/bank-account";
 import {
   pricingSettingsSchema,
   packerPriceSettingSchema,
@@ -585,6 +586,86 @@ export async function deleteSmsTemplate(id: string): Promise<SmsTemplateResult> 
   }
   await prisma.smsTemplate.delete({ where: { id } });
   await logActivity(`${user.name} deleted the SMS template "${existing.name}".`, user.id);
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export interface BankAccountResult {
+  ok: boolean;
+  error?: string;
+}
+
+export async function createBankAccount(input: unknown): Promise<BankAccountResult> {
+  const guard = await requireRoleSafe(["SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
+  const parsed = bankAccountSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const account = await prisma.bankAccount.create({
+    data: { ...parsed.data, createdById: user.id },
+  });
+  await logActivity(`${user.name} added company bank account "${account.bankName} — ${account.accountName}".`, user.id);
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function updateBankAccount(id: string, input: unknown): Promise<BankAccountResult> {
+  const guard = await requireRoleSafe(["SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
+  const parsed = bankAccountSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const existing = await prisma.bankAccount.findUnique({ where: { id } });
+  if (!existing) return { ok: false, error: "Bank account not found." };
+
+  await prisma.bankAccount.update({ where: { id }, data: parsed.data });
+  await logActivity(`${user.name} updated company bank account "${parsed.data.bankName} — ${parsed.data.accountName}".`, user.id);
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/** Retires an account from the Daily Record picker without breaking past records that reference it. */
+export async function setBankAccountActive(id: string, active: boolean): Promise<BankAccountResult> {
+  const guard = await requireRoleSafe(["SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
+
+  const existing = await prisma.bankAccount.findUnique({ where: { id } });
+  if (!existing) return { ok: false, error: "Bank account not found." };
+
+  await prisma.bankAccount.update({ where: { id }, data: { active } });
+  await logActivity(
+    `${user.name} ${active ? "reactivated" : "deactivated"} company bank account "${existing.bankName} — ${existing.accountName}".`,
+    user.id
+  );
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function deleteBankAccount(id: string): Promise<BankAccountResult> {
+  const guard = await requireRoleSafe(["SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
+
+  const existing = await prisma.bankAccount.findUnique({ where: { id } });
+  if (!existing) return { ok: false, error: "Bank account not found." };
+
+  const usedCount = await prisma.dailyRecord.count({ where: { bankAccountId: id } });
+  if (usedCount > 0) {
+    return {
+      ok: false,
+      error: `Can't delete — ${usedCount} daily record${usedCount === 1 ? "" : "s"} already reference this account. Deactivate it instead.`,
+    };
+  }
+
+  await prisma.bankAccount.delete({ where: { id } });
+  await logActivity(`${user.name} deleted company bank account "${existing.bankName} — ${existing.accountName}".`, user.id);
   revalidatePath("/", "layout");
   return { ok: true };
 }

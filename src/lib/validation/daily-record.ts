@@ -53,6 +53,7 @@ export const dailyRecordSchema = z.object({
   leakageBags: z.number().int().min(0),
   leakageWasteBags: z.number().int().min(0),
   expenses: z.array(expenseItemSchema),
+  bankAccountId: z.string().min(1).nullable().optional(),
 });
 
 export type DailyRecordInput = z.infer<typeof dailyRecordSchema>;

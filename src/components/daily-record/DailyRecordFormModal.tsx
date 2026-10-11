@@ -17,6 +17,12 @@ interface CustomerOption {
   name: string;
   pricePerBag: number;
 }
+interface BankAccountOption {
+  id: string;
+  bankName: string;
+  accountName: string;
+  accountNumber: string;
+}
 interface ProductionRow {
   key: number;
   packerName: string;
@@ -79,6 +85,7 @@ interface DraftState {
   leakageBags: string;
   leakageWasteBags: string;
   expenses: ExpenseRow[];
+  bankAccountId: string;
 }
 
 function readDraft(key: string): DraftState | null {
@@ -113,6 +120,7 @@ export interface DailyRecordFormInitial {
   leakageBags: number;
   leakageWasteBags: number;
   expenses: { description: string; amount: number; paid: boolean }[];
+  bankAccountId: string | null;
 }
 
 function toProductionRows(rows: DailyRecordFormInitial["production"]): ProductionRow[] {
@@ -168,6 +176,7 @@ export default function DailyRecordFormModal({
   leakageOpening,
   drivers,
   customers,
+  bankAccounts,
   canEditOpeningStock,
   canEditFactoryPrice,
   canEditLeakageOpening,
@@ -187,6 +196,7 @@ export default function DailyRecordFormModal({
   leakageOpening: number;
   drivers: DriverOption[];
   customers: CustomerOption[];
+  bankAccounts: BankAccountOption[];
   canEditOpeningStock?: boolean;
   canEditFactoryPrice?: boolean;
   canEditLeakageOpening?: boolean;
@@ -253,6 +263,7 @@ export default function DailyRecordFormModal({
   const [expenses, setExpenses] = useState<ExpenseRow[]>(() =>
     draft ? rekeyRows(draft.expenses) : toExpenseRows(initial.expenses)
   );
+  const [bankAccountId, setBankAccountId] = useState(draft?.bankAccountId ?? (initial.bankAccountId ?? ""));
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -278,6 +289,7 @@ export default function DailyRecordFormModal({
     leakageBags: number;
     leakageWasteBags: number;
     expenses: DailyRecordFormInitial["expenses"];
+    bankAccountId?: string | null;
   }) {
     setOpeningValue(data.openingStock ? String(data.openingStock) : "");
     setLeakageOpeningValue(data.leakageOpening ? String(data.leakageOpening) : "");
@@ -292,6 +304,7 @@ export default function DailyRecordFormModal({
     setLeakageBags(data.leakageBags ? String(data.leakageBags) : "");
     setLeakageWasteBags(data.leakageWasteBags ? String(data.leakageWasteBags) : "");
     setExpenses(toExpenseRows(data.expenses));
+    setBankAccountId(data.bankAccountId ?? "");
   }
 
   useEffect(() => {
@@ -341,6 +354,7 @@ export default function DailyRecordFormModal({
       leakageBags,
       leakageWasteBags,
       expenses,
+      bankAccountId,
     };
     try {
       localStorage.setItem(draftKey, JSON.stringify(toSave));
@@ -363,6 +377,7 @@ export default function DailyRecordFormModal({
     leakageBags,
     leakageWasteBags,
     expenses,
+    bankAccountId,
   ]);
 
   function discardDraft() {
@@ -549,6 +564,7 @@ export default function DailyRecordFormModal({
       expenses: expenses
         .filter((e) => e.description.trim().length > 0 && (Number(e.amount) || 0) > 0)
         .map((e) => ({ description: e.description.trim(), amount: Number(e.amount) || 0, paid: e.paid })),
+      bankAccountId: bankAccountId || null,
     };
     let result;
     try {
@@ -1143,6 +1159,39 @@ export default function DailyRecordFormModal({
         >
           + Add expense
         </button>
+
+        {bankAccounts.length > 0 && (
+          <>
+            <div className="subhead">Bank account — where today&apos;s money was sent</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+              {bankAccounts.map((acc) => (
+                <label
+                  key={acc.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "10px 12px",
+                    borderRadius: 10,
+                    border: `1px solid ${bankAccountId === acc.id ? "var(--accent)" : "var(--border)"}`,
+                    background: "var(--panel-2)",
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="bankAccountId"
+                    checked={bankAccountId === acc.id}
+                    onChange={() => setBankAccountId(acc.id)}
+                  />
+                  <div style={{ fontSize: 13.5 }}>
+                    <b>{acc.bankName}</b> — {acc.accountName} · {acc.accountNumber}
+                  </div>
+                </label>
+              ))}
+            </div>
+          </>
+        )}
 
         <div className="calc-box" style={{ flexDirection: "column", alignItems: "stretch", gap: 6 }}>
           <div style={{ display: "flex", justifyContent: "space-between" }}>

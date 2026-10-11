@@ -19,7 +19,7 @@ export default async function ApprovalsPage() {
   const dbUser = user ? await prisma.user.findUnique({ where: { id: user.id }, select: { dailyRecordApprover: true } }) : null;
   const canSeeDailyRecords = user ? canApproveDailyRecords(user.role, dbUser?.dailyRecordApprover ?? false) : false;
 
-  const [pendingRecords, pendingDrivers, editDrivers, editCustomers, pricing] = await Promise.all([
+  const [pendingRecords, pendingDrivers, editDrivers, editCustomers, editBankAccounts, pricing] = await Promise.all([
     canSeeDailyRecords
       ? prisma.dailyRecord.findMany({
           where: { status: "PENDING" },
@@ -34,6 +34,7 @@ export default async function ApprovalsPage() {
     }),
     approver ? prisma.driver.findMany({ where: { status: "APPROVED" }, orderBy: { name: "asc" } }) : Promise.resolve([]),
     approver ? prisma.customer.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+    approver ? prisma.bankAccount.findMany({ where: { active: true }, orderBy: { createdAt: "asc" } }) : Promise.resolve([]),
     approver ? getPricingSettings() : Promise.resolve(null),
   ]);
 
@@ -69,6 +70,7 @@ export default async function ApprovalsPage() {
                     record={r}
                     drivers={editDrivers.map((d) => ({ id: d.id, name: d.name, pricePerBag: d.pricePerBag, loadingFee: d.loadingFee }))}
                     customers={editCustomers.map((c) => ({ id: c.id, name: c.name, pricePerBag: c.pricePerBag }))}
+                    bankAccounts={editBankAccounts}
                     canEditOpeningStock={user?.role === "SUPER_ADMIN"}
                     canEditFactoryPrice={user?.role === "ADMIN" || user?.role === "SUPER_ADMIN"}
                     canEditLeakageOpening={user?.role === "SUPER_ADMIN"}

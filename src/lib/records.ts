@@ -7,6 +7,7 @@ export const dailyRecordInclude = {
   truckDeliveries: { include: { customer: true } },
   expenseItems: { include: { paidBy: true } },
   factoryCustomer: true,
+  bankAccount: true,
   createdBy: true,
   approvedBy: true,
   archivedBy: true,

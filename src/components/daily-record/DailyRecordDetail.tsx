@@ -129,6 +129,8 @@ function printDailyRecordPdf(record: DailyRecordFull) {
 
   <div class="totals"><span>Pump water sales</span><span>${formatMoney(record.pumpWaterAmount)}</span></div>
 
+  ${record.bankAccount ? `<div class="totals"><span>Money sent to</span><span>${esc(record.bankAccount.bankName)} — ${esc(record.bankAccount.accountNumber)}</span></div>` : ""}
+
   <div class="totals"><span>Leakage balance carried forward</span><span>${record.leakageClosing} bags</span></div>
 
   <h2>Expenses</h2>
@@ -294,6 +296,15 @@ export default function DailyRecordDetail({ record, isAdmin }: { record: DailyRe
             <span>Pump water sales</span>
             <b>{formatMoney(record.pumpWaterAmount)}</b>
           </div>
+
+          {record.bankAccount && (
+            <div className="calc-box">
+              <span>Money sent to</span>
+              <b>
+                {record.bankAccount.bankName} — {record.bankAccount.accountNumber}
+              </b>
+            </div>
+          )}
 
           <div className="calc-box">
             <span>Leakage balance carried forward</span>

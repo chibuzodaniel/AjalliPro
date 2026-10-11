@@ -38,11 +38,12 @@ export default async function DailyRecordPage({
   const approver = user ? isApprover(user.role) : false;
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
 
-  const [records, activeCount, drivers, customers, opening, leakageOpening, pricing] = await Promise.all([
+  const [records, activeCount, drivers, customers, bankAccounts, opening, leakageOpening, pricing] = await Promise.all([
     view === "archived" && approver ? getArchivedRecordsSorted() : getAllRecordsSorted(),
     prisma.dailyRecord.count({ where: { archivedAt: null } }),
     prisma.driver.findMany({ where: { status: "APPROVED" }, orderBy: { name: "asc" } }),
     prisma.customer.findMany({ orderBy: { name: "asc" } }),
+    prisma.bankAccount.findMany({ where: { active: true }, orderBy: { createdAt: "asc" } }),
     latestClosingStock(),
     latestLeakageClosing(),
     getPricingSettings(),
@@ -95,6 +96,7 @@ export default async function DailyRecordPage({
                 record={r}
                 drivers={drivers.map((d) => ({ id: d.id, name: d.name, pricePerBag: d.pricePerBag, loadingFee: d.loadingFee }))}
                 customers={customers.map((c) => ({ id: c.id, name: c.name, pricePerBag: c.pricePerBag }))}
+                bankAccounts={bankAccounts}
                 canEditOpeningStock={user?.role === "SUPER_ADMIN"}
                 canEditFactoryPrice={user?.role === "ADMIN" || user?.role === "SUPER_ADMIN"}
                 canEditLeakageOpening={user?.role === "SUPER_ADMIN"}
@@ -150,6 +152,7 @@ export default async function DailyRecordPage({
               leakageOpening={leakageOpening}
               drivers={drivers.map((d) => ({ id: d.id, name: d.name, pricePerBag: d.pricePerBag, loadingFee: d.loadingFee }))}
               customers={customers.map((c) => ({ id: c.id, name: c.name, pricePerBag: c.pricePerBag }))}
+              bankAccounts={bankAccounts}
               canEditOpeningStock={user?.role === "SUPER_ADMIN"}
               factoryPricePerBag={pricing.factoryPricePerBag}
               canEditFactoryPrice={user?.role === "ADMIN" || user?.role === "SUPER_ADMIN"}
