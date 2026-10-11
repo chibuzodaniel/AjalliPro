@@ -1162,7 +1162,7 @@ export default function DailyRecordFormModal({
 
         {bankAccounts.length > 0 && (
           <>
-            <div className="subhead">Bank account — where today&apos;s money was sent</div>
+            <div className="subhead">Bank account — where today&apos;s money will be sent</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
               {bankAccounts.map((acc) => (
                 <label
