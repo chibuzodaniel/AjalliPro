@@ -1,8 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Modal from "@/components/ui/Modal";
-import { getPackerProductionBreakdown, type PackerProductionDay } from "@/app/(app)/packers/actions";
+import {
+  getPackerProductionBreakdown,
+  setPackerBalanceAdjustment,
+  type PackerProductionDay,
+} from "@/app/(app)/packers/actions";
 import { formatMoney } from "@/lib/money";
 
 export default function PackerNameDetail({
@@ -12,6 +17,8 @@ export default function PackerNameDetail({
   bagsPacked,
   owing,
   paid,
+  balanceAdjustment,
+  canAdjust,
 }: {
   packerId: string;
   name: string;
@@ -19,11 +26,31 @@ export default function PackerNameDetail({
   bagsPacked: number;
   owing: number;
   paid: number;
+  balanceAdjustment: number;
+  canAdjust?: boolean;
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [days, setDays] = useState<PackerProductionDay[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [editingAdjustment, setEditingAdjustment] = useState(false);
+  const [adjustmentValue, setAdjustmentValue] = useState(String(balanceAdjustment));
+  const [adjustLoading, setAdjustLoading] = useState(false);
+  const [adjustError, setAdjustError] = useState<string | null>(null);
+
+  async function handleSaveAdjustment() {
+    setAdjustLoading(true);
+    setAdjustError(null);
+    const result = await setPackerBalanceAdjustment(packerId, Number(adjustmentValue) || 0);
+    setAdjustLoading(false);
+    if (!result.ok) {
+      setAdjustError(result.error ?? "Could not save");
+      return;
+    }
+    setEditingAdjustment(false);
+    router.refresh();
+  }
 
   async function handleOpen() {
     setOpen(true);
@@ -68,6 +95,54 @@ export default function PackerNameDetail({
             <span>Amount paid</span>
             <b>{formatMoney(paid)}</b>
           </div>
+
+          {(balanceAdjustment !== 0 || canAdjust) && (
+            <div className="calc-box" style={{ flexDirection: "column", alignItems: "stretch", gap: 6 }}>
+              {editingAdjustment ? (
+                <>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                    <span>Balance adjustment (₦)</span>
+                    <input
+                      type="number"
+                      value={adjustmentValue}
+                      onChange={(e) => setAdjustmentValue(e.target.value)}
+                      style={{ width: 120, textAlign: "right" }}
+                    />
+                  </div>
+                  <div className="hint">Positive adds to what's owing, negative reduces it — e.g. fixing a past error.</div>
+                  {adjustError && <div className="field-error">{adjustError}</div>}
+                  <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                    <button className="btn btn-sm btn-ghost" onClick={() => setEditingAdjustment(false)} disabled={adjustLoading}>
+                      Cancel
+                    </button>
+                    <button className="btn btn-sm btn-approve" onClick={handleSaveAdjustment} disabled={adjustLoading}>
+                      {adjustLoading ? "Saving…" : "Save"}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span>Balance adjustment</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <b>{formatMoney(balanceAdjustment)}</b>
+                    {canAdjust && (
+                      <button
+                        className="btn btn-sm btn-ghost"
+                        style={{ padding: "4px 8px", fontSize: 11.5 }}
+                        onClick={() => {
+                          setAdjustmentValue(String(balanceAdjustment));
+                          setAdjustError(null);
+                          setEditingAdjustment(true);
+                        }}
+                      >
+                        Edit
+                      </button>
+                    )}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
           <div>
             <div style={{ color: "var(--text-faint)", fontSize: 11, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 6 }}>

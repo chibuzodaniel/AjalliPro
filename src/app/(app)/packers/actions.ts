@@ -154,7 +154,7 @@ export async function payPackerAmount(packerId: string, amount: number): Promise
   const packer = await prisma.packer.findUnique({ where: { id: packerId } });
   if (!packer) return { ok: false, error: "Packer not found." };
 
-  const totals = (await getPackerTotalsMap()).get(packerId) ?? { bags: 0, earned: 0, paid: 0, owing: 0 };
+  const totals = (await getPackerTotalsMap()).get(packerId) ?? { bags: 0, earned: 0, paid: 0, balanceAdjustment: 0, owing: 0 };
   if (totals.owing <= 0) {
     return { ok: false, error: `"${packer.name}" has nothing owing right now.` };
   }
@@ -246,4 +246,35 @@ export async function getPackerProductionBreakdown(packerId: string): Promise<Pa
     pricePerBag: l.pricePerBag,
     amount: l.bags * l.pricePerBag,
   }));
+}
+
+export interface SetPackerBalanceAdjustmentResult {
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * Super Admin correction on top of earned-minus-paid — e.g. fixing a past
+ * recording error, or writing off a disputed amount. Positive adds to what's
+ * owing, negative reduces it.
+ */
+export async function setPackerBalanceAdjustment(packerId: string, amount: number): Promise<SetPackerBalanceAdjustmentResult> {
+  const guard = await requireRoleSafe(["SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
+
+  if (!Number.isInteger(amount)) {
+    return { ok: false, error: "Enter a whole number." };
+  }
+
+  const packer = await prisma.packer.findUnique({ where: { id: packerId } });
+  if (!packer) return { ok: false, error: "Packer not found." };
+
+  await prisma.packer.update({ where: { id: packerId }, data: { balanceAdjustment: amount } });
+  await logActivity(
+    `${user.name} set a balance adjustment of ${formatMoney(amount)} on "${packer.name}"'s pay.`,
+    user.id
+  );
+  revalidatePath("/", "layout");
+  return { ok: true };
 }

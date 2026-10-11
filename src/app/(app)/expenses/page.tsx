@@ -104,7 +104,7 @@ export default async function ExpensesPage({
   // same paid/unpaid/all tabs as everything else, so it shows up here without
   // being counted twice against any real ExpenseItem.
   const packerRows = packers
-    .map((p) => ({ packer: p, totals: packerTotalsMap.get(p.id) ?? { bags: 0, earned: 0, paid: 0, owing: 0 } }))
+    .map((p) => ({ packer: p, totals: packerTotalsMap.get(p.id) ?? { bags: 0, earned: 0, paid: 0, balanceAdjustment: 0, owing: 0 } }))
     .filter(({ totals }) => totals.earned > 0)
     .filter(({ totals }) => (status === "all" ? true : status === "paid" ? totals.owing <= 0 : totals.owing > 0));
 
