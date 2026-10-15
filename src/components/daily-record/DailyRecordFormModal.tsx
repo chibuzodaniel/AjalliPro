@@ -847,7 +847,7 @@ export default function DailyRecordFormModal({
                     <> · Loading fee: not set for this driver — set it on the Drivers page</>
                   )}
                 </span>
-                {driver && driver.loadingFee > 0 && (
+                {driver && (
                   <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
                     <input
                       type="checkbox"
@@ -1006,34 +1006,30 @@ export default function DailyRecordFormModal({
                       <> · Offloading fee: not set — set a rate in Settings</>
                     )}
                   </span>
-                  {truckLoadingFeePerBag > 0 && (
-                    <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
-                      <input
-                        type="checkbox"
-                        checked={row.loadingFeeWaived}
-                        onChange={(e) =>
-                          setTruckDeliveries((rows) =>
-                            rows.map((r) => (r.key === row.key ? { ...r, loadingFeeWaived: e.target.checked } : r))
-                          )
-                        }
-                      />
-                      Loading fee not applicable
-                    </label>
-                  )}
-                  {truckOffloadingFeePerBag > 0 && (
-                    <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
-                      <input
-                        type="checkbox"
-                        checked={row.offloadingFeeWaived}
-                        onChange={(e) =>
-                          setTruckDeliveries((rows) =>
-                            rows.map((r) => (r.key === row.key ? { ...r, offloadingFeeWaived: e.target.checked } : r))
-                          )
-                        }
-                      />
-                      Offloading fee not applicable
-                    </label>
-                  )}
+                  <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={row.loadingFeeWaived}
+                      onChange={(e) =>
+                        setTruckDeliveries((rows) =>
+                          rows.map((r) => (r.key === row.key ? { ...r, loadingFeeWaived: e.target.checked } : r))
+                        )
+                      }
+                    />
+                    Loading fee not applicable
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={row.offloadingFeeWaived}
+                      onChange={(e) =>
+                        setTruckDeliveries((rows) =>
+                          rows.map((r) => (r.key === row.key ? { ...r, offloadingFeeWaived: e.target.checked } : r))
+                        )
+                      }
+                    />
+                    Offloading fee not applicable
+                  </label>
                   {!row.ownTruck && truckHiredCostPerBag > 0 && (
                     <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
                       <input
