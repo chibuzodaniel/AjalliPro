@@ -843,6 +843,9 @@ export default function DailyRecordFormModal({
                     <> · Loading fee: {formatMoney(loadingFeeExpense)} (auto-added as an expense, not part of this total)</>
                   )}
                   {driver && driver.loadingFee > 0 && row.loadingFeeWaived && <> · Loading fee: not applicable</>}
+                  {driver && driver.loadingFee <= 0 && (
+                    <> · Loading fee: not set for this driver — set it on the Drivers page</>
+                  )}
                 </span>
                 {driver && driver.loadingFee > 0 && (
                   <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
@@ -986,17 +989,21 @@ export default function DailyRecordFormModal({
                         · Hired truck: {row.hiredCostWaived ? "not applicable" : `${formatMoney(hiredCostAmount)} (auto-added as an expense)`}
                       </>
                     )}
-                    {truckLoadingFeePerBag > 0 && (
+                    {truckLoadingFeePerBag > 0 ? (
                       <>
                         {" "}
                         · Loading fee: {row.loadingFeeWaived ? "not applicable" : `${formatMoney(loadingFeeAmount)} (auto-added as an expense)`}
                       </>
+                    ) : (
+                      <> · Loading fee: not set — set a rate in Settings</>
                     )}
-                    {truckOffloadingFeePerBag > 0 && (
+                    {truckOffloadingFeePerBag > 0 ? (
                       <>
                         {" "}
                         · Offloading fee: {row.offloadingFeeWaived ? "not applicable" : `${formatMoney(offloadingFeeAmount)} (auto-added as an expense)`}
                       </>
+                    ) : (
+                      <> · Offloading fee: not set — set a rate in Settings</>
                     )}
                   </span>
                   {truckLoadingFeePerBag > 0 && (
