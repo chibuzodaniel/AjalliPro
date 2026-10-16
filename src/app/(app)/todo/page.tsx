@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import AddTodoForm from "@/components/todo/AddTodoForm";
 import TodoCheckbox from "@/components/todo/TodoCheckbox";
 import DeleteTodoButton from "@/components/todo/DeleteTodoButton";
+import AssignTodoControl from "@/components/todo/AssignTodoControl";
 
 function fmtDate(d: Date) {
   return d.toLocaleDateString("en-NG", { year: "numeric", month: "short", day: "numeric" });
@@ -13,13 +14,17 @@ export default async function TodoPage() {
   const user = await getCurrentUser();
   const canManage = user ? canManageTodos(user.role) : false;
   const canDelete = user?.role === "SUPER_ADMIN";
+  const canAssign = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
 
-  const items = canManage
-    ? await prisma.todoItem.findMany({
-        include: { createdBy: true, doneBy: true },
-        orderBy: [{ done: "asc" }, { createdAt: "desc" }],
-      })
-    : [];
+  const [items, staff] = await Promise.all([
+    canManage
+      ? prisma.todoItem.findMany({
+          include: { createdBy: true, doneBy: true, assignedTo: true },
+          orderBy: [{ done: "asc" }, { createdAt: "desc" }],
+        })
+      : Promise.resolve([]),
+    canAssign ? prisma.user.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }) : Promise.resolve([]),
+  ]);
 
   const open = items.filter((i) => !i.done);
   const done = items.filter((i) => i.done);
@@ -46,8 +51,10 @@ export default async function TodoPage() {
             {item.done && item.doneAt && (
               <> · Fixed/bought {fmtDate(item.doneAt)}{item.doneBy ? ` by ${item.doneBy.name}` : ""}</>
             )}
+            {!canAssign && item.assignedTo && <> · Assigned to {item.assignedTo.name}</>}
           </div>
         </div>
+        {canAssign && <AssignTodoControl todoId={item.id} assignedToId={item.assignedToId} staff={staff} />}
         {canDelete && <DeleteTodoButton id={item.id} description={item.description} />}
       </div>
     );
