@@ -431,11 +431,17 @@ export default function DailyRecordFormModal({
     (Number(leakageBags) || 0) -
     (Number(factoryBagsFromLeakage) || 0) -
     (Number(leakageWasteBags) || 0);
+  // A driver with no loading fee of their own set falls back to the general
+  // per-bag loading fee from Settings (same rate truck deliveries use).
+  function effectiveDriverLoadingFee(driver: DriverOption | undefined) {
+    if (!driver) return 0;
+    return driver.loadingFee > 0 ? driver.loadingFee : truckLoadingFeePerBag;
+  }
   const driverLoadingFeeTotal = driverSales.reduce((s, d) => {
     if (d.loadingFeeWaived) return s;
     const driver = driverById.get(d.driverId);
     const bags = Number(d.bags) || 0;
-    return s + bags * (driver?.loadingFee ?? 0);
+    return s + bags * effectiveDriverLoadingFee(driver);
   }, 0);
   const truckLoadingFeeTotal = truckDeliveries.reduce((s, t) => {
     const bags = Number(t.bags) || 0;
@@ -478,8 +484,10 @@ export default function DailyRecordFormModal({
       const bags = Number(d.bags) || 0;
       if (bags <= 0 || d.loadingFeeWaived) continue;
       const driver = driverById.get(d.driverId);
-      if (!driver || driver.loadingFee <= 0) continue;
-      items.push({ id: `driverLoadingFee:${d.key}`, kind: "driverLoadingFee", label: `Loading fee — ${driver.name}`, amount: bags * driver.loadingFee });
+      if (!driver) continue;
+      const loadingFeePerBag = effectiveDriverLoadingFee(driver);
+      if (loadingFeePerBag <= 0) continue;
+      items.push({ id: `driverLoadingFee:${d.key}`, kind: "driverLoadingFee", label: `Loading fee — ${driver.name}`, amount: bags * loadingFeePerBag });
     }
     for (const t of truckDeliveries) {
       const bags = Number(t.bags) || 0;
@@ -786,7 +794,9 @@ export default function DailyRecordFormModal({
           const bags = Number(row.bags) || 0;
           const bonus = Number(row.bonusBags) || 0;
           const total = bags * (driver?.pricePerBag ?? 0);
-          const loadingFeeExpense = bags * (driver?.loadingFee ?? 0);
+          const effectiveLoadingFeePerBag = effectiveDriverLoadingFee(driver);
+          const loadingFeeExpense = bags * effectiveLoadingFeePerBag;
+          const loadingFeeIsFallback = !!driver && driver.loadingFee <= 0 && truckLoadingFeePerBag > 0;
           return (
             <div key={row.key}>
               <div className="repeater-row dr" style={{ gridTemplateColumns: "1.3fr .9fr .9fr auto" }}>
@@ -839,12 +849,17 @@ export default function DailyRecordFormModal({
                 <span>
                   Instant incentive: +{bonus} bags (manual) · Total: {formatMoney(total)}
                   {driver ? ` (₦${driver.pricePerBag}/bag)` : ""}
-                  {driver && driver.loadingFee > 0 && !row.loadingFeeWaived && (
-                    <> · Loading fee: {formatMoney(loadingFeeExpense)} (auto-added as an expense, not part of this total)</>
+                  {driver && effectiveLoadingFeePerBag > 0 && !row.loadingFeeWaived && (
+                    <>
+                      {" "}
+                      · Loading fee: {formatMoney(loadingFeeExpense)}
+                      {loadingFeeIsFallback ? " (general rate — not set for this driver)" : ""} (auto-added as an
+                      expense, not part of this total)
+                    </>
                   )}
-                  {driver && driver.loadingFee > 0 && row.loadingFeeWaived && <> · Loading fee: not applicable</>}
-                  {driver && driver.loadingFee <= 0 && (
-                    <> · Loading fee: not set for this driver — set it on the Drivers page</>
+                  {driver && effectiveLoadingFeePerBag > 0 && row.loadingFeeWaived && <> · Loading fee: not applicable</>}
+                  {driver && effectiveLoadingFeePerBag <= 0 && (
+                    <> · Loading fee: not set for this driver or in Settings</>
                   )}
                 </span>
                 {driver && (

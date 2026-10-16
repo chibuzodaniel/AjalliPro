@@ -30,7 +30,10 @@ import {
 function buildLoadingFeeExpenses(
   driverSales: { driverId: string; bags: number; loadingFeeWaived: boolean; loadingFeePaid: boolean }[],
   driverById: Map<string, { name: string; loadingFee: number }>,
-  paidById: string
+  paidById: string,
+  // Falls back to the general per-bag loading fee (Settings) when this
+  // specific driver has no loading fee of their own set.
+  fallbackLoadingFeePerBag: number
 ) {
   const expenses: {
     description: string;
@@ -43,8 +46,10 @@ function buildLoadingFeeExpenses(
   for (const d of driverSales) {
     if (d.bags <= 0 || d.loadingFeeWaived) continue;
     const driver = driverById.get(d.driverId);
-    if (!driver || driver.loadingFee <= 0) continue;
-    const amount = d.bags * driver.loadingFee;
+    if (!driver) continue;
+    const loadingFeePerBag = driver.loadingFee > 0 ? driver.loadingFee : fallbackLoadingFeePerBag;
+    if (loadingFeePerBag <= 0) continue;
+    const amount = d.bags * loadingFeePerBag;
     expenses.push({
       description: `Loading fee — ${driver.name}`,
       amount,
@@ -306,7 +311,7 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
                   ? e.amount / fixedPricing.packingBagsPricePerBundle
                   : null,
             })),
-            ...buildLoadingFeeExpenses(data.driverSales, driverById, user.id),
+            ...buildLoadingFeeExpenses(data.driverSales, driverById, user.id, fixedPricing.truckLoadingFeePerBag),
             ...buildTruckCostExpenses(
               data.truckDeliveries,
               truckCustomerById,
@@ -596,7 +601,7 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
                       ? e.amount / fixedPricing.packingBagsPricePerBundle
                       : null,
                 })),
-                ...buildLoadingFeeExpenses(data.driverSales, driverById, user.id),
+                ...buildLoadingFeeExpenses(data.driverSales, driverById, user.id, fixedPricing.truckLoadingFeePerBag),
                 ...buildTruckCostExpenses(
                   data.truckDeliveries,
                   truckCustomerById,
