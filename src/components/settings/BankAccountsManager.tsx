@@ -10,10 +10,20 @@ import {
   setBankAccountActive,
   addBankAccountExpense,
   deleteBankAccountExpense,
+  addBankAccountCredit,
+  deleteBankAccountCredit,
   setDefaultExpenseAccount,
 } from "@/app/(app)/settings/actions";
 
 export interface BankAccountExpenseRow {
+  id: string;
+  description: string;
+  amount: number;
+  createdAt: Date;
+  createdByName: string;
+}
+
+export interface BankAccountCreditRow {
   id: string;
   description: string;
   amount: number;
@@ -33,6 +43,8 @@ export interface BankAccountRow {
   pendingAmount: number;
   totalExpenses: number;
   expenses: BankAccountExpenseRow[];
+  totalCredits: number;
+  credits: BankAccountCreditRow[];
   dailyExpensesDebited: number;
 }
 
@@ -196,6 +208,104 @@ function ExpenseForm({ bankAccountId, onCancel }: { bankAccountId: string; onCan
   );
 }
 
+function CreditForm({ bankAccountId, onCancel }: { bankAccountId: string; onCancel: () => void }) {
+  const router = useRouter();
+  const [description, setDescription] = useState("");
+  const [amount, setAmount] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit() {
+    setLoading(true);
+    setError(null);
+    const result = await addBankAccountCredit(bankAccountId, { description, amount: Number(amount) || 0 });
+    setLoading(false);
+    if (!result.ok) {
+      setError(result.error ?? "Could not save");
+      return;
+    }
+    router.refresh();
+    onCancel();
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input
+          type="text"
+          placeholder="e.g. Cash deposit"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          maxLength={200}
+          style={{ flex: 1 }}
+        />
+        <input
+          type="number"
+          min={1}
+          placeholder="Amount ₦"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          style={{ width: 130 }}
+        />
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <button
+          className="btn btn-sm btn-ghost"
+          style={{ padding: "6px 12px", fontSize: 12 }}
+          onClick={handleSubmit}
+          disabled={loading || !description.trim() || !amount}
+        >
+          {loading ? "Saving…" : "Add credit"}
+        </button>
+        <button className="btn btn-sm btn-ghost" style={{ padding: "6px 12px", fontSize: 12 }} onClick={onCancel} disabled={loading}>
+          Cancel
+        </button>
+        {error && <span className="field-error">{error}</span>}
+      </div>
+    </div>
+  );
+}
+
+function CreditEntry({ credit }: { credit: BankAccountCreditRow }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleDelete() {
+    if (!window.confirm(`Remove the "${credit.description}" credit of ${formatMoney(credit.amount)}?`)) return;
+    setBusy(true);
+    setError(null);
+    const result = await deleteBankAccountCredit(credit.id);
+    setBusy(false);
+    if (!result.ok) {
+      setError(result.error ?? "Could not remove");
+      return;
+    }
+    router.refresh();
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+        <div style={{ fontSize: 13 }}>
+          {credit.description}
+          <div style={{ fontSize: 11, color: "var(--text-faint)" }}>
+            {new Date(credit.createdAt).toLocaleDateString("en-NG", { year: "numeric", month: "short", day: "numeric" })} ·{" "}
+            {credit.createdByName}
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <b style={{ color: "var(--green)", fontSize: 13 }}>+{formatMoney(credit.amount)}</b>
+          <button className="icon-btn" title="Remove this credit" onClick={handleDelete} disabled={busy}>
+            ✕
+          </button>
+        </div>
+      </div>
+      {error && <div className="field-error">{error}</div>}
+    </div>
+  );
+}
+
 function ExpenseEntry({ expense }: { expense: BankAccountExpenseRow }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -240,14 +350,17 @@ function AccountRow({
   account,
   canManage,
   canAddExpense,
+  canAddCredit,
 }: {
   account: BankAccountRow;
   canManage: boolean;
   canAddExpense: boolean;
+  canAddCredit: boolean;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [addingExpense, setAddingExpense] = useState(false);
+  const [addingCredit, setAddingCredit] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -327,6 +440,11 @@ function AccountRow({
               {formatMoney(account.totalExpenses)} debited in manual expenses
             </div>
           )}
+          {account.totalCredits > 0 && (
+            <div style={{ fontSize: 12.5, marginTop: 2, color: "var(--text-faint)" }}>
+              {formatMoney(account.totalCredits)} added in manual credits
+            </div>
+          )}
           {account.isDefaultExpenseAccount && (
             <div style={{ fontSize: 12.5, marginTop: 2, color: "var(--text-faint)" }}>
               {formatMoney(account.dailyExpensesDebited)} auto-debited from daily record expenses since becoming the
@@ -352,6 +470,25 @@ function AccountRow({
         )}
       </div>
       {error && <div className="field-error" style={{ marginTop: 6 }}>{error}</div>}
+
+      {canAddCredit && (
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+          {account.credits.length > 0 && (
+            <div style={{ marginBottom: 6 }}>
+              {account.credits.map((c) => (
+                <CreditEntry key={c.id} credit={c} />
+              ))}
+            </div>
+          )}
+          {addingCredit ? (
+            <CreditForm bankAccountId={account.id} onCancel={() => setAddingCredit(false)} />
+          ) : (
+            <button className="btn btn-sm btn-ghost" style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => setAddingCredit(true)}>
+              + Add credit
+            </button>
+          )}
+        </div>
+      )}
 
       {canAddExpense && (
         <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
@@ -379,10 +516,12 @@ export default function BankAccountsManager({
   accounts,
   canManage,
   canAddExpense,
+  canAddCredit,
 }: {
   accounts: BankAccountRow[];
   canManage: boolean;
   canAddExpense: boolean;
+  canAddCredit: boolean;
 }) {
   const [addingNew, setAddingNew] = useState(false);
 
@@ -390,7 +529,7 @@ export default function BankAccountsManager({
     <div>
       {accounts.length === 0 && !addingNew && <div className="empty">No company bank accounts yet.</div>}
       {accounts.map((a) => (
-        <AccountRow key={a.id} account={a} canManage={canManage} canAddExpense={canAddExpense} />
+        <AccountRow key={a.id} account={a} canManage={canManage} canAddExpense={canAddExpense} canAddCredit={canAddCredit} />
       ))}
       {canManage &&
         (addingNew ? (

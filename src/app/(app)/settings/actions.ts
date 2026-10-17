@@ -718,6 +718,53 @@ export async function deleteBankAccountExpense(id: string): Promise<BankAccountE
   return { ok: true };
 }
 
+export interface BankAccountCreditResult {
+  ok: boolean;
+  error?: string;
+}
+
+/** A direct credit (top-up) to a bank account — e.g. a capital injection or a cash deposit — not tied to a daily record. */
+export async function addBankAccountCredit(bankAccountId: string, input: unknown): Promise<BankAccountCreditResult> {
+  const guard = await requireRoleSafe(["ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
+
+  const parsed = bankAccountExpenseSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const account = await prisma.bankAccount.findUnique({ where: { id: bankAccountId } });
+  if (!account) return { ok: false, error: "Bank account not found." };
+
+  await prisma.bankAccountCredit.create({
+    data: { bankAccountId, description: parsed.data.description, amount: parsed.data.amount, createdById: user.id },
+  });
+  await logActivity(
+    `${user.name} credited ${formatMoney(parsed.data.amount)} to "${account.bankName}" for "${parsed.data.description}".`,
+    user.id
+  );
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function deleteBankAccountCredit(id: string): Promise<BankAccountCreditResult> {
+  const guard = await requireRoleSafe(["ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
+
+  const existing = await prisma.bankAccountCredit.findUnique({ where: { id }, include: { bankAccount: true } });
+  if (!existing) return { ok: false, error: "Credit not found." };
+
+  await prisma.bankAccountCredit.delete({ where: { id } });
+  await logActivity(
+    `${user.name} removed the ${formatMoney(existing.amount)} credit "${existing.description}" from "${existing.bankAccount.bankName}".`,
+    user.id
+  );
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
 /**
  * Designates which single bank account every approved daily record's logged
  * expenses auto-debit from. Only one account can hold this at a time —

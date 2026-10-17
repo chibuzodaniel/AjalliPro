@@ -13,6 +13,7 @@ import KpiCard from "@/components/ui/KpiCard";
 import NetRevenueCard, { type PeriodRow } from "@/components/dashboard/NetRevenueCard";
 import AnnouncementButton from "@/components/dashboard/AnnouncementButton";
 import AddBankExpenseButton from "@/components/dashboard/AddBankExpenseButton";
+import AddBankCreditButton from "@/components/dashboard/AddBankCreditButton";
 import IncentiveAwardNotice from "@/components/dashboard/IncentiveAwardNotice";
 import IncentiveAwardToast from "@/components/dashboard/IncentiveAwardToast";
 import { LineTrendChart, BarTrendChart } from "@/components/charts/DynamicTrendChart";
@@ -213,6 +214,7 @@ export default async function DashboardPage() {
             />
           )}
           {isAdminOrSuperAdmin && <AddBankExpenseButton accounts={bankAccounts} />}
+          {isAdminOrSuperAdmin && <AddBankCreditButton accounts={bankAccounts} />}
           <Link href="/reports" className="btn btn-ghost no-print">
             📈 View reports
           </Link>

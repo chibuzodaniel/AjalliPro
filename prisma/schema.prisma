@@ -58,6 +58,7 @@ model User {
   todosAssigned        TodoItem[]           @relation("TodoAssignedTo")
   bankAccountsCreated  BankAccount[]
   bankAccountExpenses  BankAccountExpense[]
+  bankAccountCredits   BankAccountCredit[]
 }
 
 model PushSubscription {
@@ -421,12 +422,31 @@ model BankAccount {
 
   dailyRecords DailyRecord[]
   expenses     BankAccountExpense[]
+  credits      BankAccountCredit[]
 }
 
 /**
  * A direct debit against a bank account — not tied to a daily record. Admin/Super Admin can add and remove these.
  */
 model BankAccountExpense {
+  id            String      @id @default(cuid())
+  bankAccountId String
+  bankAccount   BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  description   String
+  amount        Int
+  createdById   String
+  createdBy     User        @relation(fields: [createdById], references: [id])
+  createdAt     DateTime    @default(now())
+
+  @@index([bankAccountId])
+}
+
+/**
+ * A direct credit (top-up) to a bank account — not tied to a daily record's
+ * transfer, e.g. a capital injection or a cash deposit. Admin/Super Admin
+ * can add and remove these, mirroring BankAccountExpense.
+ */
+model BankAccountCredit {
   id            String      @id @default(cuid())
   bankAccountId String
   bankAccount   BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
