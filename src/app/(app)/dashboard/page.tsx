@@ -12,8 +12,9 @@ import { getPendingIncentiveAwards } from "@/lib/incentiveAwards";
 import KpiCard from "@/components/ui/KpiCard";
 import NetRevenueCard, { type PeriodRow } from "@/components/dashboard/NetRevenueCard";
 import AnnouncementButton from "@/components/dashboard/AnnouncementButton";
-import AddBankExpenseButton from "@/components/dashboard/AddBankExpenseButton";
-import AddBankCreditButton from "@/components/dashboard/AddBankCreditButton";
+import AddBankTransactionButton from "@/components/dashboard/AddBankTransactionButton";
+import BankBalanceCard from "@/components/dashboard/BankBalanceCard";
+import { getBankAccountsWithBalances } from "@/lib/bankAccounts";
 import IncentiveAwardNotice from "@/components/dashboard/IncentiveAwardNotice";
 import IncentiveAwardToast from "@/components/dashboard/IncentiveAwardToast";
 import { LineTrendChart, BarTrendChart } from "@/components/charts/DynamicTrendChart";
@@ -70,14 +71,9 @@ export default async function DashboardPage() {
     prisma.dailyRecord.count({ where: { status: "PENDING" } }),
     prisma.driver.count({ where: { status: "PENDING" } }),
     getWeeklyIncentiveSettings(),
-    isAdminOrSuperAdmin
-      ? prisma.bankAccount.findMany({
-          where: { active: true },
-          select: { id: true, bankName: true, accountName: true, accountNumber: true },
-          orderBy: { createdAt: "asc" },
-        })
-      : Promise.resolve([]),
+    isAdminOrSuperAdmin ? getBankAccountsWithBalances() : Promise.resolve([]),
   ]);
+  const activeBankAccounts = bankAccounts.filter((a) => a.active);
   const canAnnounce = user ? user.role === "ADMIN_STAFF" || approver : false;
   const pendingIncentiveAwards = user ? await getPendingIncentiveAwards() : [];
 
@@ -213,8 +209,7 @@ export default async function DashboardPage() {
               templates={smsTemplates}
             />
           )}
-          {isAdminOrSuperAdmin && <AddBankExpenseButton accounts={bankAccounts} />}
-          {isAdminOrSuperAdmin && <AddBankCreditButton accounts={bankAccounts} />}
+          {isAdminOrSuperAdmin && <AddBankTransactionButton accounts={activeBankAccounts} />}
           <Link href="/reports" className="btn btn-ghost no-print">
             📈 View reports
           </Link>
@@ -286,6 +281,7 @@ export default async function DashboardPage() {
               monthlyHistory={monthlyNetHistory}
               yearlyHistory={yearlyNetHistory}
             />
+            <BankBalanceCard accounts={bankAccounts} />
           </>
         )}
         <KpiCard

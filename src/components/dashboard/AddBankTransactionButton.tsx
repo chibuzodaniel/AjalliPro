@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/ui/Modal";
-import { addBankAccountCredit } from "@/app/(app)/settings/actions";
+import { addBankAccountExpense, addBankAccountCredit } from "@/app/(app)/settings/actions";
 
 interface BankAccountOption {
   id: string;
@@ -12,9 +12,12 @@ interface BankAccountOption {
   accountNumber: string;
 }
 
-export default function AddBankCreditButton({ accounts }: { accounts: BankAccountOption[] }) {
+type TransactionType = "DEBIT" | "CREDIT";
+
+export default function AddBankTransactionButton({ accounts }: { accounts: BankAccountOption[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [type, setType] = useState<TransactionType>("DEBIT");
   const [bankAccountId, setBankAccountId] = useState(accounts[0]?.id ?? "");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
@@ -22,6 +25,7 @@ export default function AddBankCreditButton({ accounts }: { accounts: BankAccoun
   const [loading, setLoading] = useState(false);
 
   function reset() {
+    setType("DEBIT");
     setBankAccountId(accounts[0]?.id ?? "");
     setDescription("");
     setAmount("");
@@ -32,10 +36,11 @@ export default function AddBankCreditButton({ accounts }: { accounts: BankAccoun
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const result = await addBankAccountCredit(bankAccountId, { description, amount: Number(amount) || 0 });
+    const action = type === "DEBIT" ? addBankAccountExpense : addBankAccountCredit;
+    const result = await action(bankAccountId, { description, amount: Number(amount) || 0 });
     setLoading(false);
     if (!result.ok) {
-      setError(result.error ?? "Could not add credit");
+      setError(result.error ?? `Could not add ${type === "DEBIT" ? "debit" : "credit"}`);
       return;
     }
     setOpen(false);
@@ -48,12 +53,33 @@ export default function AddBankCreditButton({ accounts }: { accounts: BankAccoun
   return (
     <>
       <button className="btn btn-ghost no-print" onClick={() => setOpen(true)}>
-        💰 Add bank credit
+        🏦 Debit / credit account
       </button>
-      <Modal open={open} onClose={() => setOpen(false)} title="Credit a bank account">
+      <Modal open={open} onClose={() => setOpen(false)} title="Debit or credit a bank account">
         <form onSubmit={handleSubmit}>
           <div className="field">
-            <label>Account to credit</label>
+            <label>Type</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                type="button"
+                className={`btn btn-sm ${type === "DEBIT" ? "btn-reject" : "btn-ghost"}`}
+                style={{ flex: 1 }}
+                onClick={() => setType("DEBIT")}
+              >
+                Debit (−)
+              </button>
+              <button
+                type="button"
+                className={`btn btn-sm ${type === "CREDIT" ? "btn-approve" : "btn-ghost"}`}
+                style={{ flex: 1 }}
+                onClick={() => setType("CREDIT")}
+              >
+                Credit (+)
+              </button>
+            </div>
+          </div>
+          <div className="field">
+            <label>Account to {type === "DEBIT" ? "debit" : "credit"}</label>
             <select value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)} required>
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>
@@ -66,7 +92,7 @@ export default function AddBankCreditButton({ accounts }: { accounts: BankAccoun
             <label>Description</label>
             <input
               type="text"
-              placeholder="e.g. Cash deposit"
+              placeholder={type === "DEBIT" ? "e.g. Bank charges" : "e.g. Cash deposit"}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               maxLength={200}
@@ -79,7 +105,7 @@ export default function AddBankCreditButton({ accounts }: { accounts: BankAccoun
           </div>
           {error && <div className="field-error">{error}</div>}
           <button className="btn btn-primary" style={{ width: "100%" }} type="submit" disabled={loading}>
-            {loading ? "Saving…" : "Add credit"}
+            {loading ? "Saving…" : type === "DEBIT" ? "Add debit" : "Add credit"}
           </button>
         </form>
       </Modal>

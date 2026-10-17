@@ -30,7 +30,7 @@ export interface BankAccountWithBalance {
   expenses: BankAccountExpenseEntry[];
   totalCredits: number; // manual credits (BankAccountCredit) only
   credits: BankAccountCreditEntry[];
-  dailyExpensesDebited: number; // approved daily records' logged expenses since this account became the default — never the backlog from before
+  dailyExpensesDebited: number; // approved daily records' expenses actually PAID (amountPaid, not the full owed amount) since this account became the default — never the backlog from before
 }
 
 /**
@@ -38,13 +38,16 @@ export interface BankAccountWithBalance {
  * confirmed-received transfer logged against that account, plus every
  * manual credit added directly, minus every manual expense debited against
  * it directly, minus (for the one account flagged as the default expense
- * account) every approved daily record's logged expenses *since it became
- * the default* — setting an account as default never pulls in the backlog
- * of expenses logged before that point. Any archive state counts, since
- * archiving just resets the stock-counting session, not the money that was
- * actually received or spent. A transfer only counts once Admin/Super Admin
- * ticks it as received (see confirmBankMoneyReceived); until then its
- * amount shows separately as "pending".
+ * account) every approved daily record's expense *actually paid so far*
+ * (amountPaid — partial payments count for exactly what's been paid, not
+ * the full amount owed) *since it became the default* — setting an account
+ * as default never pulls in the backlog of expenses logged before that
+ * point, and an expense that's still owing never debits the account until
+ * it's actually paid. Any archive state counts, since archiving just resets
+ * the stock-counting session, not the money that was actually received or
+ * spent. A transfer only counts once Admin/Super Admin ticks it as received
+ * (see confirmBankMoneyReceived); until then its amount shows separately as
+ * "pending".
  */
 export async function getBankAccountsWithBalances(): Promise<BankAccountWithBalance[]> {
   const [accounts, records, expenses, credits] = await Promise.all([
@@ -86,15 +89,17 @@ export async function getBankAccountsWithBalances(): Promise<BankAccountWithBala
   }
 
   // Only one account can be the default at a time — look up its debited
-  // total, scoped to expenses logged since it became the default.
+  // total, scoped to expenses logged since it became the default, and only
+  // the portion actually paid (amountPaid) — an expense still owing hasn't
+  // left the account yet.
   const defaultAccount = accounts.find((a) => a.isDefaultExpenseAccount && a.defaultExpenseAccountSetAt);
   const dailyExpensesSinceDefault = defaultAccount
     ? (
         await prisma.expenseItem.aggregate({
           where: { dailyRecord: { status: "APPROVED", createdAt: { gte: defaultAccount.defaultExpenseAccountSetAt! } } },
-          _sum: { amount: true },
+          _sum: { amountPaid: true },
         })
-      )._sum.amount ?? 0
+      )._sum.amountPaid ?? 0
     : 0;
 
   return accounts.map((a) => {

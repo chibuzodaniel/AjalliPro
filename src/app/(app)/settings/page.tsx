@@ -148,17 +148,12 @@ export default async function SettingsPage() {
             sent to and how much; Admin/Super Admin then confirms it actually landed — only confirmed amounts count
             toward the balance below. Admin/Super Admin can also debit an account directly (e.g. a bank charge or a
             withdrawal) or credit it directly (e.g. a cash deposit or capital injection), and one account can be set
-            as the default that every approved daily record's logged expenses auto-debit from — starting the moment
-            it's set, not retroactively. Super Admin manages the
-            accounts themselves (add, edit, starting balance, deactivate) — deactivating hides an account from the
-            Daily Record picker without affecting past records.
+            as the default that approved daily record expenses auto-debit from as they're actually paid — starting
+            the moment it's set, not retroactively, and never before an expense is marked paid. Super Admin manages
+            the accounts themselves (add, edit, starting balance, deactivate) — deactivating hides an account from
+            the Daily Record picker without affecting past records.
           </div>
-          <BankAccountsManager
-            accounts={bankAccounts}
-            canManage={isSuperAdmin}
-            canAddExpense={isAdminOrSuperAdmin}
-            canAddCredit={isAdminOrSuperAdmin}
-          />
+          <BankAccountsManager accounts={bankAccounts} canManage={isSuperAdmin} canAddTransaction={isAdminOrSuperAdmin} />
         </div>
       )}
 

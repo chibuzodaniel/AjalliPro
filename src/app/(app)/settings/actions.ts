@@ -766,10 +766,11 @@ export async function deleteBankAccountCredit(id: string): Promise<BankAccountCr
 }
 
 /**
- * Designates which single bank account every approved daily record's logged
- * expenses auto-debit from. Only one account can hold this at a time —
- * setting it on one clears it from whichever account had it before. Pass
- * null to turn off automatic expense debiting entirely.
+ * Designates which single bank account approved daily record expenses
+ * auto-debit from as they're actually paid (never while still owing). Only
+ * one account can hold this at a time — setting it on one clears it from
+ * whichever account had it before. Pass null to turn off automatic expense
+ * debiting entirely.
  */
 export async function setDefaultExpenseAccount(bankAccountId: string | null): Promise<BankAccountResult> {
   const guard = await requireRoleSafe(["SUPER_ADMIN"]);
