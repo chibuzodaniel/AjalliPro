@@ -24,7 +24,8 @@ export default async function PackersPage() {
   ]);
 
   const canManage = user ? canManagePackers(user.role) : false;
-  const canRecordPayment = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
+  const canRevertPayment = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
+  const canRecordPayment = user?.role === "ADMIN_STAFF" || canRevertPayment;
   const canDelete = user?.role === "SUPER_ADMIN";
   const canAdjustBalance = user?.role === "SUPER_ADMIN";
 
@@ -79,7 +80,9 @@ export default async function PackersPage() {
               </td>
               <td>{formatMoney(totals.paid)}</td>
               <td style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-                {canRecordPayment && <PackerPaymentControl packerId={p.id} owing={totals.owing} paid={totals.paid} />}
+                {canRecordPayment && (
+                  <PackerPaymentControl packerId={p.id} owing={totals.owing} paid={totals.paid} canRevert={canRevertPayment} />
+                )}
                 {canManage && <PackerPaymentHistory packerId={p.id} name={p.name} />}
                 {canManage && p.phone && (
                   <SendEntitySmsButton entityId={p.id} entityName={p.name} templates={smsTemplates} sendAction={sendPackerSms} />

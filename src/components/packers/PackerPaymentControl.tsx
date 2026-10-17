@@ -5,7 +5,17 @@ import { useRouter } from "next/navigation";
 import { payPackerAmount, revertLastPackerPayment } from "@/app/(app)/packers/actions";
 import { formatMoney } from "@/lib/money";
 
-export default function PackerPaymentControl({ packerId, owing, paid }: { packerId: string; owing: number; paid: number }) {
+export default function PackerPaymentControl({
+  packerId,
+  owing,
+  paid,
+  canRevert,
+}: {
+  packerId: string;
+  owing: number;
+  paid: number;
+  canRevert: boolean;
+}) {
   const router = useRouter();
   // Optimistic: router.refresh() can take a few seconds against this app's
   // real-world DB latency, so reflect a successful action immediately
@@ -82,7 +92,7 @@ export default function PackerPaymentControl({ packerId, owing, paid }: { packer
       ) : (
         <span style={{ fontSize: 12.5, color: "var(--green)" }}>Paid up</span>
       )}
-      {effectivePaid > 0 && (
+      {canRevert && effectivePaid > 0 && (
         <button
           className="btn btn-sm btn-ghost"
           style={{ alignSelf: "flex-start", padding: "4px 8px", fontSize: 11.5 }}

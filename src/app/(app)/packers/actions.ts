@@ -1,11 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireRoleSafe } from "@/lib/auth-helpers";
 import { logActivity } from "@/lib/activity";
 import { packerPhoneSchema, packerSmsSchema } from "@/lib/validation/packer";
 import { isSmsConfigured, sendSms, sendPackerPaidSms } from "@/lib/sms";
+import { notifyReviewers } from "@/lib/push";
 import { runWeeklyPackerPaySms } from "@/lib/packerPaySms";
 import { getPackerTotalsMap } from "@/lib/packerPay";
 import { formatMoney } from "@/lib/money";
@@ -143,7 +145,7 @@ export interface PackerPaymentResult {
  * paid. An SMS failure doesn't undo the recorded payment.
  */
 export async function payPackerAmount(packerId: string, amount: number): Promise<PackerPaymentResult> {
-  const guard = await requireRoleSafe(["ADMIN", "SUPER_ADMIN"]);
+  const guard = await requireRoleSafe(["ADMIN_STAFF", "ADMIN", "SUPER_ADMIN"]);
   if (!guard.ok) return { ok: false, error: guard.error };
   const admin = guard.user;
 
@@ -167,6 +169,17 @@ export async function payPackerAmount(packerId: string, amount: number): Promise
   });
   const label = amount === totals.owing ? "as paid" : "as partially paid";
   await logActivity(`${admin.name} marked "${packer.name}"'s pay (${formatMoney(amount)}) ${label}.`, admin.id);
+
+  after(() =>
+    notifyReviewers(
+      {
+        title: "Packer pay marked",
+        body: `${admin.name} marked "${packer.name}"'s pay (${formatMoney(amount)}) ${label}.`,
+        url: "/packers",
+      },
+      admin.id
+    )
+  );
 
   if (packer.phone && isSmsConfigured()) {
     try {

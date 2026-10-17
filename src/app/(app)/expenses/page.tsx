@@ -68,7 +68,8 @@ export default async function ExpensesPage({
   const user = await getCurrentUser();
   const isSuperAdmin = user?.role === "SUPER_ADMIN";
   const canRecordPayment = user ? canViewExpenses(user.role) : false;
-  const canRecordPackerPayment = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
+  const canRevertPackerPayment = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
+  const canRecordPackerPayment = user?.role === "ADMIN_STAFF" || canRevertPackerPayment;
   // Salary is more sensitive than routine expenses — Admin Staff can see
   // everything else on this page, but salary stays Admin/Super Admin only.
   const canSeeSalary = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
@@ -173,7 +174,12 @@ export default async function ExpensesPage({
               <td>—</td>
               <td style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                 {canRecordPackerPayment ? (
-                  <PackerPaymentControl packerId={packer.id} owing={totals.owing} paid={totals.paid} />
+                  <PackerPaymentControl
+                    packerId={packer.id}
+                    owing={totals.owing}
+                    paid={totals.paid}
+                    canRevert={canRevertPackerPayment}
+                  />
                 ) : totals.owing <= 0 ? (
                   <span style={{ fontSize: 12.5, color: "var(--green)" }}>Paid in full</span>
                 ) : (
@@ -202,7 +208,7 @@ export default async function ExpensesPage({
               </td>
               <td>—</td>
               <td style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-                {canRecordPackerPayment ? (
+                {canSeeSalary ? (
                   <SalaryPaymentControl
                     userId={staffUser.id}
                     period={period}
