@@ -14,6 +14,7 @@ import NetRevenueCard, { type PeriodRow } from "@/components/dashboard/NetRevenu
 import AnnouncementButton from "@/components/dashboard/AnnouncementButton";
 import AddBankExpenseButton from "@/components/dashboard/AddBankExpenseButton";
 import IncentiveAwardNotice from "@/components/dashboard/IncentiveAwardNotice";
+import IncentiveAwardToast from "@/components/dashboard/IncentiveAwardToast";
 import { LineTrendChart, BarTrendChart } from "@/components/charts/DynamicTrendChart";
 import type { DailyRecordFull } from "@/lib/records";
 
@@ -77,7 +78,7 @@ export default async function DashboardPage() {
       : Promise.resolve([]),
   ]);
   const canAnnounce = user ? user.role === "ADMIN_STAFF" || approver : false;
-  const pendingIncentiveAwards = approver ? await getPendingIncentiveAwards() : [];
+  const pendingIncentiveAwards = user ? await getPendingIncentiveAwards() : [];
 
   const stock = approvedRecords.length ? approvedRecords[approvedRecords.length - 1].closingStock : 0;
   const today = todayISO();
@@ -189,7 +190,11 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      {approver && <IncentiveAwardNotice pending={pendingIncentiveAwards} />}
+      {approver ? (
+        <IncentiveAwardNotice pending={pendingIncentiveAwards} />
+      ) : (
+        pendingIncentiveAwards.length > 0 && <IncentiveAwardToast pending={pendingIncentiveAwards} />
+      )}
       <div className="topbar">
         <div>
           <h1>Dashboard</h1>
