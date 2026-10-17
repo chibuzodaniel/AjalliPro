@@ -5,12 +5,11 @@ import { prisma } from "@/lib/prisma";
 import { getApprovedRecordsSorted, getAllApprovedRecordsEverSorted, recordSoldTotal } from "@/lib/records";
 import { computeRevenue } from "@/lib/revenue";
 import { computeIncentiveData, weeksQualifiedInYear, yearTotal } from "@/lib/incentives";
-import { currentWeekKey, todayISO, weekKeyOf, MONTH_NAMES } from "@/lib/week";
+import { currentWeekKey, todayISO, weekKeyOf } from "@/lib/week";
 import { formatMoney } from "@/lib/money";
 import { getWeeklyIncentiveSettings } from "@/lib/settings";
 import { getPendingIncentiveAwards } from "@/lib/incentiveAwards";
 import KpiCard from "@/components/ui/KpiCard";
-import NetRevenueCard, { type PeriodRow } from "@/components/dashboard/NetRevenueCard";
 import AnnouncementButton from "@/components/dashboard/AnnouncementButton";
 import AddBankTransactionButton from "@/components/dashboard/AddBankTransactionButton";
 import BankBalanceCard from "@/components/dashboard/BankBalanceCard";
@@ -18,28 +17,6 @@ import { getBankAccountsWithBalances } from "@/lib/bankAccounts";
 import IncentiveAwardNotice from "@/components/dashboard/IncentiveAwardNotice";
 import IncentiveAwardToast from "@/components/dashboard/IncentiveAwardToast";
 import { LineTrendChart, BarTrendChart } from "@/components/charts/DynamicTrendChart";
-import type { DailyRecordFull } from "@/lib/records";
-
-function groupByPeriod(
-  records: DailyRecordFull[],
-  keyFn: (date: string) => string,
-  labelFn: (key: string) => string,
-  limit: number
-): PeriodRow[] {
-  const groups = new Map<string, DailyRecordFull[]>();
-  for (const r of records) {
-    const key = keyFn(r.date);
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(r);
-  }
-  // localeCompare with numeric:true so "...-W9" sorts before "...-W10" —
-  // plain string sort would put W10 before W9 lexicographically.
-  const keys = [...groups.keys()].sort((a, b) => b.localeCompare(a, undefined, { numeric: true })).slice(0, limit);
-  return keys.map((key) => {
-    const rev = computeRevenue(groups.get(key)!);
-    return { label: labelFn(key), gross: rev.gross, expenses: rev.expenses, net: rev.net };
-  });
-}
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
@@ -100,20 +77,6 @@ export default async function DashboardPage() {
   const monthRevenue = computeRevenue(approvedRecords.filter((r) => r.date.startsWith(monthPrefix)));
   const yearRevenue = computeRevenue(approvedRecords.filter((r) => r.date.startsWith(yearPrefix)));
   const weekRevenue = computeRevenue(weekRecords);
-
-  // Net Revenue history — true net (revenue minus every expense), grouped
-  // by week/month/year so the card's modal can show how it's trending.
-  // Only the current (still-ongoing) week is shown at week granularity — once a
-  // week is over, its totals live on in the "By month" breakdown instead of
-  // also lingering here as a separate historical row.
-  const weeklyNetHistory = groupByPeriod(approvedRecords, (d) => weekKeyOf(d), (k) => k, 1);
-  const monthlyNetHistory = groupByPeriod(
-    approvedRecords,
-    (d) => d.slice(0, 7),
-    (k) => `${MONTH_NAMES[Number(k.slice(5, 7)) - 1]} ${k.slice(0, 4)}`,
-    12
-  );
-  const yearlyNetHistory = groupByPeriod(approvedRecords, (d) => d.slice(0, 4), (k) => k, 10);
 
   // 14-day series
   const days: string[] = [];
@@ -274,12 +237,6 @@ export default async function DashboardPage() {
               iconBg="rgba(63,222,154,.15)"
               iconColor="var(--green)"
               delta={`Pump ${formatMoney(yearRevenue.pumpWaterTotal)} + Sachet ${formatMoney(yearRevenue.sachetTotal)}`}
-            />
-            <NetRevenueCard
-              weekNet={weekRevenue.net}
-              weeklyHistory={weeklyNetHistory}
-              monthlyHistory={monthlyNetHistory}
-              yearlyHistory={yearlyNetHistory}
             />
             <BankBalanceCard accounts={bankAccounts} />
           </>
