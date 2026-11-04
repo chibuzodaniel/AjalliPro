@@ -52,6 +52,10 @@ interface ExpenseRow {
   amount: string;
   paid: boolean;
 }
+interface PackerOption {
+  id: string;
+  name: string;
+}
 
 type AutoFeeKind = "driverLoadingFee" | "truckFuel" | "truckHiredCost" | "truckLoadingFee" | "truckOffloadingFee";
 interface AutoFeeItem {
@@ -84,6 +88,7 @@ interface DraftState {
   pumpWaterAmount: string;
   leakageBags: string;
   leakageWasteBags: string;
+  driverTruckBagsFromLeakage: string;
   expenses: ExpenseRow[];
   bankAccountId: string;
   bankAmountSent: string;
@@ -120,6 +125,7 @@ export interface DailyRecordFormInitial {
   }[];
   leakageBags: number;
   leakageWasteBags: number;
+  driverTruckBagsFromLeakage: number;
   expenses: { description: string; amount: number; paid: boolean }[];
   bankAccountId: string | null;
   bankAmountSent: number;
@@ -179,6 +185,7 @@ export default function DailyRecordFormModal({
   drivers,
   customers,
   bankAccounts,
+  packers,
   canEditOpeningStock,
   canEditFactoryPrice,
   canEditLeakageOpening,
@@ -199,6 +206,7 @@ export default function DailyRecordFormModal({
   drivers: DriverOption[];
   customers: CustomerOption[];
   bankAccounts: BankAccountOption[];
+  packers: PackerOption[];
   canEditOpeningStock?: boolean;
   canEditFactoryPrice?: boolean;
   canEditLeakageOpening?: boolean;
@@ -262,6 +270,10 @@ export default function DailyRecordFormModal({
   const [leakageWasteBags, setLeakageWasteBags] = useState(
     draft?.leakageWasteBags ?? (initial.leakageWasteBags ? String(initial.leakageWasteBags) : "")
   );
+  const [driverTruckBagsFromLeakage, setDriverTruckBagsFromLeakage] = useState(
+    draft?.driverTruckBagsFromLeakage ??
+      (initial.driverTruckBagsFromLeakage ? String(initial.driverTruckBagsFromLeakage) : "")
+  );
   const [expenses, setExpenses] = useState<ExpenseRow[]>(() =>
     draft ? rekeyRows(draft.expenses) : toExpenseRows(initial.expenses)
   );
@@ -293,6 +305,7 @@ export default function DailyRecordFormModal({
     pumpWaterAmount: number;
     leakageBags: number;
     leakageWasteBags: number;
+    driverTruckBagsFromLeakage: number;
     expenses: DailyRecordFormInitial["expenses"];
     bankAccountId?: string | null;
     bankAmountSent?: number;
@@ -309,9 +322,12 @@ export default function DailyRecordFormModal({
     setPumpWaterAmount(data.pumpWaterAmount ? String(data.pumpWaterAmount) : "");
     setLeakageBags(data.leakageBags ? String(data.leakageBags) : "");
     setLeakageWasteBags(data.leakageWasteBags ? String(data.leakageWasteBags) : "");
+    setDriverTruckBagsFromLeakage(data.driverTruckBagsFromLeakage ? String(data.driverTruckBagsFromLeakage) : "");
     setExpenses(toExpenseRows(data.expenses));
     setBankAccountId(data.bankAccountId ?? "");
     setBankAmountSent(data.bankAmountSent ? String(data.bankAmountSent) : "");
+    setClosingStockTouched(false);
+    setLeakageClosingTouched(false);
   }
 
   useEffect(() => {
@@ -360,6 +376,7 @@ export default function DailyRecordFormModal({
       pumpWaterAmount,
       leakageBags,
       leakageWasteBags,
+      driverTruckBagsFromLeakage,
       expenses,
       bankAccountId,
       bankAmountSent,
@@ -384,6 +401,7 @@ export default function DailyRecordFormModal({
     pumpWaterAmount,
     leakageBags,
     leakageWasteBags,
+    driverTruckBagsFromLeakage,
     expenses,
     bankAccountId,
     bankAmountSent,
@@ -413,24 +431,52 @@ export default function DailyRecordFormModal({
     const truckBagsTotal = truckDeliveries.reduce((s, t) => s + (Number(t.bags) || 0), 0);
     const truckBonusTotal = truckDeliveries.reduce((s, t) => s + (Number(t.bonusBags) || 0), 0);
     const factoryBagsNet = (Number(factoryBags) || 0) - (Number(factoryBagsFromLeakage) || 0);
+    const driverTruckBagsNet =
+      driverBagsTotal + truckBagsTotal - (Number(driverTruckBagsFromLeakage) || 0);
     return (
       (Number(openingValue) || 0) +
       prodTotal -
       factoryBagsNet -
-      driverBagsTotal -
+      driverTruckBagsNet -
       driverBonusTotal -
-      truckBagsTotal -
       truckBonusTotal -
       (Number(leakageBags) || 0)
     );
-  }, [production, driverSales, truckDeliveries, factoryBags, factoryBagsFromLeakage, leakageBags, openingValue]);
+  }, [
+    production,
+    driverSales,
+    truckDeliveries,
+    factoryBags,
+    factoryBagsFromLeakage,
+    driverTruckBagsFromLeakage,
+    leakageBags,
+    openingValue,
+  ]);
 
   const leakageOpeningNum = Number(leakageOpeningValue) || 0;
   const leakageClosingPreview =
     leakageOpeningNum +
     (Number(leakageBags) || 0) -
     (Number(factoryBagsFromLeakage) || 0) -
+    (Number(driverTruckBagsFromLeakage) || 0) -
     (Number(leakageWasteBags) || 0);
+
+  // Super Admin can override these two computed figures directly — same
+  // "always-editable" treatment as opening stock / leakage opening above.
+  // Starts synced to the live computed preview and stays synced unless the
+  // admin actually types into the field, so opening the form never silently
+  // submits an override that doesn't match what's shown.
+  const [closingStockTouched, setClosingStockTouched] = useState(false);
+  const [closingStockValue, setClosingStockValue] = useState(String(closingPreview));
+  useEffect(() => {
+    if (!closingStockTouched) setClosingStockValue(String(closingPreview));
+  }, [closingPreview, closingStockTouched]);
+
+  const [leakageClosingTouched, setLeakageClosingTouched] = useState(false);
+  const [leakageClosingValue, setLeakageClosingValue] = useState(String(leakageClosingPreview));
+  useEffect(() => {
+    if (!leakageClosingTouched) setLeakageClosingValue(String(leakageClosingPreview));
+  }, [leakageClosingPreview, leakageClosingTouched]);
   // A driver with no loading fee of their own set falls back to the general
   // per-bag loading fee from Settings (same rate truck deliveries use).
   function effectiveDriverLoadingFee(driver: DriverOption | undefined) {
@@ -578,11 +624,14 @@ export default function DailyRecordFormModal({
         })),
       leakageBags: Number(leakageBags) || 0,
       leakageWasteBags: Number(leakageWasteBags) || 0,
+      driverTruckBagsFromLeakage: Number(driverTruckBagsFromLeakage) || 0,
       expenses: expenses
         .filter((e) => e.description.trim().length > 0 && (Number(e.amount) || 0) > 0)
         .map((e) => ({ description: e.description.trim(), amount: Number(e.amount) || 0, paid: e.paid })),
       bankAccountId: bankAccountId || null,
       bankAmountSent: bankAccountId ? Number(bankAmountSent) || 0 : 0,
+      closingStockOverride: canEditOpeningStock && closingStockTouched ? Number(closingStockValue) || 0 : null,
+      leakageClosingOverride: canEditLeakageOpening && leakageClosingTouched ? Number(leakageClosingValue) || 0 : null,
     };
     let result;
     try {
@@ -663,6 +712,14 @@ export default function DailyRecordFormModal({
         </div>
 
         <div className="subhead">Production</div>
+        <datalist id="packer-names">
+          {packers.map((p) => (
+            <option key={p.id} value={p.name} />
+          ))}
+        </datalist>
+        <div className="hint" style={{ marginBottom: 10 }}>
+          Pick an existing packer from the list, or type a new name — it&apos;s created automatically.
+        </div>
         {production.map((row) => {
           const bags = Number(row.bags) || 0;
           const pay = bags * packerPricePerBag;
@@ -672,6 +729,7 @@ export default function DailyRecordFormModal({
                 <div className="field" style={{ marginBottom: 0 }}>
                   <input
                     type="text"
+                    list="packer-names"
                     placeholder="Packer name"
                     value={row.packerName}
                     onChange={(e) =>
@@ -1098,15 +1156,66 @@ export default function DailyRecordFormModal({
             onChange={(e) => setLeakageBags(e.target.value)}
           />
         </div>
+        <div className="field">
+          <label>
+            Leakages sold as normal stock — via driver sales / truck deliveries (bags — available:{" "}
+            {leakageOpeningNum})
+          </label>
+          <input
+            type="number"
+            min={0}
+            max={leakageOpeningNum}
+            placeholder="0"
+            value={driverTruckBagsFromLeakage}
+            onChange={(e) => setDriverTruckBagsFromLeakage(e.target.value)}
+          />
+          <div className="hint">
+            Already counted in the driver/truck bags entered above — this just marks that some of those bags came
+            from the leakage pile, not fresh stock, so they&apos;re not deducted twice.
+          </div>
+        </div>
         <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginBottom: 6 }}>
           Opening {leakageOpeningNum} + New {Number(leakageBags) || 0} − Rebagged {Number(factoryBagsFromLeakage) || 0}
+          {(Number(driverTruckBagsFromLeakage) || 0) > 0
+            ? ` − Sold via driver/truck ${Number(driverTruckBagsFromLeakage) || 0}`
+            : ""}
           {(Number(leakageWasteBags) || 0) > 0 ? ` − Wasted ${Number(leakageWasteBags) || 0}` : ""} = Closing{" "}
           {leakageClosingPreview}
         </div>
-        <div className="calc-box" style={{ marginBottom: 14 }}>
-          <span>Leakage balance to carry forward</span>
-          <b>{leakageClosingPreview} bags</b>
-        </div>
+        {canEditLeakageOpening ? (
+          <div className="field" style={{ marginBottom: 14 }}>
+            <label>Leakage balance to carry forward (bags) — editable (Super Admin)</label>
+            <input
+              type="number"
+              min={0}
+              value={leakageClosingValue}
+              onChange={(e) => {
+                setLeakageClosingTouched(true);
+                setLeakageClosingValue(e.target.value);
+              }}
+            />
+            {leakageClosingTouched && (
+              <div className="hint">
+                Overriding the computed value ({leakageClosingPreview} bags).{" "}
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => {
+                    setLeakageClosingTouched(false);
+                    setLeakageClosingValue(String(leakageClosingPreview));
+                  }}
+                >
+                  Reset to computed
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="calc-box" style={{ marginBottom: 14 }}>
+            <span>Leakage balance to carry forward</span>
+            <b>{leakageClosingPreview} bags</b>
+          </div>
+        )}
 
         <div className="subhead">Expenses</div>
         {loadingFeeExpenseTotal > 0 && (
@@ -1256,10 +1365,40 @@ export default function DailyRecordFormModal({
           </div>
         </div>
 
-        <div className="calc-box">
-          <span>Projected closing stock</span>
-          <b>{closingPreview} bags</b>
-        </div>
+        {canEditOpeningStock ? (
+          <div className="field">
+            <label>Projected closing stock (bags) — editable (Super Admin)</label>
+            <input
+              type="number"
+              min={0}
+              value={closingStockValue}
+              onChange={(e) => {
+                setClosingStockTouched(true);
+                setClosingStockValue(e.target.value);
+              }}
+            />
+            {closingStockTouched && (
+              <div className="hint">
+                Overriding the computed value ({closingPreview} bags).{" "}
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => {
+                    setClosingStockTouched(false);
+                    setClosingStockValue(String(closingPreview));
+                  }}
+                >
+                  Reset to computed
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="calc-box">
+            <span>Projected closing stock</span>
+            <b>{closingPreview} bags</b>
+          </div>
+        )}
 
         {error && <div className="field-error">{error}</div>}
         <button className="btn btn-primary" style={{ width: "100%", marginTop: 16 }} type="submit" disabled={loading}>

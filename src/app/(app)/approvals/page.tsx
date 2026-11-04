@@ -19,24 +19,26 @@ export default async function ApprovalsPage() {
   const dbUser = user ? await prisma.user.findUnique({ where: { id: user.id }, select: { dailyRecordApprover: true } }) : null;
   const canSeeDailyRecords = user ? canApproveDailyRecords(user.role, dbUser?.dailyRecordApprover ?? false) : false;
 
-  const [pendingRecords, pendingDrivers, editDrivers, editCustomers, editBankAccounts, pricing] = await Promise.all([
-    canSeeDailyRecords
-      ? prisma.dailyRecord.findMany({
-          where: { status: "PENDING" },
-          include: dailyRecordInclude,
-          orderBy: { date: "desc" },
-        })
-      : Promise.resolve([]),
-    prisma.driver.findMany({
-      where: { status: "PENDING" },
-      include: { createdBy: true },
-      orderBy: { createdAt: "desc" },
-    }),
-    approver ? prisma.driver.findMany({ where: { status: "APPROVED" }, orderBy: { name: "asc" } }) : Promise.resolve([]),
-    approver ? prisma.customer.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
-    approver ? prisma.bankAccount.findMany({ where: { active: true }, orderBy: { createdAt: "asc" } }) : Promise.resolve([]),
-    approver ? getPricingSettings() : Promise.resolve(null),
-  ]);
+  const [pendingRecords, pendingDrivers, editDrivers, editCustomers, editBankAccounts, editPackers, pricing] =
+    await Promise.all([
+      canSeeDailyRecords
+        ? prisma.dailyRecord.findMany({
+            where: { status: "PENDING" },
+            include: dailyRecordInclude,
+            orderBy: { date: "desc" },
+          })
+        : Promise.resolve([]),
+      prisma.driver.findMany({
+        where: { status: "PENDING" },
+        include: { createdBy: true },
+        orderBy: { createdAt: "desc" },
+      }),
+      approver ? prisma.driver.findMany({ where: { status: "APPROVED" }, orderBy: { name: "asc" } }) : Promise.resolve([]),
+      approver ? prisma.customer.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+      approver ? prisma.bankAccount.findMany({ where: { active: true }, orderBy: { createdAt: "asc" } }) : Promise.resolve([]),
+      approver ? prisma.packer.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
+      approver ? getPricingSettings() : Promise.resolve(null),
+    ]);
 
   const pendingRecordsTable = (
     <table>
@@ -71,6 +73,7 @@ export default async function ApprovalsPage() {
                     drivers={editDrivers.map((d) => ({ id: d.id, name: d.name, pricePerBag: d.pricePerBag, loadingFee: d.loadingFee }))}
                     customers={editCustomers.map((c) => ({ id: c.id, name: c.name, pricePerBag: c.pricePerBag }))}
                     bankAccounts={editBankAccounts}
+                    packers={editPackers.map((p) => ({ id: p.id, name: p.name }))}
                     canEditOpeningStock={user?.role === "SUPER_ADMIN"}
                     canEditFactoryPrice={user?.role === "ADMIN" || user?.role === "SUPER_ADMIN"}
                     canEditLeakageOpening={user?.role === "SUPER_ADMIN"}

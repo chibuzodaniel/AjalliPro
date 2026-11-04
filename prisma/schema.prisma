@@ -87,7 +87,8 @@ model DailyRecord {
   leakageOpening         Int            @default(0) // leakage pile balance carried from the previous approved record
   leakageBags            Int            @default(0) // NEW leakage logged today, added to the pile
   leakageWasteBags       Int            @default(0) // bags lost/spoiled while rebagging leakage stock — not sellable, not carried forward
-  leakageClosing         Int            @default(0) // leakageOpening + leakageBags - factoryBagsFromLeakage - leakageWasteBags
+  driverTruckBagsFromLeakage Int        @default(0) // subset of today's driver-sale + truck-delivery bags rebagged from the leakage pile, not fresh production
+  leakageClosing         Int            @default(0) // leakageOpening + leakageBags - factoryBagsFromLeakage - driverTruckBagsFromLeakage - leakageWasteBags
   incentiveBonusBags     Int            @default(0) // cumulative weekly-incentive bonus bags approved+deducted from stock on this day — see IncentiveAward
   bankAccountId          String? // which company bank account the day's money will be sent to — ticked by whoever logs the record
   bankAccount            BankAccount?   @relation(fields: [bankAccountId], references: [id])

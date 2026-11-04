@@ -199,10 +199,10 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
       ? data.leakageOpeningOverride
       : computedLeakageOpening;
 
-  if (data.factoryBagsFromLeakage + data.leakageWasteBags > leakageOpening) {
+  if (data.factoryBagsFromLeakage + data.driverTruckBagsFromLeakage + data.leakageWasteBags > leakageOpening) {
     return {
       ok: false,
-      error: `Only ${leakageOpening} bags are available in the leakage pile to rebag or waste.`,
+      error: `Only ${leakageOpening} bags are available in the leakage pile to sell, rebag, or waste.`,
     };
   }
 
@@ -212,7 +212,7 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
   const truckDeliveryBagsTotal = data.truckDeliveries.reduce((s, t) => s + t.bags, 0);
   const truckDeliveryBonusBagsTotal = data.truckDeliveries.reduce((s, t) => s + t.bonusBags, 0);
 
-  const closing = computeClosingStock({
+  const computedClosing = computeClosingStock({
     opening,
     prodTotal,
     factoryBags: data.factoryBags,
@@ -221,14 +221,22 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
     driverBonusBagsTotal,
     truckDeliveryBagsTotal,
     truckDeliveryBonusBagsTotal,
+    driverTruckBagsFromLeakage: data.driverTruckBagsFromLeakage,
     leakageBagsNew: data.leakageBags,
   });
-  const leakageClosing = computeLeakageClosing(
+  const computedLeakageClosing = computeLeakageClosing(
     leakageOpening,
     data.leakageBags,
     data.factoryBagsFromLeakage,
+    data.driverTruckBagsFromLeakage,
     data.leakageWasteBags
   );
+  const closing =
+    user.role === "SUPER_ADMIN" && data.closingStockOverride != null ? data.closingStockOverride : computedClosing;
+  const leakageClosing =
+    user.role === "SUPER_ADMIN" && data.leakageClosingOverride != null
+      ? data.leakageClosingOverride
+      : computedLeakageClosing;
   const pending = needsApproval(user.role);
 
   const canEditFactoryPrice = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
@@ -252,6 +260,7 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
         leakageOpening,
         leakageBags: data.leakageBags,
         leakageWasteBags: data.leakageWasteBags,
+        driverTruckBagsFromLeakage: data.driverTruckBagsFromLeakage,
         leakageClosing,
         status: pending ? "PENDING" : "APPROVED",
         createdById: user.id,
@@ -392,10 +401,17 @@ async function cascadeRecalculate(
       driverBonusBagsTotal: recordDriverBonusBagsTotal(rec),
       truckDeliveryBagsTotal: recordTruckDeliveryBagsTotal(rec),
       truckDeliveryBonusBagsTotal: recordTruckDeliveryBonusBagsTotal(rec),
+      driverTruckBagsFromLeakage: rec.driverTruckBagsFromLeakage,
       leakageBagsNew: rec.leakageBags,
       incentiveBonusBags: rec.incentiveBonusBags,
     });
-    const leakageClosing = computeLeakageClosing(leakageOpening, rec.leakageBags, rec.factoryBagsFromLeakage, rec.leakageWasteBags);
+    const leakageClosing = computeLeakageClosing(
+      leakageOpening,
+      rec.leakageBags,
+      rec.factoryBagsFromLeakage,
+      rec.driverTruckBagsFromLeakage,
+      rec.leakageWasteBags
+    );
 
     await tx.dailyRecord.update({
       where: { id: rec.id },
@@ -460,7 +476,11 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
   ]);
 
   const overrideApplied =
-    user.role === "SUPER_ADMIN" && (data.openingStockOverride != null || data.leakageOpeningOverride != null);
+    user.role === "SUPER_ADMIN" &&
+    (data.openingStockOverride != null ||
+      data.leakageOpeningOverride != null ||
+      data.closingStockOverride != null ||
+      data.leakageClosingOverride != null);
   const opening =
     user.role === "SUPER_ADMIN" && data.openingStockOverride != null
       ? data.openingStockOverride
@@ -474,10 +494,10 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
         ? (prevApprovedForNewDate?.leakageClosing ?? 0)
         : existing.leakageOpening;
 
-  if (data.factoryBagsFromLeakage + data.leakageWasteBags > leakageOpening) {
+  if (data.factoryBagsFromLeakage + data.driverTruckBagsFromLeakage + data.leakageWasteBags > leakageOpening) {
     return {
       ok: false,
-      error: `Only ${leakageOpening} bags are available in the leakage pile to rebag or waste.`,
+      error: `Only ${leakageOpening} bags are available in the leakage pile to sell, rebag, or waste.`,
     };
   }
 
@@ -487,7 +507,7 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
   const truckDeliveryBagsTotal = data.truckDeliveries.reduce((s, t) => s + t.bags, 0);
   const truckDeliveryBonusBagsTotal = data.truckDeliveries.reduce((s, t) => s + t.bonusBags, 0);
 
-  const closing = computeClosingStock({
+  const computedClosing = computeClosingStock({
     opening,
     prodTotal,
     factoryBags: data.factoryBags,
@@ -496,15 +516,23 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
     driverBonusBagsTotal,
     truckDeliveryBagsTotal,
     truckDeliveryBonusBagsTotal,
+    driverTruckBagsFromLeakage: data.driverTruckBagsFromLeakage,
     leakageBagsNew: data.leakageBags,
     incentiveBonusBags: existing.incentiveBonusBags,
   });
-  const leakageClosing = computeLeakageClosing(
+  const computedLeakageClosing = computeLeakageClosing(
     leakageOpening,
     data.leakageBags,
     data.factoryBagsFromLeakage,
+    data.driverTruckBagsFromLeakage,
     data.leakageWasteBags
   );
+  const closing =
+    user.role === "SUPER_ADMIN" && data.closingStockOverride != null ? data.closingStockOverride : computedClosing;
+  const leakageClosing =
+    user.role === "SUPER_ADMIN" && data.leakageClosingOverride != null
+      ? data.leakageClosingOverride
+      : computedLeakageClosing;
 
   const canEditFactoryPrice = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
   const factoryPricePerBag = canEditFactoryPrice ? data.factoryPricePerBag : fixedPricing.factoryPricePerBag;
@@ -546,6 +574,7 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
             leakageOpening,
             leakageBags: data.leakageBags,
             leakageWasteBags: data.leakageWasteBags,
+            driverTruckBagsFromLeakage: data.driverTruckBagsFromLeakage,
             leakageClosing,
             productionLines: {
               create: data.production.map((p) => {
@@ -895,6 +924,7 @@ export interface DailyRecordFormData {
   }[];
   leakageBags: number;
   leakageWasteBags: number;
+  driverTruckBagsFromLeakage: number;
   expenses: { description: string; amount: number; paid: boolean }[];
   bankAccountId: string | null;
   bankAmountSent: number;
@@ -943,6 +973,7 @@ export async function findDailyRecordByDate(date: string): Promise<DailyRecordFo
     })),
     leakageBags: record.leakageBags,
     leakageWasteBags: record.leakageWasteBags,
+    driverTruckBagsFromLeakage: record.driverTruckBagsFromLeakage,
     expenses: record.expenseItems
       .filter((e) => !isAutoGeneratedExpense(e.description))
       .map((e) => ({ description: e.description, amount: e.amount, paid: e.paid })),
@@ -996,6 +1027,7 @@ export async function addProductionForDate(
       truckDeliveries: [],
       leakageBags: 0,
       leakageWasteBags: 0,
+      driverTruckBagsFromLeakage: 0,
       expenses: [],
     });
   }
@@ -1035,6 +1067,7 @@ export async function addProductionForDate(
     })),
     leakageBags: existing.leakageBags,
     leakageWasteBags: existing.leakageWasteBags,
+    driverTruckBagsFromLeakage: existing.driverTruckBagsFromLeakage,
     expenses: existing.expenseItems
       .filter((e) => !isAutoGeneratedExpense(e.description))
       .map((e) => ({ description: e.description, amount: e.amount, paid: e.paid })),

@@ -52,9 +52,12 @@ export const dailyRecordSchema = z.object({
   truckDeliveries: z.array(truckDeliverySchema),
   leakageBags: z.number().int().min(0),
   leakageWasteBags: z.number().int().min(0),
+  driverTruckBagsFromLeakage: z.number().int().min(0),
   expenses: z.array(expenseItemSchema),
   bankAccountId: z.string().min(1).nullable().optional(),
   bankAmountSent: z.number().int().min(0).default(0),
+  closingStockOverride: z.number().int().min(0).nullable().optional(),
+  leakageClosingOverride: z.number().int().min(0).nullable().optional(),
 });
 
 export type DailyRecordInput = z.infer<typeof dailyRecordSchema>;

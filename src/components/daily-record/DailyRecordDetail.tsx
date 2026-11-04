@@ -148,6 +148,11 @@ function printDailyRecordPdf(record: DailyRecordFull) {
   }
 
   <div class="totals"><span>Leakage balance carried forward</span><span>${record.leakageClosing} bags</span></div>
+  ${
+    record.driverTruckBagsFromLeakage > 0
+      ? `<div class="sub">${record.driverTruckBagsFromLeakage} of today's driver/truck bags were sold from this pile, not fresh stock — already subtracted above</div>`
+      : ""
+  }
 
   <h2>Expenses</h2>
   <table><tbody>${expenseRows}</tbody></table>
@@ -372,9 +377,17 @@ export default function DailyRecordDetail({ record, isAdmin }: { record: DailyRe
             </div>
           )}
 
-          <div className="calc-box">
-            <span>Leakage balance carried forward</span>
-            <b>{record.leakageClosing} bags</b>
+          <div className="calc-box" style={{ flexDirection: "column", alignItems: "stretch", gap: 6 }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>Leakage balance carried forward</span>
+              <b>{record.leakageClosing} bags</b>
+            </div>
+            {record.driverTruckBagsFromLeakage > 0 && (
+              <div style={{ fontSize: 12, color: "var(--text-faint)" }}>
+                {record.driverTruckBagsFromLeakage} of today&apos;s driver/truck bags were sold from this pile, not
+                fresh stock — already subtracted above
+              </div>
+            )}
           </div>
 
           <Section title="Expenses">

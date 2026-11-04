@@ -38,16 +38,18 @@ export default async function DailyRecordPage({
   const approver = user ? isApprover(user.role) : false;
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
 
-  const [records, activeCount, drivers, customers, bankAccounts, opening, leakageOpening, pricing] = await Promise.all([
-    view === "archived" && approver ? getArchivedRecordsSorted() : getAllRecordsSorted(),
-    prisma.dailyRecord.count({ where: { archivedAt: null } }),
-    prisma.driver.findMany({ where: { status: "APPROVED" }, orderBy: { name: "asc" } }),
-    prisma.customer.findMany({ orderBy: { name: "asc" } }),
-    prisma.bankAccount.findMany({ where: { active: true }, orderBy: { createdAt: "asc" } }),
-    latestClosingStock(),
-    latestLeakageClosing(),
-    getPricingSettings(),
-  ]);
+  const [records, activeCount, drivers, customers, bankAccounts, packers, opening, leakageOpening, pricing] =
+    await Promise.all([
+      view === "archived" && approver ? getArchivedRecordsSorted() : getAllRecordsSorted(),
+      prisma.dailyRecord.count({ where: { archivedAt: null } }),
+      prisma.driver.findMany({ where: { status: "APPROVED" }, orderBy: { name: "asc" } }),
+      prisma.customer.findMany({ orderBy: { name: "asc" } }),
+      prisma.bankAccount.findMany({ where: { active: true }, orderBy: { createdAt: "asc" } }),
+      prisma.packer.findMany({ orderBy: { name: "asc" } }),
+      latestClosingStock(),
+      latestLeakageClosing(),
+      getPricingSettings(),
+    ]);
   const showingArchived = view === "archived" && approver;
 
   function recordRow(r: DailyRecordFull) {
@@ -97,6 +99,7 @@ export default async function DailyRecordPage({
                 drivers={drivers.map((d) => ({ id: d.id, name: d.name, pricePerBag: d.pricePerBag, loadingFee: d.loadingFee }))}
                 customers={customers.map((c) => ({ id: c.id, name: c.name, pricePerBag: c.pricePerBag }))}
                 bankAccounts={bankAccounts}
+                packers={packers.map((p) => ({ id: p.id, name: p.name }))}
                 canEditOpeningStock={user?.role === "SUPER_ADMIN"}
                 canEditFactoryPrice={user?.role === "ADMIN" || user?.role === "SUPER_ADMIN"}
                 canEditLeakageOpening={user?.role === "SUPER_ADMIN"}
@@ -153,6 +156,7 @@ export default async function DailyRecordPage({
               drivers={drivers.map((d) => ({ id: d.id, name: d.name, pricePerBag: d.pricePerBag, loadingFee: d.loadingFee }))}
               customers={customers.map((c) => ({ id: c.id, name: c.name, pricePerBag: c.pricePerBag }))}
               bankAccounts={bankAccounts}
+              packers={packers.map((p) => ({ id: p.id, name: p.name }))}
               canEditOpeningStock={user?.role === "SUPER_ADMIN"}
               factoryPricePerBag={pricing.factoryPricePerBag}
               canEditFactoryPrice={user?.role === "ADMIN" || user?.role === "SUPER_ADMIN"}

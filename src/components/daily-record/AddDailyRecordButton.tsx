@@ -21,12 +21,17 @@ interface BankAccountOption {
   accountName: string;
   accountNumber: string;
 }
+interface PackerOption {
+  id: string;
+  name: string;
+}
 export default function AddDailyRecordButton({
   openingStock,
   leakageOpening,
   drivers,
   customers,
   bankAccounts,
+  packers,
   canEditOpeningStock,
   factoryPricePerBag,
   canEditFactoryPrice,
@@ -43,6 +48,7 @@ export default function AddDailyRecordButton({
   drivers: DriverOption[];
   customers: CustomerOption[];
   bankAccounts: BankAccountOption[];
+  packers: PackerOption[];
   canEditOpeningStock?: boolean;
   factoryPricePerBag: number;
   canEditFactoryPrice?: boolean;
@@ -70,6 +76,7 @@ export default function AddDailyRecordButton({
     truckDeliveries: [],
     leakageBags: 0,
     leakageWasteBags: 0,
+    driverTruckBagsFromLeakage: 0,
     expenses: [],
     bankAccountId: null,
     bankAmountSent: 0,
@@ -92,6 +99,7 @@ export default function AddDailyRecordButton({
           drivers={drivers}
           customers={customers}
           bankAccounts={bankAccounts}
+          packers={packers}
           canEditOpeningStock={canEditOpeningStock}
           canEditFactoryPrice={canEditFactoryPrice}
           canEditLeakageOpening={canEditLeakageOpening}
