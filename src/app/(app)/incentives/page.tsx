@@ -8,6 +8,7 @@ import {
   yearTotal,
   buildWeeklyIncentiveHistory,
   buildMonthlyIncentiveHistory,
+  buildYearlyIncentiveHistory,
 } from "@/lib/incentives";
 import { currentWeekKey, MONTH_NAMES } from "@/lib/week";
 import { getWeeklyIncentiveSettings } from "@/lib/settings";
@@ -103,12 +104,33 @@ export default async function IncentivesPage({
       customerWeeklyBonus,
       monthLabel
     );
-    return { c, wkBags, qualifies, instantWeek, instantYear, weekBonusBags, yearBonusBags, weeklyRows, monthlyRows };
+    const yearlyRows = buildYearlyIncentiveHistory(
+      customerWeeklyAll.get(c.id),
+      customerInstantWeeklyAll.get(c.id),
+      customerWeeklyThreshold,
+      customerWeeklyBonus
+    );
+    return {
+      c,
+      wkBags,
+      qualifies,
+      instantWeek,
+      instantYear,
+      weekBonusBags,
+      yearBonusBags,
+      weeklyRows,
+      monthlyRows,
+      yearlyRows,
+    };
   });
   const custQualified = custRows.filter((r) => r.qualifies).length;
   const custAvg = custRows.length ? Math.round(custRows.reduce((s, r) => s + r.wkBags, 0) / custRows.length) : 0;
+  const custInstantWeekTotal = custRows.reduce((s, r) => s + r.instantWeek, 0);
+  const custInstantYearTotal = custRows.reduce((s, r) => s + r.instantYear, 0);
   const custIncentiveWeekTotal = custRows.reduce((s, r) => s + r.weekBonusBags, 0);
   const custIncentiveYearTotal = custRows.reduce((s, r) => s + r.yearBonusBags, 0);
+  const custThresholdWeekTotal = custIncentiveWeekTotal - custInstantWeekTotal;
+  const custThresholdYearTotal = custIncentiveYearTotal - custInstantYearTotal;
 
   const drvRows = drivers.map((d) => {
     const wkBags = driverWeekly.get(d.id)?.[wk] ?? 0;
@@ -130,6 +152,12 @@ export default async function IncentivesPage({
       driverWeeklyBonus,
       monthLabel
     );
+    const yearlyRows = buildYearlyIncentiveHistory(
+      driverWeeklyAll.get(d.id),
+      driverInstantWeeklyAll.get(d.id),
+      driverWeeklyThreshold,
+      driverWeeklyBonus
+    );
     return {
       d,
       wkBags,
@@ -142,12 +170,17 @@ export default async function IncentivesPage({
       totalYear: instantYear + yearBonusBags,
       weeklyRows,
       monthlyRows,
+      yearlyRows,
     };
   });
   const drvQualified = drvRows.filter((r) => r.qualifies).length;
   const drvAvg = drvRows.length ? Math.round(drvRows.reduce((s, r) => s + r.wkBags, 0) / drvRows.length) : 0;
+  const drvInstantWeekTotal = drvRows.reduce((s, r) => s + r.instantWeek, 0);
+  const drvInstantYearTotal = drvRows.reduce((s, r) => s + r.instantYear, 0);
   const drvIncentiveWeekTotal = drvRows.reduce((s, r) => s + r.totalWeek, 0);
   const drvIncentiveYearTotal = drvRows.reduce((s, r) => s + r.totalYear, 0);
+  const drvThresholdWeekTotal = drvIncentiveWeekTotal - drvInstantWeekTotal;
+  const drvThresholdYearTotal = drvIncentiveYearTotal - drvInstantYearTotal;
 
   const customersTable = (
     <table>
@@ -161,12 +194,12 @@ export default async function IncentivesPage({
           <th>Year-to-date bags</th>
           <th>Instant incentive (week)</th>
           <th>Instant incentive (year)</th>
-          <th>Total incentives (year)</th>
+          <th>Total (instant + weekly-threshold, year)</th>
           <th></th>
         </tr>
       </thead>
       <tbody>
-        {custRows.map(({ c, wkBags, qualifies, instantWeek, instantYear, yearBonusBags, weeklyRows, monthlyRows }) => (
+        {custRows.map(({ c, wkBags, qualifies, instantWeek, instantYear, yearBonusBags, weeklyRows, monthlyRows, yearlyRows }) => (
           <tr key={c.id}>
             <td>
               {c.name}
@@ -187,7 +220,7 @@ export default async function IncentivesPage({
             <td>{instantYear}</td>
             <td>{yearBonusBags}</td>
             <td>
-              <IncentiveHistoryButton name={c.name} weeklyRows={weeklyRows} monthlyRows={monthlyRows} />
+              <IncentiveHistoryButton name={c.name} weeklyRows={weeklyRows} monthlyRows={monthlyRows} yearlyRows={yearlyRows} />
             </td>
           </tr>
         ))}
@@ -206,12 +239,12 @@ export default async function IncentivesPage({
           <th>Weeks qualified (all-time)</th>
           <th>Instant incentive (week)</th>
           <th>Instant incentive (year)</th>
-          <th>Total incentives (year)</th>
+          <th>Total (instant + weekly-threshold, year)</th>
           <th></th>
         </tr>
       </thead>
       <tbody>
-        {drvRows.map(({ d, wkBags, qualifies, instantWeek, instantYear, totalYear, weeklyRows, monthlyRows }) => (
+        {drvRows.map(({ d, wkBags, qualifies, instantWeek, instantYear, totalYear, weeklyRows, monthlyRows, yearlyRows }) => (
           <tr key={d.id}>
             <td>{d.name}</td>
             <td>{wkBags} bags</td>
@@ -228,7 +261,7 @@ export default async function IncentivesPage({
             <td>{instantYear}</td>
             <td>{totalYear}</td>
             <td>
-              <IncentiveHistoryButton name={d.name} weeklyRows={weeklyRows} monthlyRows={monthlyRows} />
+              <IncentiveHistoryButton name={d.name} weeklyRows={weeklyRows} monthlyRows={monthlyRows} yearlyRows={yearlyRows} />
             </td>
           </tr>
         ))}
@@ -262,8 +295,16 @@ export default async function IncentivesPage({
           <div className="grid grid-4" style={{ marginBottom: 18 }}>
             <KpiCard label="Qualified This Week" value={custQualified} />
             <KpiCard label="Avg Bags / Customer" value={custAvg} />
-            <KpiCard label="Incentive Bags — This Week" value={custIncentiveWeekTotal} />
-            <KpiCard label="Incentive Bags — This Year" value={custIncentiveYearTotal} />
+            <KpiCard
+              label="Incentive Bags — This Week"
+              value={custIncentiveWeekTotal}
+              delta={`Instant ${custInstantWeekTotal} + weekly-threshold ${custThresholdWeekTotal}`}
+            />
+            <KpiCard
+              label="Incentive Bags — This Year"
+              value={custIncentiveYearTotal}
+              delta={`Instant ${custInstantYearTotal} + weekly-threshold ${custThresholdYearTotal}`}
+            />
           </div>
           <div className="card">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -282,8 +323,16 @@ export default async function IncentivesPage({
           <div className="grid grid-4" style={{ marginBottom: 18 }}>
             <KpiCard label="Qualified This Week" value={drvQualified} />
             <KpiCard label="Avg Bags / Driver" value={drvAvg} />
-            <KpiCard label="Incentive Bags — This Week" value={drvIncentiveWeekTotal} />
-            <KpiCard label="Incentive Bags — This Year" value={drvIncentiveYearTotal} />
+            <KpiCard
+              label="Incentive Bags — This Week"
+              value={drvIncentiveWeekTotal}
+              delta={`Instant ${drvInstantWeekTotal} + weekly-threshold ${drvThresholdWeekTotal}`}
+            />
+            <KpiCard
+              label="Incentive Bags — This Year"
+              value={drvIncentiveYearTotal}
+              delta={`Instant ${drvInstantYearTotal} + weekly-threshold ${drvThresholdYearTotal}`}
+            />
           </div>
           <div className="card">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>

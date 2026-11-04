@@ -17,7 +17,9 @@ function HistoryTable({ title, rows }: { title: string; rows: IncentiveHistoryRo
               <tr>
                 <th>Period</th>
                 <th>Bags</th>
-                <th>Incentive bags earned</th>
+                <th>Instant bonus</th>
+                <th>Weekly-threshold bonus</th>
+                <th>Total bonus</th>
               </tr>
             </thead>
             <tbody>
@@ -25,8 +27,10 @@ function HistoryTable({ title, rows }: { title: string; rows: IncentiveHistoryRo
                 <tr key={r.label}>
                   <td>{r.label}</td>
                   <td>{r.bags}</td>
+                  <td>{r.instantBags}</td>
+                  <td>{r.thresholdBags}</td>
                   <td>
-                    <b>{r.bonusBags}</b>
+                    <b>{r.instantBags + r.thresholdBags}</b>
                   </td>
                 </tr>
               ))}
@@ -42,13 +46,16 @@ export default function IncentiveHistoryButton({
   name,
   weeklyRows,
   monthlyRows,
+  yearlyRows,
 }: {
   name: string;
   weeklyRows: IncentiveHistoryRow[];
   monthlyRows: IncentiveHistoryRow[];
+  yearlyRows: IncentiveHistoryRow[];
 }) {
   const [open, setOpen] = useState(false);
-  const totalBonus = monthlyRows.reduce((s, r) => s + r.bonusBags, 0);
+  const totalInstant = yearlyRows.reduce((s, r) => s + r.instantBags, 0);
+  const totalThreshold = yearlyRows.reduce((s, r) => s + r.thresholdBags, 0);
 
   if (weeklyRows.length === 0) return null;
 
@@ -62,13 +69,16 @@ export default function IncentiveHistoryButton({
         History
       </button>
       {open && (
-        <Modal open={open} onClose={() => setOpen(false)} title={`${name} — Incentive History`} maxWidth={600}>
+        <Modal open={open} onClose={() => setOpen(false)} title={`${name} — Incentive History`} maxWidth={680}>
           <div style={{ fontSize: 12, color: "var(--text-faint)", marginBottom: 14 }}>
-            Every incentive bag earned — threshold bonus (weeks a bag total qualified) plus any manually-entered
-            instant bonus — broken down by period. All-time total: <b>{totalBonus} bags</b>.
+            Instant bonus (entered manually per sale, deducted the moment that daily record is approved) is kept
+            separate from weekly-threshold bonus (earned once a week's bags cross the threshold, only deducted once
+            Admin/Super Admin approves that week) — broken down by period. All-time: <b>{totalInstant}</b> instant +{" "}
+            <b>{totalThreshold}</b> weekly-threshold.
           </div>
           <HistoryTable title="By week" rows={weeklyRows} />
           <HistoryTable title="By month" rows={monthlyRows} />
+          <HistoryTable title="By year" rows={yearlyRows} />
         </Modal>
       )}
     </>

@@ -123,28 +123,40 @@ export default async function DashboardPage() {
       watchItems.push({ label: `${d.name} (driver)`, address: null, bags: b, threshold: weeklySettings.driverWeeklyThreshold });
   }
 
-  // total incentive bags given out — never part of any sales/revenue total, tracked separately
+  // Incentive bags given out — never part of any sales/revenue total, tracked
+  // separately. Kept as two distinct figures throughout, not blended into
+  // one number: "instant" bonus bags are entered manually per sale/delivery
+  // and deducted the moment that daily record is approved; "weekly
+  // threshold" bonus bags are only earned once a customer/driver's weekly
+  // bag total crosses the threshold, and only actually come off stock once
+  // Admin/Super Admin explicitly approves that week's bonus (see
+  // IncentiveAwardNotice/approveIncentiveAward) — so a qualified-but-not-yet-
+  // approved week's threshold bonus isn't really "given out" yet.
   const thisYear = new Date().getFullYear();
-  let incentiveWeekTotal = 0;
-  let incentiveYearTotal = 0;
+  let instantWeekTotal = 0;
+  let instantYearTotal = 0;
+  let thresholdWeekTotal = 0;
+  let thresholdYearTotal = 0;
   for (const c of customers) {
     const wkBags = customerWeekly.get(c.id)?.[wk] ?? 0;
-    incentiveWeekTotal += customerInstantWeekly.get(c.id)?.[wk] ?? 0;
-    incentiveYearTotal += yearTotal(customerInstantYearly.get(c.id), thisYear);
-    if (wkBags >= weeklySettings.customerWeeklyThreshold) incentiveWeekTotal += weeklySettings.customerWeeklyBonus;
-    incentiveYearTotal +=
+    instantWeekTotal += customerInstantWeekly.get(c.id)?.[wk] ?? 0;
+    instantYearTotal += yearTotal(customerInstantYearly.get(c.id), thisYear);
+    if (wkBags >= weeklySettings.customerWeeklyThreshold) thresholdWeekTotal += weeklySettings.customerWeeklyBonus;
+    thresholdYearTotal +=
       weeksQualifiedInYear(customerWeeklyAll.get(c.id), weeklySettings.customerWeeklyThreshold, thisYear) *
       weeklySettings.customerWeeklyBonus;
   }
   for (const d of drivers) {
     const wkBags = driverWeekly.get(d.id)?.[wk] ?? 0;
-    incentiveWeekTotal += driverInstantWeekly.get(d.id)?.[wk] ?? 0;
-    incentiveYearTotal += yearTotal(driverInstantYearly.get(d.id), thisYear);
-    if (wkBags >= weeklySettings.driverWeeklyThreshold) incentiveWeekTotal += weeklySettings.driverWeeklyBonus;
-    incentiveYearTotal +=
+    instantWeekTotal += driverInstantWeekly.get(d.id)?.[wk] ?? 0;
+    instantYearTotal += yearTotal(driverInstantYearly.get(d.id), thisYear);
+    if (wkBags >= weeklySettings.driverWeeklyThreshold) thresholdWeekTotal += weeklySettings.driverWeeklyBonus;
+    thresholdYearTotal +=
       weeksQualifiedInYear(driverWeeklyAll.get(d.id), weeklySettings.driverWeeklyThreshold, thisYear) *
       weeklySettings.driverWeeklyBonus;
   }
+  const incentiveWeekTotal = instantWeekTotal + thresholdWeekTotal;
+  const incentiveYearTotal = instantYearTotal + thresholdYearTotal;
 
   const pendingTotal = pendingDailyCount + pendingDriverCount;
 
@@ -256,7 +268,11 @@ export default async function DashboardPage() {
           icon="🎁"
           iconBg="rgba(124,110,245,.15)"
           iconColor="var(--accent)"
-          delta={<Link href="/incentives">Not part of sales — see breakdown →</Link>}
+          delta={
+            <Link href="/incentives">
+              Instant {instantWeekTotal} + weekly threshold {thresholdWeekTotal} — not part of sales →
+            </Link>
+          }
         />
         <KpiCard
           label="Total Incentives (This Year)"
@@ -264,7 +280,11 @@ export default async function DashboardPage() {
           icon="🎁"
           iconBg="rgba(124,110,245,.15)"
           iconColor="var(--accent)"
-          delta={<Link href="/incentives">Not part of sales — see breakdown →</Link>}
+          delta={
+            <Link href="/incentives">
+              Instant {instantYearTotal} + weekly threshold {thresholdYearTotal} — not part of sales →
+            </Link>
+          }
         />
       </div>
 

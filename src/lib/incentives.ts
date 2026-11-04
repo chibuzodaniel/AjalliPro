@@ -102,13 +102,17 @@ export function yearTotal(yearlyMap: Record<number, number> | undefined, year: n
 export interface IncentiveHistoryRow {
   label: string;
   bags: number;
-  bonusBags: number;
+  /** Manually-entered instant bonus — deducted the moment that daily record is approved. */
+  instantBags: number;
+  /** Weekly-threshold bonus — only actually deducted once Admin/Super Admin approves that week's award (see approveIncentiveAward). */
+  thresholdBags: number;
 }
 
 interface KeyedIncentiveRow {
   key: string;
   bags: number;
-  bonusBags: number;
+  instantBags: number;
+  thresholdBags: number;
 }
 
 /**
@@ -117,6 +121,9 @@ interface KeyedIncentiveRow {
  * week where only an instant bonus was given without also hitting the
  * threshold that week. Qualification (and so the threshold bonus) is
  * strictly a weekly mechanic, computed here, never re-derived per month.
+ * Instant and threshold bags are kept as two separate figures throughout —
+ * never merged into one blended "bonus" number — since they're earned,
+ * shown, and deducted differently (see IncentiveHistoryRow).
  */
 function computeWeeklyIncentiveRows(
   bagsMap: WeeklyBagsMap | undefined,
@@ -127,9 +134,9 @@ function computeWeeklyIncentiveRows(
   const keys = new Set([...Object.keys(bagsMap ?? {}), ...Object.keys(instantMap ?? {})]);
   return [...keys].map((key) => {
     const bags = bagsMap?.[key] ?? 0;
-    const earnedThreshold = bags >= threshold ? thresholdBonus : 0;
-    const instant = instantMap?.[key] ?? 0;
-    return { key, bags, bonusBags: earnedThreshold + instant };
+    const thresholdBags = bags >= threshold ? thresholdBonus : 0;
+    const instantBags = instantMap?.[key] ?? 0;
+    return { key, bags, instantBags, thresholdBags };
   });
 }
 
@@ -141,7 +148,7 @@ export function buildWeeklyIncentiveHistory(
 ): IncentiveHistoryRow[] {
   return computeWeeklyIncentiveRows(bagsMap, instantMap, threshold, thresholdBonus)
     .sort((a, b) => b.key.localeCompare(a.key, undefined, { numeric: true }))
-    .map(({ key, bags, bonusBags }) => ({ label: key, bags, bonusBags }));
+    .map(({ key, bags, instantBags, thresholdBags }) => ({ label: key, bags, instantBags, thresholdBags }));
 }
 
 /**
@@ -158,15 +165,38 @@ export function buildMonthlyIncentiveHistory(
   labelFn: (monthKey: string) => string
 ): IncentiveHistoryRow[] {
   const weekly = computeWeeklyIncentiveRows(bagsMap, instantMap, threshold, thresholdBonus);
-  const monthly = new Map<string, { bags: number; bonusBags: number }>();
+  const monthly = new Map<string, { bags: number; instantBags: number; thresholdBags: number }>();
   for (const w of weekly) {
     const monthKey = weekKeyToMonthKey(w.key);
-    const existing = monthly.get(monthKey) ?? { bags: 0, bonusBags: 0 };
+    const existing = monthly.get(monthKey) ?? { bags: 0, instantBags: 0, thresholdBags: 0 };
     existing.bags += w.bags;
-    existing.bonusBags += w.bonusBags;
+    existing.instantBags += w.instantBags;
+    existing.thresholdBags += w.thresholdBags;
     monthly.set(monthKey, existing);
   }
   return [...monthly.entries()]
     .sort(([a], [b]) => b.localeCompare(a, undefined, { numeric: true }))
     .map(([monthKey, v]) => ({ label: labelFn(monthKey), ...v }));
+}
+
+/** Same rollup as buildMonthlyIncentiveHistory, one tier up — a year's totals summed from its months. */
+export function buildYearlyIncentiveHistory(
+  bagsMap: WeeklyBagsMap | undefined,
+  instantMap: WeeklyBagsMap | undefined,
+  threshold: number,
+  thresholdBonus: number
+): IncentiveHistoryRow[] {
+  const weekly = computeWeeklyIncentiveRows(bagsMap, instantMap, threshold, thresholdBonus);
+  const yearly = new Map<string, { bags: number; instantBags: number; thresholdBags: number }>();
+  for (const w of weekly) {
+    const yearKey = w.key.slice(0, 4);
+    const existing = yearly.get(yearKey) ?? { bags: 0, instantBags: 0, thresholdBags: 0 };
+    existing.bags += w.bags;
+    existing.instantBags += w.instantBags;
+    existing.thresholdBags += w.thresholdBags;
+    yearly.set(yearKey, existing);
+  }
+  return [...yearly.entries()]
+    .sort(([a], [b]) => b.localeCompare(a, undefined, { numeric: true }))
+    .map(([yearKey, v]) => ({ label: yearKey, ...v }));
 }
