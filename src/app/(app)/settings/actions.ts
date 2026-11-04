@@ -766,11 +766,13 @@ export async function deleteBankAccountCredit(id: string): Promise<BankAccountCr
 }
 
 /**
- * Designates which single bank account approved daily record expenses
- * auto-debit from as they're actually paid (never while still owing). Only
- * one account can hold this at a time — setting it on one clears it from
- * whichever account had it before. Pass null to turn off automatic expense
- * debiting entirely.
+ * Designates which single bank account every approved daily record's gross
+ * sales revenue auto-deposits into, and every expense auto-debits from as
+ * it's actually paid (never while still owing) — the Daily Record form's
+ * bank-amount-sent has no effect on this account's balance once it holds
+ * this role. Only one account can hold it at a time — setting it on one
+ * clears it from whichever account had it before. Pass null to turn off
+ * both automatic behaviors entirely.
  */
 export async function setDefaultExpenseAccount(bankAccountId: string | null): Promise<BankAccountResult> {
   const guard = await requireRoleSafe(["SUPER_ADMIN"]);
@@ -791,7 +793,7 @@ export async function setDefaultExpenseAccount(bankAccountId: string | null): Pr
       ? [
           prisma.bankAccount.update({
             where: { id: bankAccountId },
-            // Starts counting from right now — doesn't pull in the backlog of expenses logged before this.
+            // Starts counting from right now — doesn't pull in the backlog of sales/expenses from before this.
             data: { isDefaultExpenseAccount: true, defaultExpenseAccountSetAt: new Date() },
           }),
         ]
@@ -801,8 +803,8 @@ export async function setDefaultExpenseAccount(bankAccountId: string | null): Pr
   const account = bankAccountId ? await prisma.bankAccount.findUnique({ where: { id: bankAccountId } }) : null;
   await logActivity(
     account
-      ? `${user.name} set "${account.bankName}" as the account daily expenses auto-debit from.`
-      : `${user.name} turned off automatic expense debiting.`,
+      ? `${user.name} set "${account.bankName}" as the account sales auto-deposit into and daily expenses auto-debit from.`
+      : `${user.name} turned off automatic sales deposits and expense debiting.`,
     user.id
   );
   revalidatePath("/", "layout");

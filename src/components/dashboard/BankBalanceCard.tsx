@@ -16,6 +16,7 @@ export interface BankBalanceAccount {
   pendingAmount: number;
   totalExpenses: number;
   totalCredits: number;
+  salesDeposited: number;
   dailyExpensesDebited: number;
 }
 
@@ -52,7 +53,7 @@ export default function BankBalanceCard({ accounts }: { accounts: BankBalanceAcc
                 <div style={{ fontSize: 13, color: "var(--text-dim)", marginTop: 4 }}>
                   {a.accountName} · {a.accountNumber}
                   {!a.active && <span style={{ color: "var(--text-faint)" }}> · deactivated</span>}
-                  {a.isDefaultExpenseAccount && <span style={{ color: "var(--accent)" }}> · default expense account</span>}
+                  {a.isDefaultExpenseAccount && <span style={{ color: "var(--accent)" }}> · default account (sales + expenses)</span>}
                 </div>
                 <div style={{ fontSize: 14, marginTop: 6 }}>
                   Balance: <b style={{ color: "var(--green)" }}>{formatMoney(a.balance)}</b>
@@ -74,8 +75,8 @@ export default function BankBalanceCard({ accounts }: { accounts: BankBalanceAcc
                 )}
                 {a.isDefaultExpenseAccount && (
                   <div style={{ fontSize: 12.5, marginTop: 2, color: "var(--text-faint)" }}>
-                    {formatMoney(a.dailyExpensesDebited)} auto-debited from daily record expenses actually paid since
-                    becoming the default
+                    {formatMoney(a.salesDeposited)} auto-deposited from sales, {formatMoney(a.dailyExpensesDebited)}{" "}
+                    auto-debited from expenses actually paid, both since becoming the default
                   </div>
                 )}
               </div>

@@ -25,29 +25,37 @@ export interface BankAccountWithBalance {
   active: boolean;
   isDefaultExpenseAccount: boolean;
   balance: number;
-  pendingAmount: number; // sent, logged against this account, but not yet confirmed received
+  pendingAmount: number; // sent, logged against this account, but not yet confirmed received — always 0 for the default expense account, see salesDeposited
   totalExpenses: number; // manual debits (BankAccountExpense) only
   expenses: BankAccountExpenseEntry[];
   totalCredits: number; // manual credits (BankAccountCredit) only
   credits: BankAccountCreditEntry[];
+  salesDeposited: number; // every approved daily record's gross sales revenue, auto-deposited, since this account became the default — 0 for every other account
   dailyExpensesDebited: number; // approved daily records' expenses actually PAID (amountPaid, not the full owed amount) since this account became the default — never the backlog from before
 }
 
 /**
  * Current balance = the Super Admin-set starting balance, plus every
- * confirmed-received transfer logged against that account, plus every
  * manual credit added directly, minus every manual expense debited against
- * it directly, minus (for the one account flagged as the default expense
- * account) every approved daily record's expense *actually paid so far*
- * (amountPaid — partial payments count for exactly what's been paid, not
- * the full amount owed) *since it became the default* — setting an account
- * as default never pulls in the backlog of expenses logged before that
- * point, and an expense that's still owing never debits the account until
- * it's actually paid. Any archive state counts, since archiving just resets
- * the stock-counting session, not the money that was actually received or
- * spent. A transfer only counts once Admin/Super Admin ticks it as received
- * (see confirmBankMoneyReceived); until then its amount shows separately as
- * "pending".
+ * it directly, plus (for every account except the one flagged as the
+ * default expense account) every confirmed-received transfer logged
+ * against it on the Daily Record form — a transfer only counts once
+ * Admin/Super Admin ticks it as received (see confirmBankMoneyReceived);
+ * until then its amount shows separately as "pending".
+ *
+ * The default expense account works differently: instead of relying on
+ * manually logged transfers, every approved daily record's full gross
+ * sales revenue (pump water + factory + driver + truck deliveries — same
+ * figure as the Net Income cards) auto-deposits into it directly, and every
+ * approved daily record's expense *actually paid so far* (amountPaid —
+ * partial payments count for exactly what's been paid, not the full amount
+ * owed) auto-debits from it. Both are scoped to *since it became the
+ * default* — setting an account as default never pulls in the backlog of
+ * sales or expenses from before that point, and the Daily Record form's
+ * bank-amount-sent/confirmed-received fields have no effect on its balance
+ * (that flow still applies normally to every other account). Any archive
+ * state counts, since archiving just resets the stock-counting session,
+ * not the money that was actually received or spent.
  */
 export async function getBankAccountsWithBalances(): Promise<BankAccountWithBalance[]> {
   const [accounts, records, expenses, credits] = await Promise.all([
@@ -88,26 +96,47 @@ export async function getBankAccountsWithBalances(): Promise<BankAccountWithBala
     creditsByAccount.set(c.bankAccountId, list);
   }
 
-  // Only one account can be the default at a time — look up its debited
-  // total, scoped to expenses logged since it became the default, and only
-  // the portion actually paid (amountPaid) — an expense still owing hasn't
-  // left the account yet.
+  // Only one account can be the default at a time — look up its auto-debited
+  // (expenses actually paid) and auto-deposited (gross sales) totals, both
+  // scoped to since it became the default.
   const defaultAccount = accounts.find((a) => a.isDefaultExpenseAccount && a.defaultExpenseAccountSetAt);
-  const dailyExpensesSinceDefault = defaultAccount
-    ? (
-        await prisma.expenseItem.aggregate({
-          where: { dailyRecord: { status: "APPROVED", createdAt: { gte: defaultAccount.defaultExpenseAccountSetAt! } } },
-          _sum: { amountPaid: true },
-        })
-      )._sum.amountPaid ?? 0
-    : 0;
+  const sinceDefault = defaultAccount ? { gte: defaultAccount.defaultExpenseAccountSetAt! } : undefined;
+  const [dailyExpensesSinceDefault, salesRecordsSinceDefault] = defaultAccount
+    ? await Promise.all([
+        prisma.expenseItem
+          .aggregate({
+            where: { dailyRecord: { status: "APPROVED", createdAt: sinceDefault } },
+            _sum: { amountPaid: true },
+          })
+          .then((r) => r._sum.amountPaid ?? 0),
+        prisma.dailyRecord.findMany({
+          where: { status: "APPROVED", createdAt: sinceDefault },
+          select: {
+            factoryBags: true,
+            factoryPricePerBag: true,
+            pumpWaterAmount: true,
+            driverSales: { select: { bags: true, pricePerBag: true } },
+            truckDeliveries: { select: { bags: true, pricePerBag: true } },
+          },
+        }),
+      ])
+    : [0, []];
+  const salesSinceDefault = salesRecordsSinceDefault.reduce((sum, r) => {
+    const driverTotal = r.driverSales.reduce((s, d) => s + d.bags * d.pricePerBag, 0);
+    const truckTotal = r.truckDeliveries.reduce((s, t) => s + t.bags * t.pricePerBag, 0);
+    return sum + r.pumpWaterAmount + r.factoryBags * r.factoryPricePerBag + driverTotal + truckTotal;
+  }, 0);
 
   return accounts.map((a) => {
+    const isDefault = a.isDefaultExpenseAccount;
     const accountExpenses = expensesByAccount.get(a.id) ?? [];
     const totalExpenses = accountExpenses.reduce((s, e) => s + e.amount, 0);
     const accountCredits = creditsByAccount.get(a.id) ?? [];
     const totalCredits = accountCredits.reduce((s, c) => s + c.amount, 0);
-    const dailyExpensesDebited = a.isDefaultExpenseAccount ? dailyExpensesSinceDefault : 0;
+    const dailyExpensesDebited = isDefault ? dailyExpensesSinceDefault : 0;
+    const salesDeposited = isDefault ? salesSinceDefault : 0;
+    const receivedAmount = isDefault ? 0 : receivedByAccount.get(a.id) ?? 0;
+    const pendingAmount = isDefault ? 0 : pendingByAccount.get(a.id) ?? 0;
     return {
       id: a.id,
       bankName: a.bankName,
@@ -116,12 +145,13 @@ export async function getBankAccountsWithBalances(): Promise<BankAccountWithBala
       startingBalance: a.startingBalance,
       active: a.active,
       isDefaultExpenseAccount: a.isDefaultExpenseAccount,
-      balance: a.startingBalance + (receivedByAccount.get(a.id) ?? 0) + totalCredits - totalExpenses - dailyExpensesDebited,
-      pendingAmount: pendingByAccount.get(a.id) ?? 0,
+      balance: a.startingBalance + receivedAmount + salesDeposited + totalCredits - totalExpenses - dailyExpensesDebited,
+      pendingAmount,
       totalExpenses,
       expenses: accountExpenses,
       totalCredits,
       credits: accountCredits,
+      salesDeposited,
       dailyExpensesDebited,
     };
   });

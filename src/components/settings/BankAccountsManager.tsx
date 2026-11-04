@@ -56,6 +56,7 @@ export interface BankAccountRow {
   expenses: BankAccountExpenseRow[];
   totalCredits: number;
   credits: BankAccountCreditRow[];
+  salesDeposited: number;
   dailyExpensesDebited: number;
 }
 
@@ -365,7 +366,7 @@ function AccountRow({
           <div style={{ fontSize: 13, color: "var(--text-dim)", marginTop: 4 }}>
             {account.accountName} · {account.accountNumber}
             {!account.active && <span style={{ color: "var(--text-faint)" }}> · deactivated</span>}
-            {account.isDefaultExpenseAccount && <span style={{ color: "var(--accent)" }}> · default expense account</span>}
+            {account.isDefaultExpenseAccount && <span style={{ color: "var(--accent)" }}> · default account (sales + expenses)</span>}
           </div>
           <div style={{ fontSize: 14, marginTop: 6 }}>
             Balance: <b style={{ color: "var(--green)" }}>{formatMoney(account.balance)}</b>
@@ -387,8 +388,10 @@ function AccountRow({
           )}
           {account.isDefaultExpenseAccount && (
             <div style={{ fontSize: 12.5, marginTop: 2, color: "var(--text-faint)" }}>
-              {formatMoney(account.dailyExpensesDebited)} auto-debited from daily record expenses actually paid since
-              becoming the default — not the backlog from before, and not expenses still owing
+              {formatMoney(account.salesDeposited)} auto-deposited from daily record sales, and{" "}
+              {formatMoney(account.dailyExpensesDebited)} auto-debited from expenses actually paid, both since
+              becoming the default — not the backlog from before, and the Daily Record form's bank-amount-sent has
+              no effect here
             </div>
           )}
         </div>
@@ -401,7 +404,7 @@ function AccountRow({
               {account.active ? "Deactivate" : "Reactivate"}
             </button>
             <button className="btn btn-sm btn-ghost" style={{ padding: "6px 10px", fontSize: 12 }} onClick={handleSetDefaultExpenseAccount} disabled={busy}>
-              {account.isDefaultExpenseAccount ? "Unset expense account" : "Set as expense account"}
+              {account.isDefaultExpenseAccount ? "Unset default account" : "Set as default account"}
             </button>
             <button className="btn btn-sm btn-reject" style={{ padding: "6px 10px", fontSize: 12 }} onClick={handleDelete} disabled={busy}>
               Delete
