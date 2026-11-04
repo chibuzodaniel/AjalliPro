@@ -11,6 +11,7 @@ import {
 } from "@/lib/incentives";
 import { currentWeekKey, MONTH_NAMES } from "@/lib/week";
 import { getWeeklyIncentiveSettings } from "@/lib/settings";
+import { getPendingIncentiveAwards } from "@/lib/incentiveAwards";
 import KpiCard from "@/components/ui/KpiCard";
 import RangeTabs from "@/components/ui/RangeTabs";
 import ViewAllModal from "@/components/ui/ViewAllModal";
@@ -47,18 +48,20 @@ export default async function IncentivesPage({
   const user = await getCurrentUser();
   const canRevertAward = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
 
-  const [customers, drivers, approvedRecords, allApprovedRecordsEver, weeklySettings, awardHistory] = await Promise.all([
-    prisma.customer.findMany({ orderBy: { name: "asc" } }),
-    prisma.driver.findMany({ where: { status: "APPROVED" }, orderBy: { name: "asc" } }),
-    getApprovedRecordsSorted(),
-    getAllApprovedRecordsEverSorted(),
-    getWeeklyIncentiveSettings(),
-    prisma.incentiveAward.findMany({
-      include: { customer: true, driver: true, approvedBy: true, dailyRecord: true },
-      orderBy: { approvedAt: "desc" },
-      take: 50,
-    }),
-  ]);
+  const [customers, drivers, approvedRecords, allApprovedRecordsEver, weeklySettings, awardHistory, pendingAwards] =
+    await Promise.all([
+      prisma.customer.findMany({ orderBy: { name: "asc" } }),
+      prisma.driver.findMany({ where: { status: "APPROVED" }, orderBy: { name: "asc" } }),
+      getApprovedRecordsSorted(),
+      getAllApprovedRecordsEverSorted(),
+      getWeeklyIncentiveSettings(),
+      prisma.incentiveAward.findMany({
+        include: { customer: true, driver: true, approvedBy: true, dailyRecord: true },
+        orderBy: { approvedAt: "desc" },
+        take: 50,
+      }),
+      getPendingIncentiveAwards(),
+    ]);
   // "This week" figures reflect only the current session (since the last archive).
   // Everything else here — all-time weeks qualified, year-to-date totals — keeps
   // counting straight through an archive, since that's a bookkeeping reset for
@@ -297,10 +300,11 @@ export default async function IncentivesPage({
       )}
 
       <div className="card" style={{ marginTop: 16 }}>
-        <div className="section-title">Weekly bonus approval history</div>
+        <div className="section-title">Weekly bonus history</div>
         <div className="section-sub">
-          Every approved weekly-bonus deduction — bonus bags come off stock on the day they're approved, not the day
-          the threshold was reached.
+          Every customer/driver who's hit this week's threshold, whether their bonus has been deducted from stock
+          yet or is still awaiting Admin/Super Admin approval — bonus bags come off stock on the day they're
+          approved, not the day the threshold was reached.
         </div>
         <div className="table-wrap">
           <table>
@@ -309,13 +313,34 @@ export default async function IncentivesPage({
                 <th>Name</th>
                 <th>Week</th>
                 <th>Bonus bags</th>
-                <th>Deducted on</th>
+                <th>Status</th>
                 <th>Approved by</th>
                 <th>Approved at</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
+              {pendingAwards.map((p) => (
+                <tr key={`pending:${p.entityType}:${p.entityId}`}>
+                  <td>
+                    {p.name}{" "}
+                    <span style={{ fontSize: 11, color: "var(--text-faint)" }}>
+                      ({p.entityType === "CUSTOMER" ? "customer" : "driver"})
+                    </span>
+                    {p.entityType === "CUSTOMER" && p.address && (
+                      <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>{p.address}</div>
+                    )}
+                  </td>
+                  <td>{p.weekKey}</td>
+                  <td>+{p.bonusBags}</td>
+                  <td>
+                    <span className="pill pending">not deducted — awaiting approval</span>
+                  </td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td></td>
+                </tr>
+              ))}
               {awardHistory.map((a) => (
                 <tr key={a.id}>
                   <td>
@@ -329,7 +354,9 @@ export default async function IncentivesPage({
                   </td>
                   <td>{a.weekKey}</td>
                   <td>+{a.bonusBags}</td>
-                  <td>{a.dailyRecord.date}</td>
+                  <td>
+                    <span className="pill approved">deducted {a.dailyRecord.date}</span>
+                  </td>
                   <td>{a.approvedBy.name}</td>
                   <td>{a.approvedAt.toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" })}</td>
                   <td>{canRevertAward && <RevertIncentiveAwardButton awardId={a.id} />}</td>
@@ -337,7 +364,9 @@ export default async function IncentivesPage({
               ))}
             </tbody>
           </table>
-          {awardHistory.length === 0 && <div className="empty">No weekly bonuses approved yet.</div>}
+          {pendingAwards.length === 0 && awardHistory.length === 0 && (
+            <div className="empty">No one has qualified for a weekly bonus yet.</div>
+          )}
         </div>
       </div>
     </div>

@@ -80,18 +80,24 @@ export default async function ExpensesPage({
   const [items, allTotals, unpaidCount, rollsEntriesRaw, packingBagsEntriesRaw, packers, packerTotalsMap, staff, paymentsThisPeriod] =
     await Promise.all([
       prisma.expenseItem.findMany({
-        where: status === "all" ? {} : { paid: status === "paid" },
+        where: {
+          dailyRecord: { status: "APPROVED" },
+          ...(status === "all" ? {} : { paid: status === "paid" }),
+        },
         include: { dailyRecord: true, paidBy: true, _count: { select: { payments: true } } },
         orderBy: { dailyRecord: { date: "desc" } },
       }),
-      prisma.expenseItem.findMany({ select: { amount: true, amountPaid: true } }),
-      prisma.expenseItem.count({ where: { paid: false } }),
       prisma.expenseItem.findMany({
-        where: { rollsKg: { not: null } },
+        where: { dailyRecord: { status: "APPROVED" } },
+        select: { amount: true, amountPaid: true },
+      }),
+      prisma.expenseItem.count({ where: { paid: false, dailyRecord: { status: "APPROVED" } } }),
+      prisma.expenseItem.findMany({
+        where: { rollsKg: { not: null }, dailyRecord: { status: "APPROVED" } },
         select: { rollsKg: true, dailyRecord: { select: { date: true } } },
       }),
       prisma.expenseItem.findMany({
-        where: { packingBagsBundles: { not: null } },
+        where: { packingBagsBundles: { not: null }, dailyRecord: { status: "APPROVED" } },
         select: { packingBagsBundles: true, dailyRecord: { select: { date: true } } },
       }),
       prisma.packer.findMany(),

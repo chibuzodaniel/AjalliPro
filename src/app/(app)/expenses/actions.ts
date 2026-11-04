@@ -30,6 +30,9 @@ export async function recordExpensePayment(id: string, paymentAmount: number): P
   if (!expense) {
     return { ok: false, error: "Expense not found." };
   }
+  if (expense.dailyRecord.status !== "APPROVED") {
+    return { ok: false, error: "This expense's daily record hasn't been approved yet." };
+  }
 
   const remaining = expense.amount - expense.amountPaid;
   if (paymentAmount > remaining) {
