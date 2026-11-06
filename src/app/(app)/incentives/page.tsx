@@ -350,12 +350,17 @@ export default async function IncentivesPage({
         </div>
       )}
 
+      {(() => {
+        const entityType = tab === "customers" ? "CUSTOMER" : "DRIVER";
+        const pendingAwardsForTab = pendingAwards.filter((p) => p.entityType === entityType);
+        const awardHistoryForTab = awardHistory.filter((a) => a.entityType === entityType);
+        return (
       <div className="card" style={{ marginTop: 16 }}>
-        <div className="section-title">Weekly bonus history</div>
+        <div className="section-title">{tab === "customers" ? "Customer" : "Driver"} weekly bonus history</div>
         <div className="section-sub">
-          Every customer/driver who's hit this week's threshold, whether their bonus has been deducted from stock
-          yet or is still awaiting Admin/Super Admin approval — bonus bags come off stock on the day they're
-          approved, not the day the threshold was reached.
+          Every {tab === "customers" ? "customer" : "driver"} who's hit this week's threshold, whether their bonus
+          has been deducted from stock yet or is still awaiting Admin/Super Admin approval — bonus bags come off
+          stock on the day they're approved, not the day the threshold was reached.
         </div>
         <div className="table-wrap">
           <table>
@@ -371,7 +376,7 @@ export default async function IncentivesPage({
               </tr>
             </thead>
             <tbody>
-              {pendingAwards.map((p) => (
+              {pendingAwardsForTab.map((p) => (
                 <tr key={`pending:${p.entityType}:${p.entityId}`}>
                   <td>
                     {p.name}{" "}
@@ -401,7 +406,7 @@ export default async function IncentivesPage({
                   </td>
                 </tr>
               ))}
-              {awardHistory.map((a) => (
+              {awardHistoryForTab.map((a) => (
                 <tr key={a.id}>
                   <td>
                     {a.customer?.name ?? a.driver?.name ?? "Unknown"}{" "}
@@ -424,11 +429,13 @@ export default async function IncentivesPage({
               ))}
             </tbody>
           </table>
-          {pendingAwards.length === 0 && awardHistory.length === 0 && (
-            <div className="empty">No one has qualified for a weekly bonus yet.</div>
+          {pendingAwardsForTab.length === 0 && awardHistoryForTab.length === 0 && (
+            <div className="empty">No {tab === "customers" ? "customer" : "driver"} has qualified for a weekly bonus yet.</div>
           )}
         </div>
       </div>
+        );
+      })()}
     </div>
   );
 }
