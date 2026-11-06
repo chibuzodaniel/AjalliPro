@@ -73,7 +73,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       title: `🎁 ${award.name} (${award.entityType === "CUSTOMER" ? "customer" : "driver"}) reached the weekly bonus`,
       sub: `${award.weeklyBags}/${award.threshold} bags — +${award.bonusBags} bonus bags awaiting approval`,
       pending: true,
-      href: "/incentives",
+      href: `/incentives?tab=${award.entityType === "CUSTOMER" ? "customers" : "drivers"}`,
     });
   }
 
