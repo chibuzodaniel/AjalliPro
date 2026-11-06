@@ -1,9 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/ui/Modal";
 import { approveIncentiveAward } from "@/app/(app)/daily-record/actions";
+
+// Shared with IncentiveAwardToast — both are the same underlying
+// "announcement", just rendered differently per role, so they share one
+// once-a-day gate.
+const LAST_SHOWN_KEY = "ajalli:incentive-notice-last-shown";
 
 export interface PendingAward {
   entityType: "CUSTOMER" | "DRIVER";
@@ -18,10 +23,26 @@ export interface PendingAward {
 
 export default function IncentiveAwardNotice({ pending }: { pending: PendingAward[] }) {
   const router = useRouter();
-  const [open, setOpen] = useState(pending.length > 0);
+  const [open, setOpen] = useState(false);
   const [loadingKey, setLoadingKey] = useState<string | null>(null);
   const [errors, setErrors] = useState<Map<string, string>>(new Map());
   const [approved, setApproved] = useState<Set<string>>(new Set());
+
+  // Pops up at most once a day — after that, anything still pending stays
+  // visible in the notification bell (which always reflects live data) until
+  // it's approved, rather than interrupting every single dashboard visit.
+  useEffect(() => {
+    if (pending.length === 0) return;
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+      if (localStorage.getItem(LAST_SHOWN_KEY) === today) return;
+      localStorage.setItem(LAST_SHOWN_KEY, today);
+    } catch {
+      // localStorage unavailable — show anyway, just can't remember for next time
+    }
+    setOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pending.length]);
 
   if (pending.length === 0) return null;
 

@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { isApprover, roleLabel, canApproveDailyRecords } from "@/lib/roles";
 import { isPushConfigured } from "@/lib/push";
+import { getPendingIncentiveAwards } from "@/lib/incentiveAwards";
 import AppShell from "@/components/shell/AppShell";
 import NotificationBell, { type NotifItem } from "@/components/shell/NotificationBell";
 import InactivityLogout from "@/components/shell/InactivityLogout";
@@ -17,7 +18,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   let pendingApprovalCount = 0;
   const approverRole = isApprover(user.role);
 
-  const [dbUser, selfUser, pendingRecordsRaw, pendingDrivers, activity] = await Promise.all([
+  const [dbUser, selfUser, pendingRecordsRaw, pendingDrivers, pendingIncentiveAwards, activity] = await Promise.all([
     approverRole
       ? prisma.user.findUnique({ where: { id: user.id }, select: { dailyRecordApprover: true } })
       : Promise.resolve(null),
@@ -36,6 +37,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           orderBy: { createdAt: "desc" },
         })
       : Promise.resolve([]),
+    getPendingIncentiveAwards(),
     prisma.activityLog.findMany({
       orderBy: { createdAt: "desc" },
       take: 8,
@@ -64,6 +66,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         href: "/approvals",
       });
     }
+  }
+
+  for (const award of pendingIncentiveAwards) {
+    items.push({
+      title: `🎁 ${award.name} (${award.entityType === "CUSTOMER" ? "customer" : "driver"}) reached the weekly bonus`,
+      sub: `${award.weeklyBags}/${award.threshold} bags — +${award.bonusBags} bonus bags awaiting approval`,
+      pending: true,
+      href: "/incentives",
+    });
   }
 
   for (const a of activity) {

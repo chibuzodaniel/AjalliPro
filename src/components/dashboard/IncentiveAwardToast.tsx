@@ -1,17 +1,38 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { PendingAward } from "./IncentiveAwardNotice";
+
+// Shared with IncentiveAwardNotice — both are the same underlying
+// "announcement", just rendered differently per role, so they share one
+// once-a-day gate.
+const LAST_SHOWN_KEY = "ajalli:incentive-notice-last-shown";
 
 /**
  * Read-only heads-up for Sales Staff / Admin Staff — they can't approve a
  * weekly incentive bonus (that's Admin/Super Admin, via IncentiveAwardNotice),
  * but should still know one's pending and that it'll come out of stock once
- * approved.
+ * approved. Pops up at most once a day — still visible after that via the
+ * notification bell, which always reflects live data.
  */
 export default function IncentiveAwardToast({ pending }: { pending: PendingAward[] }) {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [show, setShow] = useState(false);
 
+  useEffect(() => {
+    if (pending.length === 0) return;
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+      if (localStorage.getItem(LAST_SHOWN_KEY) === today) return;
+      localStorage.setItem(LAST_SHOWN_KEY, today);
+    } catch {
+      // localStorage unavailable — show anyway, just can't remember for next time
+    }
+    setShow(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pending.length]);
+
+  if (!show) return null;
   const visible = pending.filter((item) => !dismissed.has(`${item.entityType}:${item.entityId}`));
   if (visible.length === 0) return null;
 

@@ -18,6 +18,7 @@ import RangeTabs from "@/components/ui/RangeTabs";
 import ViewAllModal from "@/components/ui/ViewAllModal";
 import IncentiveHistoryButton from "@/components/incentives/IncentiveHistoryButton";
 import RevertIncentiveAwardButton from "@/components/incentives/RevertIncentiveAwardButton";
+import ApproveIncentiveAwardButton from "@/components/incentives/ApproveIncentiveAwardButton";
 
 function monthLabel(key: string) {
   return `${MONTH_NAMES[Number(key.slice(5, 7)) - 1]} ${key.slice(0, 4)}`;
@@ -48,6 +49,7 @@ export default async function IncentivesPage({
   const tab = sp.tab === "drivers" ? "drivers" : "customers";
   const user = await getCurrentUser();
   const canRevertAward = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
+  const canApproveAward = canRevertAward;
 
   const [customers, drivers, approvedRecords, allApprovedRecordsEver, weeklySettings, awardHistory, pendingAwards] =
     await Promise.all([
@@ -387,7 +389,16 @@ export default async function IncentivesPage({
                   </td>
                   <td>—</td>
                   <td>—</td>
-                  <td></td>
+                  <td>
+                    {canApproveAward && (
+                      <ApproveIncentiveAwardButton
+                        entityType={p.entityType}
+                        entityId={p.entityId}
+                        weekKey={p.weekKey}
+                        bonusBags={p.bonusBags}
+                      />
+                    )}
+                  </td>
                 </tr>
               ))}
               {awardHistory.map((a) => (
