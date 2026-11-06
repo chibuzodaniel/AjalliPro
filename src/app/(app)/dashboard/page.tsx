@@ -13,6 +13,7 @@ import KpiCard from "@/components/ui/KpiCard";
 import AnnouncementButton from "@/components/dashboard/AnnouncementButton";
 import AddBankTransactionButton from "@/components/dashboard/AddBankTransactionButton";
 import BankBalanceCard from "@/components/dashboard/BankBalanceCard";
+import BagsSoldWeeklyCard from "@/components/dashboard/BagsSoldWeeklyCard";
 import { getBankAccountsWithBalances } from "@/lib/bankAccounts";
 import IncentiveAwardNotice from "@/components/dashboard/IncentiveAwardNotice";
 import IncentiveAwardToast from "@/components/dashboard/IncentiveAwardToast";
@@ -67,6 +68,19 @@ export default async function DashboardPage() {
     (s, r) => s + r.productionLines.reduce((s2, p) => s2 + p.bags, 0),
     0
   );
+  const weekSoldTotal = weekRecords.reduce((s, r) => s + recordSoldTotal(r), 0);
+
+  // Weekly bags-sold history for the KPI card's modal — spans straight
+  // through an archive, same as incentive history, since this is what was
+  // actually sold, not a running balance that resets on archive.
+  const weeklySoldMap = new Map<string, number>();
+  for (const r of allApprovedRecordsEver) {
+    const weekKey = weekKeyOf(r.date);
+    weeklySoldMap.set(weekKey, (weeklySoldMap.get(weekKey) ?? 0) + recordSoldTotal(r));
+  }
+  const weeklySoldRows = [...weeklySoldMap.entries()]
+    .sort(([a], [b]) => b.localeCompare(a, undefined, { numeric: true }))
+    .map(([label, bags]) => ({ label, bags }));
 
   // Net income cards — gross sales revenue for the period, not reduced by
   // expenses (those are tracked separately, with their own paid/owing
@@ -207,6 +221,7 @@ export default async function DashboardPage() {
           iconBg="rgba(47,215,196,.15)"
           iconColor="var(--teal)"
         />
+        <BagsSoldWeeklyCard weekTotal={weekSoldTotal} rows={weeklySoldRows} />
         <KpiCard
           label="Total Produced (Today)"
           value={producedToday !== null ? `${producedToday} bags` : "—"}
