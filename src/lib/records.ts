@@ -81,6 +81,14 @@ export function recordTruckDeliveryBonusBagsTotal(r: DailyRecordFull): number {
   return r.truckDeliveries.reduce((s, t) => s + t.bonusBags, 0);
 }
 
+/** Subset of today's driver-sale + truck-delivery bags rebagged from the leakage pile rather than fresh stock. */
+export function recordDriverTruckBagsFromLeakageTotal(r: DailyRecordFull): number {
+  return (
+    r.driverSales.reduce((s, d) => s + d.bagsFromLeakage, 0) +
+    r.truckDeliveries.reduce((s, t) => s + t.bagsFromLeakage, 0)
+  );
+}
+
 export function recordSoldTotal(r: DailyRecordFull): number {
   return r.factoryBags + recordDriverBagsTotal(r) + recordTruckDeliveryBagsTotal(r);
 }

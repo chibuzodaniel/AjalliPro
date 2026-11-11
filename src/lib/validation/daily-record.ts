@@ -13,6 +13,9 @@ export const driverSaleSchema = z.object({
   // Whether to create the auto-generated "Loading fee — X" expense already
   // paid — set via the pre-submit expenses confirmation modal.
   loadingFeePaid: z.boolean().default(false),
+  // Subset of bags rebagged from the leakage pile rather than fresh stock,
+  // sold to this driver — capped against bags server-side.
+  bagsFromLeakage: z.number().int().min(0).default(0),
 });
 
 export const truckDeliverySchema = z.object({
@@ -30,6 +33,9 @@ export const truckDeliverySchema = z.object({
   hiredCostPaid: z.boolean().default(false),
   loadingFeePaid: z.boolean().default(false),
   offloadingFeePaid: z.boolean().default(false),
+  // Subset of bags rebagged from the leakage pile rather than fresh stock,
+  // sold to this customer — capped against bags server-side.
+  bagsFromLeakage: z.number().int().min(0).default(0),
 });
 
 export const expenseItemSchema = z.object({
@@ -52,7 +58,6 @@ export const dailyRecordSchema = z.object({
   truckDeliveries: z.array(truckDeliverySchema),
   leakageBags: z.number().int().min(0),
   leakageWasteBags: z.number().int().min(0),
-  driverTruckBagsFromLeakage: z.number().int().min(0),
   expenses: z.array(expenseItemSchema),
   bankAccountId: z.string().min(1).nullable().optional(),
   bankAmountSent: z.number().int().min(0).default(0),

@@ -34,6 +34,7 @@ interface DriverSaleRow {
   bags: string;
   bonusBags: string;
   loadingFeeWaived: boolean;
+  bagsFromLeakage: string;
 }
 interface TruckDeliveryRow {
   key: number;
@@ -45,6 +46,7 @@ interface TruckDeliveryRow {
   loadingFeeWaived: boolean;
   offloadingFeeWaived: boolean;
   hiredCostWaived: boolean;
+  bagsFromLeakage: string;
 }
 interface ExpenseRow {
   key: number;
@@ -88,7 +90,6 @@ interface DraftState {
   pumpWaterAmount: string;
   leakageBags: string;
   leakageWasteBags: string;
-  driverTruckBagsFromLeakage: string;
   expenses: ExpenseRow[];
   bankAccountId: string;
   bankAmountSent: string;
@@ -112,7 +113,7 @@ export interface DailyRecordFormInitial {
   factoryPricePerBag: number;
   factoryCustomerId: string | null;
   pumpWaterAmount: number;
-  driverSales: { driverId: string; bags: number; bonusBags: number; loadingFeeWaived: boolean }[];
+  driverSales: { driverId: string; bags: number; bonusBags: number; loadingFeeWaived: boolean; bagsFromLeakage: number }[];
   truckDeliveries: {
     customerId: string | null;
     bags: number;
@@ -122,10 +123,10 @@ export interface DailyRecordFormInitial {
     loadingFeeWaived: boolean;
     offloadingFeeWaived: boolean;
     hiredCostWaived: boolean;
+    bagsFromLeakage: number;
   }[];
   leakageBags: number;
   leakageWasteBags: number;
-  driverTruckBagsFromLeakage: number;
   expenses: { description: string; amount: number; paid: boolean }[];
   bankAccountId: string | null;
   bankAmountSent: number;
@@ -137,13 +138,16 @@ function toProductionRows(rows: DailyRecordFormInitial["production"]): Productio
 }
 function toDriverSaleRows(rows: DailyRecordFormInitial["driverSales"], firstDriverId: string): DriverSaleRow[] {
   if (rows.length === 0)
-    return [{ key: nextKey(), driverId: firstDriverId, bags: "", bonusBags: "", loadingFeeWaived: false }];
+    return [
+      { key: nextKey(), driverId: firstDriverId, bags: "", bonusBags: "", loadingFeeWaived: false, bagsFromLeakage: "" },
+    ];
   return rows.map((r) => ({
     key: nextKey(),
     driverId: r.driverId,
     bags: String(r.bags),
     bonusBags: r.bonusBags ? String(r.bonusBags) : "",
     loadingFeeWaived: r.loadingFeeWaived,
+    bagsFromLeakage: r.bagsFromLeakage ? String(r.bagsFromLeakage) : "",
   }));
 }
 function toTruckDeliveryRows(
@@ -160,6 +164,7 @@ function toTruckDeliveryRows(
     loadingFeeWaived: r.loadingFeeWaived,
     offloadingFeeWaived: r.offloadingFeeWaived,
     hiredCostWaived: r.hiredCostWaived,
+    bagsFromLeakage: r.bagsFromLeakage ? String(r.bagsFromLeakage) : "",
   }));
 }
 function toExpenseRows(rows: DailyRecordFormInitial["expenses"]): ExpenseRow[] {
@@ -270,10 +275,6 @@ export default function DailyRecordFormModal({
   const [leakageWasteBags, setLeakageWasteBags] = useState(
     draft?.leakageWasteBags ?? (initial.leakageWasteBags ? String(initial.leakageWasteBags) : "")
   );
-  const [driverTruckBagsFromLeakage, setDriverTruckBagsFromLeakage] = useState(
-    draft?.driverTruckBagsFromLeakage ??
-      (initial.driverTruckBagsFromLeakage ? String(initial.driverTruckBagsFromLeakage) : "")
-  );
   const [expenses, setExpenses] = useState<ExpenseRow[]>(() =>
     draft ? rekeyRows(draft.expenses) : toExpenseRows(initial.expenses)
   );
@@ -305,7 +306,6 @@ export default function DailyRecordFormModal({
     pumpWaterAmount: number;
     leakageBags: number;
     leakageWasteBags: number;
-    driverTruckBagsFromLeakage: number;
     expenses: DailyRecordFormInitial["expenses"];
     bankAccountId?: string | null;
     bankAmountSent?: number;
@@ -322,7 +322,6 @@ export default function DailyRecordFormModal({
     setPumpWaterAmount(data.pumpWaterAmount ? String(data.pumpWaterAmount) : "");
     setLeakageBags(data.leakageBags ? String(data.leakageBags) : "");
     setLeakageWasteBags(data.leakageWasteBags ? String(data.leakageWasteBags) : "");
-    setDriverTruckBagsFromLeakage(data.driverTruckBagsFromLeakage ? String(data.driverTruckBagsFromLeakage) : "");
     setExpenses(toExpenseRows(data.expenses));
     setBankAccountId(data.bankAccountId ?? "");
     setBankAmountSent(data.bankAmountSent ? String(data.bankAmountSent) : "");
@@ -376,7 +375,6 @@ export default function DailyRecordFormModal({
       pumpWaterAmount,
       leakageBags,
       leakageWasteBags,
-      driverTruckBagsFromLeakage,
       expenses,
       bankAccountId,
       bankAmountSent,
@@ -401,7 +399,6 @@ export default function DailyRecordFormModal({
     pumpWaterAmount,
     leakageBags,
     leakageWasteBags,
-    driverTruckBagsFromLeakage,
     expenses,
     bankAccountId,
     bankAmountSent,
@@ -424,6 +421,10 @@ export default function DailyRecordFormModal({
   const driverById = useMemo(() => new Map(drivers.map((d) => [d.id, d])), [drivers]);
   const customerById = useMemo(() => new Map(customers.map((c) => [c.id, c])), [customers]);
 
+  const driverTruckBagsFromLeakageTotal =
+    driverSales.reduce((s, d) => s + (Number(d.bagsFromLeakage) || 0), 0) +
+    truckDeliveries.reduce((s, t) => s + (Number(t.bagsFromLeakage) || 0), 0);
+
   const closingPreview = useMemo(() => {
     const prodTotal = production.reduce((s, p) => s + (Number(p.bags) || 0), 0);
     const driverBagsTotal = driverSales.reduce((s, d) => s + (Number(d.bags) || 0), 0);
@@ -431,8 +432,7 @@ export default function DailyRecordFormModal({
     const truckBagsTotal = truckDeliveries.reduce((s, t) => s + (Number(t.bags) || 0), 0);
     const truckBonusTotal = truckDeliveries.reduce((s, t) => s + (Number(t.bonusBags) || 0), 0);
     const factoryBagsNet = (Number(factoryBags) || 0) - (Number(factoryBagsFromLeakage) || 0);
-    const driverTruckBagsNet =
-      driverBagsTotal + truckBagsTotal - (Number(driverTruckBagsFromLeakage) || 0);
+    const driverTruckBagsNet = driverBagsTotal + truckBagsTotal - driverTruckBagsFromLeakageTotal;
     return (
       (Number(openingValue) || 0) +
       prodTotal -
@@ -448,7 +448,7 @@ export default function DailyRecordFormModal({
     truckDeliveries,
     factoryBags,
     factoryBagsFromLeakage,
-    driverTruckBagsFromLeakage,
+    driverTruckBagsFromLeakageTotal,
     leakageBags,
     openingValue,
   ]);
@@ -458,7 +458,7 @@ export default function DailyRecordFormModal({
     leakageOpeningNum +
     (Number(leakageBags) || 0) -
     (Number(factoryBagsFromLeakage) || 0) -
-    (Number(driverTruckBagsFromLeakage) || 0) -
+    driverTruckBagsFromLeakageTotal -
     (Number(leakageWasteBags) || 0);
 
   // Super Admin can override these two computed figures directly — same
@@ -605,6 +605,7 @@ export default function DailyRecordFormModal({
           bonusBags: Number(d.bonusBags) || 0,
           loadingFeeWaived: d.loadingFeeWaived,
           loadingFeePaid: autoFeePaid.get(`driverLoadingFee:${d.key}`) ?? false,
+          bagsFromLeakage: Number(d.bagsFromLeakage) || 0,
         })),
       truckDeliveries: truckDeliveries
         .filter((t) => (Number(t.bags) || 0) > 0 && t.customerId)
@@ -621,10 +622,10 @@ export default function DailyRecordFormModal({
           hiredCostPaid: autoFeePaid.get(`truckHiredCost:${t.key}`) ?? false,
           loadingFeePaid: autoFeePaid.get(`truckLoadingFee:${t.key}`) ?? false,
           offloadingFeePaid: autoFeePaid.get(`truckOffloadingFee:${t.key}`) ?? false,
+          bagsFromLeakage: Number(t.bagsFromLeakage) || 0,
         })),
       leakageBags: Number(leakageBags) || 0,
       leakageWasteBags: Number(leakageWasteBags) || 0,
-      driverTruckBagsFromLeakage: Number(driverTruckBagsFromLeakage) || 0,
       expenses: expenses
         .filter((e) => e.description.trim().length > 0 && (Number(e.amount) || 0) > 0)
         .map((e) => ({ description: e.description.trim(), amount: Number(e.amount) || 0, paid: e.paid })),
@@ -934,6 +935,25 @@ export default function DailyRecordFormModal({
                     Loading fee not applicable
                   </label>
                 )}
+                {leakageOpeningNum > 0 && (
+                  <label style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                    From leakage:
+                    <input
+                      type="number"
+                      min={0}
+                      max={Math.min(bags, leakageOpeningNum)}
+                      placeholder="0"
+                      style={{ width: 64, padding: "3px 6px", fontSize: 11.5 }}
+                      value={row.bagsFromLeakage}
+                      onChange={(e) =>
+                        setDriverSales((rows) =>
+                          rows.map((r) => (r.key === row.key ? { ...r, bagsFromLeakage: e.target.value } : r))
+                        )
+                      }
+                    />
+                    bags
+                  </label>
+                )}
               </div>
             </div>
           );
@@ -944,7 +964,7 @@ export default function DailyRecordFormModal({
           onClick={() =>
             setDriverSales((rows) => [
               ...rows,
-              { key: nextKey(), driverId: drivers[0]?.id ?? "", bags: "", bonusBags: "", loadingFeeWaived: false },
+              { key: nextKey(), driverId: drivers[0]?.id ?? "", bags: "", bonusBags: "", loadingFeeWaived: false, bagsFromLeakage: "" },
             ])
           }
         >
@@ -1117,6 +1137,25 @@ export default function DailyRecordFormModal({
                       Hired truck cost not applicable
                     </label>
                   )}
+                  {leakageOpeningNum > 0 && (
+                    <label style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      From leakage:
+                      <input
+                        type="number"
+                        min={0}
+                        max={Math.min(bags, leakageOpeningNum)}
+                        placeholder="0"
+                        style={{ width: 64, padding: "3px 6px", fontSize: 11.5 }}
+                        value={row.bagsFromLeakage}
+                        onChange={(e) =>
+                          setTruckDeliveries((rows) =>
+                            rows.map((r) => (r.key === row.key ? { ...r, bagsFromLeakage: e.target.value } : r))
+                          )
+                        }
+                      />
+                      bags
+                    </label>
+                  )}
                 </div>
               );
             })()}
@@ -1138,6 +1177,7 @@ export default function DailyRecordFormModal({
                 loadingFeeWaived: false,
                 offloadingFeeWaived: false,
                 hiredCostWaived: false,
+                bagsFromLeakage: "",
               },
             ])
           }
@@ -1156,29 +1196,16 @@ export default function DailyRecordFormModal({
             onChange={(e) => setLeakageBags(e.target.value)}
           />
         </div>
-        <div className="field">
-          <label>
-            Leakages sold as normal stock — via driver sales / truck deliveries (bags — available:{" "}
-            {leakageOpeningNum})
-          </label>
-          <input
-            type="number"
-            min={0}
-            max={leakageOpeningNum}
-            placeholder="0"
-            value={driverTruckBagsFromLeakage}
-            onChange={(e) => setDriverTruckBagsFromLeakage(e.target.value)}
-          />
-          <div className="hint">
-            Already counted in the driver/truck bags entered above — this just marks that some of those bags came
-            from the leakage pile, not fresh stock, so they&apos;re not deducted twice.
+        {leakageOpeningNum > 0 && (
+          <div className="hint" style={{ marginBottom: 10 }}>
+            Some of today&apos;s driver sales / truck deliveries sold from the leakage pile instead of fresh stock?
+            Use the &quot;From leakage&quot; field next to that driver/truck row above — it&apos;s already counted in
+            the bags entered there, this just marks who it was sold to.
           </div>
-        </div>
+        )}
         <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginBottom: 6 }}>
           Opening {leakageOpeningNum} + New {Number(leakageBags) || 0} − Rebagged {Number(factoryBagsFromLeakage) || 0}
-          {(Number(driverTruckBagsFromLeakage) || 0) > 0
-            ? ` − Sold via driver/truck ${Number(driverTruckBagsFromLeakage) || 0}`
-            : ""}
+          {driverTruckBagsFromLeakageTotal > 0 ? ` − Sold via driver/truck ${driverTruckBagsFromLeakageTotal}` : ""}
           {(Number(leakageWasteBags) || 0) > 0 ? ` − Wasted ${Number(leakageWasteBags) || 0}` : ""} = Closing{" "}
           {leakageClosingPreview}
         </div>

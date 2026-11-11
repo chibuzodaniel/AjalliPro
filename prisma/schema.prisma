@@ -87,8 +87,7 @@ model DailyRecord {
   leakageOpening         Int            @default(0) // leakage pile balance carried from the previous approved record
   leakageBags            Int            @default(0) // NEW leakage logged today, added to the pile
   leakageWasteBags       Int            @default(0) // bags lost/spoiled while rebagging leakage stock — not sellable, not carried forward
-  driverTruckBagsFromLeakage Int        @default(0) // subset of today's driver-sale + truck-delivery bags rebagged from the leakage pile, not fresh production
-  leakageClosing         Int            @default(0) // leakageOpening + leakageBags - factoryBagsFromLeakage - driverTruckBagsFromLeakage - leakageWasteBags
+  leakageClosing         Int            @default(0) // leakageOpening + leakageBags - factoryBagsFromLeakage - (sum of driverSales/truckDeliveries bagsFromLeakage) - leakageWasteBags
   incentiveBonusBags     Int            @default(0) // cumulative weekly-incentive bonus bags approved+deducted from stock on this day — see IncentiveAward
   bankAccountId          String? // which company bank account the day's money will be sent to — ticked by whoever logs the record
   bankAccount            BankAccount?   @relation(fields: [bankAccountId], references: [id])
@@ -231,6 +230,7 @@ model DriverSale {
   loadingFee       Int         @default(0) // snapshot of the driver's fixed loading fee/bag at the time of this sale
   loadingFeeWaived Boolean     @default(false) // marked not applicable for this sale — no loading fee expense is generated
   bonusBags        Int         @default(0) // instant incentive bags, entered manually by the recorder
+  bagsFromLeakage  Int         @default(0) // subset of bags rebagged from the leakage pile rather than fresh stock, sold to this driver (see customerId for who they in turn sold to)
 
   @@index([dailyRecordId])
   @@index([driverId])
@@ -255,6 +255,7 @@ model TruckDelivery {
   loadingFeeWaived    Boolean     @default(false)
   offloadingFeePerBag Int         @default(0) // snapshot of the fixed offloading fee/bag at the time of this delivery — applies regardless of own/hired truck
   offloadingFeeWaived Boolean     @default(false)
+  bagsFromLeakage     Int         @default(0) // subset of bags rebagged from the leakage pile rather than fresh stock, sold to this customer
 
   @@index([dailyRecordId])
   @@index([customerId])

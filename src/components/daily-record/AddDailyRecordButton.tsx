@@ -76,7 +76,6 @@ export default function AddDailyRecordButton({
     truckDeliveries: [],
     leakageBags: 0,
     leakageWasteBags: 0,
-    driverTruckBagsFromLeakage: 0,
     expenses: [],
     bankAccountId: null,
     bankAmountSent: 0,

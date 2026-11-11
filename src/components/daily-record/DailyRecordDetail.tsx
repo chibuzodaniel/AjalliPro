@@ -6,7 +6,7 @@ import Modal from "@/components/ui/Modal";
 import Pill from "@/components/ui/Pill";
 import { formatMoney } from "@/lib/money";
 import { roleLabel } from "@/lib/roles";
-import { expenseStatusSuffix, type DailyRecordFull } from "@/lib/records";
+import { expenseStatusSuffix, recordDriverTruckBagsFromLeakageTotal, type DailyRecordFull } from "@/lib/records";
 import { sendDailyReportSmsNow } from "@/app/(app)/reports/actions";
 import { confirmBankMoneyReceived } from "@/app/(app)/daily-record/actions";
 
@@ -47,6 +47,7 @@ function esc(s: string): string {
 
 function printDailyRecordPdf(record: DailyRecordFull) {
   const prodTotal = record.productionLines.reduce((s, p) => s + p.bags, 0);
+  const driverTruckBagsFromLeakageTotal = recordDriverTruckBagsFromLeakageTotal(record);
 
   const productionRows = record.productionLines.length
     ? record.productionLines.map((p) => `<tr><td>${esc(p.packer.name)}</td><td class="num">${p.bags} bags</td></tr>`).join("")
@@ -60,7 +61,9 @@ function printDailyRecordPdf(record: DailyRecordFull) {
               d.customer?.address ? `<div class="sub">${esc(d.customer.address)}</div>` : ""
             }${
               d.loadingFeeWaived ? `<div class="sub">Loading fee: not applicable</div>` : ""
-            }</td><td class="num">${d.bags} bags${d.bonusBags > 0 ? ` +${d.bonusBags} bonus` : ""}</td></tr>`
+            }</td><td class="num">${d.bags} bags${d.bonusBags > 0 ? ` +${d.bonusBags} bonus` : ""}${
+              d.bagsFromLeakage > 0 ? ` (${d.bagsFromLeakage} from leakage)` : ""
+            }</td></tr>`
         )
         .join("")
     : `<tr><td colspan="2" class="empty">None</td></tr>`;
@@ -73,7 +76,9 @@ function printDailyRecordPdf(record: DailyRecordFull) {
               t.customer?.address ? `<div class="sub">${esc(t.customer.address)}</div>` : ""
             }<div class="sub">${
               t.ownTruck ? `Own truck — fuel ${formatMoney(t.fuelCost)}` : `Hired truck — ${formatMoney(t.hiredCost)}`
-            }</div></td><td class="num">${t.bags} bags${t.bonusBags > 0 ? ` +${t.bonusBags} bonus` : ""}</td></tr>`
+            }</div></td><td class="num">${t.bags} bags${t.bonusBags > 0 ? ` +${t.bonusBags} bonus` : ""}${
+              t.bagsFromLeakage > 0 ? ` (${t.bagsFromLeakage} from leakage)` : ""
+            }</td></tr>`
         )
         .join("")
     : `<tr><td colspan="2" class="empty">None</td></tr>`;
@@ -149,8 +154,8 @@ function printDailyRecordPdf(record: DailyRecordFull) {
 
   <div class="totals"><span>Leakage balance carried forward</span><span>${record.leakageClosing} bags</span></div>
   ${
-    record.driverTruckBagsFromLeakage > 0
-      ? `<div class="sub">${record.driverTruckBagsFromLeakage} of today's driver/truck bags were sold from this pile, not fresh stock — already subtracted above</div>`
+    driverTruckBagsFromLeakageTotal > 0
+      ? `<div class="sub">${driverTruckBagsFromLeakageTotal} of today's driver/truck bags were sold from this pile, not fresh stock — already subtracted above</div>`
       : ""
   }
 
@@ -188,6 +193,7 @@ export default function DailyRecordDetail({ record, isAdmin }: { record: DailyRe
   const [bankLoading, setBankLoading] = useState(false);
   const [bankError, setBankError] = useState<string | null>(null);
   const prodTotal = record.productionLines.reduce((s, p) => s + p.bags, 0);
+  const driverTruckBagsFromLeakageTotal = recordDriverTruckBagsFromLeakageTotal(record);
 
   async function handleToggleBankReceived(received: boolean) {
     setBankLoading(true);
@@ -303,7 +309,9 @@ export default function DailyRecordDetail({ record, isAdmin }: { record: DailyRe
                   left={`${d.driver.name}${d.customer ? ` → ${d.customer.name}` : ""}${
                     d.loadingFeeWaived ? " · loading fee N/A" : ""
                   }`}
-                  right={`${d.bags} bags${d.bonusBags > 0 ? ` +${d.bonusBags} bonus` : ""}`}
+                  right={`${d.bags} bags${d.bonusBags > 0 ? ` +${d.bonusBags} bonus` : ""}${
+                    d.bagsFromLeakage > 0 ? ` (${d.bagsFromLeakage} from leakage)` : ""
+                  }`}
                   below={d.customer?.address}
                 />
               ))
@@ -320,6 +328,7 @@ export default function DailyRecordDetail({ record, isAdmin }: { record: DailyRe
                     <span>{t.customer?.name ?? "Unknown customer"}</span>
                     <b>
                       {t.bags} bags{t.bonusBags > 0 ? ` +${t.bonusBags} bonus` : ""}
+                      {t.bagsFromLeakage > 0 ? ` (${t.bagsFromLeakage} from leakage)` : ""}
                     </b>
                   </div>
                   {t.customer?.address && (
@@ -382,9 +391,9 @@ export default function DailyRecordDetail({ record, isAdmin }: { record: DailyRe
               <span>Leakage balance carried forward</span>
               <b>{record.leakageClosing} bags</b>
             </div>
-            {record.driverTruckBagsFromLeakage > 0 && (
+            {driverTruckBagsFromLeakageTotal > 0 && (
               <div style={{ fontSize: 12, color: "var(--text-faint)" }}>
-                {record.driverTruckBagsFromLeakage} of today&apos;s driver/truck bags were sold from this pile, not
+                {driverTruckBagsFromLeakageTotal} of today&apos;s driver/truck bags were sold from this pile, not
                 fresh stock — already subtracted above
               </div>
             )}
