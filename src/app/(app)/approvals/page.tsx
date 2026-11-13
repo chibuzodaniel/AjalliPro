@@ -2,7 +2,7 @@ import { getCurrentUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { recordSoldTotal, recordProdTotal, dailyRecordInclude } from "@/lib/records";
 import { roleLabel, isApprover, canApproveDailyRecords } from "@/lib/roles";
-import { getPricingSettings } from "@/lib/settings";
+import { getPricingSettings, getPackingBagTypes } from "@/lib/settings";
 import ApproveRejectButtons from "@/components/shared/ApproveRejectButtons";
 import ViewAllModal from "@/components/ui/ViewAllModal";
 import DailyRecordDetail from "@/components/daily-record/DailyRecordDetail";
@@ -19,7 +19,7 @@ export default async function ApprovalsPage() {
   const dbUser = user ? await prisma.user.findUnique({ where: { id: user.id }, select: { dailyRecordApprover: true } }) : null;
   const canSeeDailyRecords = user ? canApproveDailyRecords(user.role, dbUser?.dailyRecordApprover ?? false) : false;
 
-  const [pendingRecords, pendingDrivers, editDrivers, editCustomers, editBankAccounts, editPackers, pricing] =
+  const [pendingRecords, pendingDrivers, editDrivers, editCustomers, editBankAccounts, editPackers, pricing, packingBagTypes] =
     await Promise.all([
       canSeeDailyRecords
         ? prisma.dailyRecord.findMany({
@@ -38,6 +38,7 @@ export default async function ApprovalsPage() {
       approver ? prisma.bankAccount.findMany({ where: { active: true }, orderBy: { createdAt: "asc" } }) : Promise.resolve([]),
       approver ? prisma.packer.findMany({ orderBy: { name: "asc" } }) : Promise.resolve([]),
       approver ? getPricingSettings() : Promise.resolve(null),
+      approver ? getPackingBagTypes() : Promise.resolve([]),
     ]);
 
   const pendingRecordsTable = (
@@ -82,7 +83,7 @@ export default async function ApprovalsPage() {
                     truckOffloadingFeePerBag={pricing.truckOffloadingFeePerBag}
                     truckHiredCostPerBag={pricing.truckHiredCostPerBag}
                     rollsPricePerKg={pricing.rollsPricePerKg}
-                    packingBagsPricePerBundle={pricing.packingBagsPricePerBundle}
+                    packingBagTypes={packingBagTypes}
                   />
                 )}
                 {approver && <DeleteDailyRecordButton id={r.id} date={r.date} status={r.status} />}

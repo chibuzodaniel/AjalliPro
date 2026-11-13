@@ -17,7 +17,7 @@ import {
   packerPriceSettingSchema,
   truckFeeSettingsSchema,
   rollsPriceSettingSchema,
-  packingBagsPriceSettingSchema,
+  packingBagTypeSchema,
 } from "@/lib/validation/pricing";
 import {
   saveWeeklyIncentiveSettings,
@@ -26,7 +26,6 @@ import {
   savePackerPriceSetting,
   saveTruckFeeSettings,
   saveRollsPriceSetting,
-  savePackingBagsPriceSetting,
 } from "@/lib/settings";
 
 export interface UpdateWeeklyIncentiveResult {
@@ -346,20 +345,81 @@ export async function updateRollsPriceSetting(input: unknown): Promise<UpdatePri
   return { ok: true };
 }
 
-export async function updatePackingBagsPriceSetting(input: unknown): Promise<UpdatePricingResult> {
+export interface PackingBagTypeResult {
+  ok: boolean;
+  error?: string;
+}
+
+export async function createPackingBagType(input: unknown): Promise<PackingBagTypeResult> {
   const guard = await requireRoleSafe(["ADMIN", "SUPER_ADMIN"]);
   if (!guard.ok) return { ok: false, error: guard.error };
   const user = guard.user;
-  const parsed = packingBagsPriceSettingSchema.safeParse(input);
+  const parsed = packingBagTypeSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid value" };
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
 
-  await savePackingBagsPriceSetting(parsed.data.packingBagsPricePerBundle);
+  const existing = await prisma.packingBagType.findFirst({
+    where: { name: { equals: parsed.data.name, mode: "insensitive" } },
+  });
+  if (existing) {
+    return { ok: false, error: `A packing bag type named "${parsed.data.name}" already exists.` };
+  }
+
+  await prisma.packingBagType.create({
+    data: { name: parsed.data.name, pricePerBundle: parsed.data.pricePerBundle, createdById: user.id },
+  });
   await logActivity(
-    `${user.name} set the packing bags price to ₦${parsed.data.packingBagsPricePerBundle}/bundle.`,
+    `${user.name} added packing bag type "${parsed.data.name}" at ₦${parsed.data.pricePerBundle}/bundle.`,
     user.id
   );
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function updatePackingBagType(id: string, input: unknown): Promise<PackingBagTypeResult> {
+  const guard = await requireRoleSafe(["ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
+  const parsed = packingBagTypeSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const existing = await prisma.packingBagType.findUnique({ where: { id } });
+  if (!existing) {
+    return { ok: false, error: "Packing bag type not found." };
+  }
+  const nameConflict = await prisma.packingBagType.findFirst({
+    where: { name: { equals: parsed.data.name, mode: "insensitive" } },
+  });
+  if (nameConflict && nameConflict.id !== id) {
+    return { ok: false, error: `A packing bag type named "${parsed.data.name}" already exists.` };
+  }
+
+  await prisma.packingBagType.update({
+    where: { id },
+    data: { name: parsed.data.name, pricePerBundle: parsed.data.pricePerBundle },
+  });
+  await logActivity(
+    `${user.name} updated packing bag type "${parsed.data.name}" to ₦${parsed.data.pricePerBundle}/bundle.`,
+    user.id
+  );
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function deletePackingBagType(id: string): Promise<PackingBagTypeResult> {
+  const guard = await requireRoleSafe(["ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
+
+  const existing = await prisma.packingBagType.findUnique({ where: { id } });
+  if (!existing) {
+    return { ok: false, error: "Packing bag type not found." };
+  }
+  await prisma.packingBagType.delete({ where: { id } });
+  await logActivity(`${user.name} deleted packing bag type "${existing.name}".`, user.id);
   revalidatePath("/", "layout");
   return { ok: true };
 }

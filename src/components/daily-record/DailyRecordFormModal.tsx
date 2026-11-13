@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Modal from "@/components/ui/Modal";
 import { createDailyRecord, updateDailyRecord, findDailyRecordByDate } from "@/app/(app)/daily-record/actions";
 import { formatMoney } from "@/lib/money";
+import { matchPackingBagType } from "@/lib/records";
 
 interface DriverOption {
   id: string;
@@ -57,6 +58,11 @@ interface ExpenseRow {
 interface PackerOption {
   id: string;
   name: string;
+}
+interface PackingBagTypeOption {
+  id: string;
+  name: string;
+  pricePerBundle: number;
 }
 
 type AutoFeeKind = "driverLoadingFee" | "truckFuel" | "truckHiredCost" | "truckLoadingFee" | "truckOffloadingFee";
@@ -167,9 +173,10 @@ function toTruckDeliveryRows(
     bagsFromLeakage: r.bagsFromLeakage ? String(r.bagsFromLeakage) : "",
   }));
 }
-function toExpenseRows(rows: DailyRecordFormInitial["expenses"]): ExpenseRow[] {
+function toExpenseRows(rows: DailyRecordFormInitial["expenses"], packingBagTypeNames: string[]): ExpenseRow[] {
   if (rows.length === 0) {
-    return ["Rolls", "Packing bags", "Gas", "Other"].map((description) => ({
+    const defaults = packingBagTypeNames.length > 0 ? packingBagTypeNames : ["Packing bags"];
+    return ["Rolls", ...defaults, "Gas", "Other"].map((description) => ({
       key: nextKey(),
       description,
       amount: "",
@@ -199,7 +206,7 @@ export default function DailyRecordFormModal({
   truckOffloadingFeePerBag,
   truckHiredCostPerBag,
   rollsPricePerKg,
-  packingBagsPricePerBundle,
+  packingBagTypes,
 }: {
   mode: "create" | "edit";
   recordId?: string;
@@ -220,7 +227,7 @@ export default function DailyRecordFormModal({
   truckOffloadingFeePerBag: number;
   truckHiredCostPerBag: number;
   rollsPricePerKg: number;
-  packingBagsPricePerBundle: number;
+  packingBagTypes: PackingBagTypeOption[];
 }) {
   const router = useRouter();
   const draftKey = mode === "create" ? "ajalli:daily-record-draft:create" : `ajalli:daily-record-draft:edit:${recordId}`;
@@ -276,7 +283,7 @@ export default function DailyRecordFormModal({
     draft?.leakageWasteBags ?? (initial.leakageWasteBags ? String(initial.leakageWasteBags) : "")
   );
   const [expenses, setExpenses] = useState<ExpenseRow[]>(() =>
-    draft ? rekeyRows(draft.expenses) : toExpenseRows(initial.expenses)
+    draft ? rekeyRows(draft.expenses) : toExpenseRows(initial.expenses, packingBagTypes.map((t) => t.name))
   );
   const [bankAccountId, setBankAccountId] = useState(draft?.bankAccountId ?? (initial.bankAccountId ?? ""));
   const [bankAmountSent, setBankAmountSent] = useState(
@@ -322,7 +329,7 @@ export default function DailyRecordFormModal({
     setPumpWaterAmount(data.pumpWaterAmount ? String(data.pumpWaterAmount) : "");
     setLeakageBags(data.leakageBags ? String(data.leakageBags) : "");
     setLeakageWasteBags(data.leakageWasteBags ? String(data.leakageWasteBags) : "");
-    setExpenses(toExpenseRows(data.expenses));
+    setExpenses(toExpenseRows(data.expenses, packingBagTypes.map((t) => t.name)));
     setBankAccountId(data.bankAccountId ?? "");
     setBankAmountSent(data.bankAmountSent ? String(data.bankAmountSent) : "");
     setClosingStockTouched(false);
@@ -1251,14 +1258,25 @@ export default function DailyRecordFormModal({
             <b>{formatMoney(loadingFeeExpenseTotal)}</b>
           </div>
         )}
+        <datalist id="packing-bag-type-names">
+          {packingBagTypes.map((t) => (
+            <option key={t.id} value={t.name} />
+          ))}
+        </datalist>
         {expenses.map((row) => {
           const descKey = row.description.trim().toLowerCase();
           const materialAmount = Number(row.amount) || 0;
+          const matchedPackingBagType = matchPackingBagType(row.description, packingBagTypes);
           const material =
             descKey === "rolls"
               ? { label: "rolls", unit: "kg", unitPlural: "kg", price: rollsPricePerKg }
-              : descKey === "packing bags"
-                ? { label: "packing bags", unit: "bundle", unitPlural: "bundles", price: packingBagsPricePerBundle }
+              : matchedPackingBagType
+                ? {
+                    label: matchedPackingBagType.name,
+                    unit: "bundle",
+                    unitPlural: "bundles",
+                    price: matchedPackingBagType.pricePerBundle,
+                  }
                 : null;
           const materialQty = material && material.price > 0 ? materialAmount / material.price : null;
           return (
@@ -1270,6 +1288,7 @@ export default function DailyRecordFormModal({
                 <div className="field" style={{ marginBottom: 0 }}>
                   <input
                     type="text"
+                    list="packing-bag-type-names"
                     placeholder="Description (e.g. Diesel)"
                     value={row.description}
                     onChange={(e) =>

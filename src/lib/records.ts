@@ -133,9 +133,13 @@ export function isRollsExpense(description: string): boolean {
   return description.trim().toLowerCase() === "rolls";
 }
 
-/** Matches the "Packing bags" expense line specifically. */
-export function isPackingBagsExpense(description: string): boolean {
-  return description.trim().toLowerCase() === "packing bags";
+/** Finds the packing bag type whose name matches this expense's description (case-insensitive), if any. */
+export function matchPackingBagType<T extends { name: string }>(
+  description: string,
+  types: T[]
+): T | undefined {
+  const key = description.trim().toLowerCase();
+  return types.find((t) => t.name.trim().toLowerCase() === key);
 }
 
 export function expenseStatusSuffix(e: { amount: number; amountPaid: number; paid: boolean }): string {

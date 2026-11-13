@@ -25,6 +25,11 @@ interface PackerOption {
   id: string;
   name: string;
 }
+interface PackingBagTypeOption {
+  id: string;
+  name: string;
+  pricePerBundle: number;
+}
 export default function EditDailyRecordButton({
   record,
   drivers,
@@ -39,7 +44,7 @@ export default function EditDailyRecordButton({
   truckOffloadingFeePerBag,
   truckHiredCostPerBag,
   rollsPricePerKg,
-  packingBagsPricePerBundle,
+  packingBagTypes,
 }: {
   record: DailyRecordFull;
   drivers: DriverOption[];
@@ -54,7 +59,7 @@ export default function EditDailyRecordButton({
   truckOffloadingFeePerBag: number;
   truckHiredCostPerBag: number;
   rollsPricePerKg: number;
-  packingBagsPricePerBundle: number;
+  packingBagTypes: PackingBagTypeOption[];
 }) {
   const [open, setOpen] = useState(false);
 
@@ -122,7 +127,7 @@ export default function EditDailyRecordButton({
           truckOffloadingFeePerBag={truckOffloadingFeePerBag}
           truckHiredCostPerBag={truckHiredCostPerBag}
           rollsPricePerKg={rollsPricePerKg}
-          packingBagsPricePerBundle={packingBagsPricePerBundle}
+          packingBagTypes={packingBagTypes}
         />
       )}
     </>

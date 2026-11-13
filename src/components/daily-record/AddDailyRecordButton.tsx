@@ -25,6 +25,11 @@ interface PackerOption {
   id: string;
   name: string;
 }
+interface PackingBagTypeOption {
+  id: string;
+  name: string;
+  pricePerBundle: number;
+}
 export default function AddDailyRecordButton({
   openingStock,
   leakageOpening,
@@ -41,7 +46,7 @@ export default function AddDailyRecordButton({
   truckOffloadingFeePerBag,
   truckHiredCostPerBag,
   rollsPricePerKg,
-  packingBagsPricePerBundle,
+  packingBagTypes,
 }: {
   openingStock: number;
   leakageOpening: number;
@@ -58,7 +63,7 @@ export default function AddDailyRecordButton({
   truckOffloadingFeePerBag: number;
   truckHiredCostPerBag: number;
   rollsPricePerKg: number;
-  packingBagsPricePerBundle: number;
+  packingBagTypes: PackingBagTypeOption[];
 }) {
   const [open, setOpen] = useState(false);
   const [formKey, setFormKey] = useState(0);
@@ -107,7 +112,7 @@ export default function AddDailyRecordButton({
           truckOffloadingFeePerBag={truckOffloadingFeePerBag}
           truckHiredCostPerBag={truckHiredCostPerBag}
           rollsPricePerKg={rollsPricePerKg}
-          packingBagsPricePerBundle={packingBagsPricePerBundle}
+          packingBagTypes={packingBagTypes}
         />
       )}
     </>

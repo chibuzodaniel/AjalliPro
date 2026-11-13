@@ -45,6 +45,7 @@ model User {
   driversApproved      Driver[]             @relation("DriverApprovedBy")
   customersCreated     Customer[]
   packersCreated       Packer[]             @relation("PackerCreatedBy")
+  packingBagTypesCreated PackingBagType[]   @relation("PackingBagTypeCreatedBy")
   activityLogs         ActivityLog[]
   expensesMarkedPaid   ExpenseItem[]        @relation("ExpensePaidBy")
   expensePayments      ExpensePayment[]
@@ -134,11 +135,14 @@ model ExpenseItem {
   packer             Packer?          @relation(fields: [packerId], references: [id])
   payments           ExpensePayment[]
   rollsKg            Float? // kg of rolls this expense bought, derived from amount / rollsPricePerKg at the time — only set for "Rolls" expense lines
-  packingBagsBundles Float? // bundles of packing bags this expense bought, derived from amount / packingBagsPricePerBundle at the time — only set for "Packing bags" expense lines
+  packingBagsBundles Float? // bundles of packing bags this expense bought, derived from amount / that type's pricePerBundle at the time — only set when the description matches a PackingBagType
+  packingBagTypeId   String?
+  packingBagType     PackingBagType? @relation(fields: [packingBagTypeId], references: [id], onDelete: SetNull)
 
   @@index([dailyRecordId])
   @@index([paid])
   @@index([packerId])
+  @@index([packingBagTypeId])
 }
 
 model ExpensePayment {
@@ -198,6 +202,18 @@ model PackerPayment {
   paidBy   User     @relation("PackerPaymentMarkedBy", fields: [paidById], references: [id])
 
   @@index([packerId])
+}
+
+/** A named kind of packing bag (e.g. a specific bundle size/supplier), each with its own ₦/bundle price — set by Admin/Super Admin on Settings. Matched against an expense's description (case-insensitive) to work out how many bundles a "Packing bags" expense bought. */
+model PackingBagType {
+  id             String   @id @default(cuid())
+  name           String   @unique
+  pricePerBundle Int      @default(0)
+  createdById    String
+  createdBy      User     @relation("PackingBagTypeCreatedBy", fields: [createdById], references: [id])
+  createdAt      DateTime @default(now())
+
+  expenseItems ExpenseItem[]
 }
 
 model Driver {
@@ -356,7 +372,6 @@ model PricingSetting {
   truckOffloadingFeePerBag  Int      @default(0) // single rate applied to every truck delivery (own or hired), fixed by Admin/Super Admin
   truckHiredCostPerBag      Int      @default(0) // rate for hired-truck deliveries only, fixed by Admin/Super Admin — replaces manual entry
   rollsPricePerKg           Int      @default(0) // ₦/kg used to convert a "Rolls" expense's ₦ amount into kg purchased, fixed by Admin/Super Admin
-  packingBagsPricePerBundle Int      @default(0) // ₦/bundle used to convert a "Packing bags" expense's ₦ amount into bundles purchased, fixed by Admin/Super Admin
   updatedAt                 DateTime @updatedAt
 }
 

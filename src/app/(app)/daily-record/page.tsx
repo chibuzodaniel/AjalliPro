@@ -10,7 +10,7 @@ import {
   type DailyRecordFull,
 } from "@/lib/records";
 import { latestClosingStock, latestLeakageClosing } from "@/lib/stock";
-import { getPricingSettings } from "@/lib/settings";
+import { getPricingSettings, getPackingBagTypes } from "@/lib/settings";
 import { formatMoney } from "@/lib/money";
 import Pill from "@/components/ui/Pill";
 import RangeTabs from "@/components/ui/RangeTabs";
@@ -38,7 +38,7 @@ export default async function DailyRecordPage({
   const approver = user ? isApprover(user.role) : false;
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
 
-  const [records, activeCount, drivers, customers, bankAccounts, packers, opening, leakageOpening, pricing] =
+  const [records, activeCount, drivers, customers, bankAccounts, packers, opening, leakageOpening, pricing, packingBagTypes] =
     await Promise.all([
       view === "archived" && approver ? getArchivedRecordsSorted() : getAllRecordsSorted(),
       prisma.dailyRecord.count({ where: { archivedAt: null } }),
@@ -49,6 +49,7 @@ export default async function DailyRecordPage({
       latestClosingStock(),
       latestLeakageClosing(),
       getPricingSettings(),
+      getPackingBagTypes(),
     ]);
   const showingArchived = view === "archived" && approver;
 
@@ -108,7 +109,7 @@ export default async function DailyRecordPage({
                 truckOffloadingFeePerBag={pricing.truckOffloadingFeePerBag}
                 truckHiredCostPerBag={pricing.truckHiredCostPerBag}
                 rollsPricePerKg={pricing.rollsPricePerKg}
-                packingBagsPricePerBundle={pricing.packingBagsPricePerBundle}
+                packingBagTypes={packingBagTypes}
               />
             )}
             {approver && <DeleteDailyRecordButton id={r.id} date={r.date} status={r.status} />}
@@ -166,7 +167,7 @@ export default async function DailyRecordPage({
               truckOffloadingFeePerBag={pricing.truckOffloadingFeePerBag}
               truckHiredCostPerBag={pricing.truckHiredCostPerBag}
               rollsPricePerKg={pricing.rollsPricePerKg}
-              packingBagsPricePerBundle={pricing.packingBagsPricePerBundle}
+              packingBagTypes={packingBagTypes}
             />
           </div>
         )}

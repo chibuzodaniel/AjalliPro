@@ -15,8 +15,10 @@ import UsersList from "@/components/settings/UsersList";
 import ResetSystemButton from "@/components/settings/ResetSystemButton";
 import SmsTemplatesManager from "@/components/settings/SmsTemplatesManager";
 import BankAccountsManager from "@/components/settings/BankAccountsManager";
+import PackingBagTypesManager from "@/components/settings/PackingBagTypesManager";
 import { getBankAccountsWithBalances } from "@/lib/bankAccounts";
-import { getResetPreviewCounts, updateRollsPriceSetting, updatePackingBagsPriceSetting } from "./actions";
+import { getPackingBagTypes } from "@/lib/settings";
+import { getResetPreviewCounts, updateRollsPriceSetting } from "./actions";
 
 export default async function SettingsPage() {
   const user = await getCurrentUser();
@@ -25,11 +27,12 @@ export default async function SettingsPage() {
   const isSeniorAdmin = (user?.email ?? "").toLowerCase() === SUPER_ADMIN_EMAIL;
   const canSeeUsers = user ? isApprover(user.role) : false;
 
-  const [stock, weeklySettings, emailTemplate, pricing, smsTemplates, bankAccounts, usersRaw, resetCounts] = await Promise.all([
+  const [stock, weeklySettings, emailTemplate, pricing, packingBagTypes, smsTemplates, bankAccounts, usersRaw, resetCounts] = await Promise.all([
     latestClosingStock(),
     getWeeklyIncentiveSettings(),
     getEmailTemplateSettings(),
     getPricingSettings(),
+    getPackingBagTypes(),
     prisma.smsTemplate.findMany({ orderBy: { name: "asc" } }),
     isAdminOrSuperAdmin ? getBankAccountsWithBalances() : Promise.resolve([]),
     canSeeUsers
@@ -98,19 +101,14 @@ export default async function SettingsPage() {
       </div>
 
       <div className="card" style={{ marginTop: 16 }}>
-        <div className="section-title">Packing bags price</div>
+        <div className="section-title">Packing bag types</div>
         <div className="section-sub">
-          ₦ per bundle used to work out how many bundles of packing bags a "Packing bags" expense on the Daily Record
-          form bought. Changing it only affects packing bags entries logged from now on — past entries keep the rate
-          that applied at the time.
+          Define the different kinds of packing bags you buy (e.g. by size or supplier), each with its own ₦/bundle
+          price. On the Daily Record form, typing one of these names as an expense description works out how many
+          bundles that expense bought. Changing a price only affects entries logged from now on — past entries keep
+          the rate that applied at the time.
         </div>
-        <MaterialPriceEditor
-          label="Packing bags price"
-          field="packingBagsPricePerBundle"
-          unit="bundle"
-          initial={pricing.packingBagsPricePerBundle}
-          action={updatePackingBagsPriceSetting}
-        />
+        <PackingBagTypesManager types={packingBagTypes} />
       </div>
 
       <div className="card" style={{ marginTop: 16 }}>
