@@ -177,7 +177,7 @@ export default function WeeklyMailGenerator({ threshold, bonus }: { threshold: n
                 </span>
                 {c.qualifies && (
                   <div className="pill approved" style={{ marginTop: 6 }}>
-                    Qualifies for +{bonus} bonus bags this week
+                    Qualifies for +{c.bonus} bonus bags this week
                   </div>
                 )}
               </div>

@@ -4,7 +4,8 @@ import { getApprovedRecordsSorted, getAllApprovedRecordsEverSorted } from "@/lib
 import {
   computeIncentiveData,
   weeksQualified,
-  weeksQualifiedInYear,
+  weeklyThresholdBonus,
+  weeklyThresholdBonusInYear,
   yearTotal,
   buildWeeklyIncentiveHistory,
   buildMonthlyIncentiveHistory,
@@ -99,10 +100,11 @@ export default async function IncentivesPage({
     const wkBags = customerWeekly.get(c.id)?.[wk] ?? 0;
     const qualifies = wkBags >= customerWeeklyThreshold;
     const thresholdBonusYear =
-      weeksQualifiedInYear(customerWeeklyAll.get(c.id), customerWeeklyThreshold, year) * customerWeeklyBonus;
+      weeklyThresholdBonusInYear(customerWeeklyAll.get(c.id), customerWeeklyThreshold, customerWeeklyBonus, year);
     const instantWeek = customerInstantWeekly.get(c.id)?.[wk] ?? 0;
     const instantYear = yearTotal(customerInstantYearly.get(c.id), year);
-    const weekBonusBags = (qualifies ? customerWeeklyBonus : 0) + instantWeek;
+    const thresholdBonusWeek = weeklyThresholdBonus(wkBags, customerWeeklyThreshold, customerWeeklyBonus);
+    const weekBonusBags = thresholdBonusWeek + instantWeek;
     const yearBonusBags = thresholdBonusYear + instantYear;
     const weeklyRows = buildWeeklyIncentiveHistory(
       customerWeeklyAll.get(c.id),
@@ -150,8 +152,8 @@ export default async function IncentivesPage({
     const qualifies = wkBags >= driverWeeklyThreshold;
     const instantWeek = driverInstantWeekly.get(d.id)?.[wk] ?? 0;
     const instantYear = yearTotal(driverInstantYearly.get(d.id), year);
-    const weekBonusBags = qualifies ? driverWeeklyBonus : 0;
-    const yearBonusBags = weeksQualifiedInYear(driverWeeklyAll.get(d.id), driverWeeklyThreshold, year) * driverWeeklyBonus;
+    const weekBonusBags = weeklyThresholdBonus(wkBags, driverWeeklyThreshold, driverWeeklyBonus);
+    const yearBonusBags = weeklyThresholdBonusInYear(driverWeeklyAll.get(d.id), driverWeeklyThreshold, driverWeeklyBonus, year);
     const weeklyRows = buildWeeklyIncentiveHistory(
       driverWeeklyAll.get(d.id),
       driverInstantWeeklyAll.get(d.id),
@@ -222,7 +224,10 @@ export default async function IncentivesPage({
             <ProgressBar bags={wkBags} threshold={customerWeeklyThreshold} qualifies={qualifies} />
             <td>
               {qualifies ? (
-                <span className="pill approved">+{customerWeeklyBonus} bonus qualified</span>
+                <span className="pill approved">
+                  +{weeklyThresholdBonus(wkBags, customerWeeklyThreshold, customerWeeklyBonus)} bonus qualified
+                  {wkBags >= customerWeeklyThreshold * 2 && ` (×${Math.floor(wkBags / customerWeeklyThreshold)})`}
+                </span>
               ) : (
                 <span className="pill pending">in progress</span>
               )}
@@ -264,7 +269,10 @@ export default async function IncentivesPage({
             <ProgressBar bags={wkBags} threshold={driverWeeklyThreshold} qualifies={qualifies} />
             <td>
               {qualifies ? (
-                <span className="pill approved">+{driverWeeklyBonus} bonus qualified</span>
+                <span className="pill approved">
+                  +{weeklyThresholdBonus(wkBags, driverWeeklyThreshold, driverWeeklyBonus)} bonus qualified
+                  {wkBags >= driverWeeklyThreshold * 2 && ` (×${Math.floor(wkBags / driverWeeklyThreshold)})`}
+                </span>
               ) : (
                 <span className="pill pending">in progress</span>
               )}
@@ -323,7 +331,7 @@ export default async function IncentivesPage({
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div className="section-title">
                 Customer weekly incentive — {customerWeeklyThreshold} bags/week qualifies for +{customerWeeklyBonus}{" "}
-                bonus bags. Instant incentives are entered manually per truck delivery.
+                bonus bags, paid again for every further {customerWeeklyThreshold} bags that week. Instant incentives are entered manually per truck delivery.
               </div>
               <ViewAllModal title="All Customers — Incentive Detail">{customersTable}</ViewAllModal>
             </div>
@@ -351,7 +359,7 @@ export default async function IncentivesPage({
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div className="section-title">
                 Driver weekly incentive — {driverWeeklyThreshold} bags/week qualifies for +{driverWeeklyBonus} bonus
-                bags. Instant incentives are entered manually per sale.
+                bags, paid again for every further {driverWeeklyThreshold} bags that week. Instant incentives are entered manually per sale.
               </div>
               <ViewAllModal title="All Drivers — Incentive Detail">{driversTable}</ViewAllModal>
             </div>
@@ -407,10 +415,11 @@ export default async function IncentivesPage({
                 <th>Name</th>
                 <th>Week</th>
                 <th>Bags that week</th>
-                <th>Bonus bags</th>
+                <th>Bonus earned</th>
+                <th>Received</th>
                 <th>Status</th>
-                <th>Approved by</th>
-                <th>Approved at</th>
+                <th>Last approved by</th>
+                <th>Last approved at</th>
                 <th></th>
               </tr>
             </thead>
@@ -423,13 +432,35 @@ export default async function IncentivesPage({
                   </td>
                   <td>{h.weekKey}</td>
                   <td>{h.weeklyBags}</td>
-                  <td>+{h.bonusBags}</td>
+                  <td>
+                    +{h.earnedBags}
+                    {h.multiplier > 1 && (
+                      <span style={{ fontSize: 11, color: "var(--text-faint)" }}> (×{h.multiplier})</span>
+                    )}
+                  </td>
+                  <td>
+                    {h.receivedBags}
+                    {h.approvalCount > 1 && (
+                      <span style={{ fontSize: 11, color: "var(--text-faint)" }}> ({h.approvalCount} approvals)</span>
+                    )}
+                  </td>
                   <td>
                     {h.status === "RECEIVED" && h.award && (
                       <span className="pill approved">received — deducted {h.award.deductedOn}</span>
                     )}
-                    {h.status === "AWAITING" && <span className="pill pending">awaiting approval</span>}
-                    {h.status === "NOT_RECEIVED" && <span className="pill rejected">not received</span>}
+                    {h.status === "RECEIVED" && !h.award && h.legacyAutoDeducted && (
+                      <span className="pill approved">received — auto-deducted (before approvals)</span>
+                    )}
+                    {h.status === "AWAITING" && (
+                      <span className="pill pending">
+                        {h.receivedBags > 0 ? `+${h.remainingBags} more awaiting approval` : "awaiting approval"}
+                      </span>
+                    )}
+                    {h.status === "NOT_RECEIVED" && (
+                      <span className="pill rejected">
+                        {h.receivedBags > 0 ? `partly received — ${h.remainingBags} not received` : "not received"}
+                      </span>
+                    )}
                   </td>
                   <td>{h.award?.approvedByName ?? "—"}</td>
                   <td>
@@ -437,18 +468,16 @@ export default async function IncentivesPage({
                       ? h.award.approvedAt.toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" })
                       : "—"}
                   </td>
-                  <td>
-                    {h.status === "RECEIVED" && h.award && canRevertAward && (
-                      <RevertIncentiveAwardButton awardId={h.award.id} />
-                    )}
-                    {(h.status === "AWAITING" || h.status === "NOT_RECEIVED") && canApproveAward && (
+                  <td style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
+                    {h.remainingBags > 0 && canApproveAward && (
                       <ApproveIncentiveAwardButton
                         entityType={h.entityType}
                         entityId={h.entityId}
                         weekKey={h.weekKey}
-                        bonusBags={h.bonusBags}
+                        bonusBags={h.remainingBags}
                       />
                     )}
+                    {h.award && canRevertAward && <RevertIncentiveAwardButton awardId={h.award.id} />}
                   </td>
                 </tr>
               ))}

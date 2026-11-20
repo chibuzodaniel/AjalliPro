@@ -95,6 +95,30 @@ export function weeksQualifiedInYear(weeklyMap: WeeklyBagsMap | undefined, thres
   return Object.entries(weeklyMap).filter(([wk, b]) => wk.startsWith(prefix) && b >= threshold).length;
 }
 
+/**
+ * Weekly-threshold bonus earned for one week's bags — paid once per full
+ * threshold reached, not just once: with a 1000-bag threshold and +10 bonus,
+ * 2000 bags earns +20, 2999 bags still +20, 3000 bags +30.
+ */
+export function weeklyThresholdBonus(bags: number, threshold: number, bonus: number): number {
+  if (threshold <= 0) return 0;
+  return Math.floor(bags / threshold) * bonus;
+}
+
+/** Sum of weeklyThresholdBonus across every week of the given year. */
+export function weeklyThresholdBonusInYear(
+  weeklyMap: WeeklyBagsMap | undefined,
+  threshold: number,
+  bonus: number,
+  year: number
+): number {
+  if (!weeklyMap) return 0;
+  const prefix = `${year}-`;
+  return Object.entries(weeklyMap)
+    .filter(([wk]) => wk.startsWith(prefix))
+    .reduce((s, [, b]) => s + weeklyThresholdBonus(b, threshold, bonus), 0);
+}
+
 export function yearTotal(yearlyMap: Record<number, number> | undefined, year: number): number {
   return yearlyMap?.[year] ?? 0;
 }
@@ -104,7 +128,7 @@ export interface IncentiveHistoryRow {
   bags: number;
   /** Manually-entered instant bonus — deducted the moment that daily record is approved. */
   instantBags: number;
-  /** Weekly-threshold bonus — only actually deducted once Admin/Super Admin approves that week's award (see approveIncentiveAward). */
+  /** Weekly-threshold bonus (once per full threshold reached, see weeklyThresholdBonus) — only actually deducted once Admin/Super Admin approves that week's award (see approveIncentiveAward). */
   thresholdBags: number;
 }
 
@@ -134,7 +158,7 @@ function computeWeeklyIncentiveRows(
   const keys = new Set([...Object.keys(bagsMap ?? {}), ...Object.keys(instantMap ?? {})]);
   return [...keys].map((key) => {
     const bags = bagsMap?.[key] ?? 0;
-    const thresholdBags = bags >= threshold ? thresholdBonus : 0;
+    const thresholdBags = weeklyThresholdBonus(bags, threshold, thresholdBonus);
     const instantBags = instantMap?.[key] ?? 0;
     return { key, bags, instantBags, thresholdBags };
   });

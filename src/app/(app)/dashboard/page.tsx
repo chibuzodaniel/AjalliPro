@@ -4,7 +4,7 @@ import { isApprover } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { getApprovedRecordsSorted, getAllApprovedRecordsEverSorted, recordSoldTotal } from "@/lib/records";
 import { computeRevenue } from "@/lib/revenue";
-import { computeIncentiveData, weeksQualifiedInYear, yearTotal } from "@/lib/incentives";
+import { computeIncentiveData, weeklyThresholdBonus, weeklyThresholdBonusInYear, yearTotal } from "@/lib/incentives";
 import { currentWeekKey, todayISO, weekKeyOf } from "@/lib/week";
 import { formatMoney } from "@/lib/money";
 import { getWeeklyIncentiveSettings } from "@/lib/settings";
@@ -155,19 +155,25 @@ export default async function DashboardPage() {
     const wkBags = customerWeekly.get(c.id)?.[wk] ?? 0;
     instantWeekTotal += customerInstantWeekly.get(c.id)?.[wk] ?? 0;
     instantYearTotal += yearTotal(customerInstantYearly.get(c.id), thisYear);
-    if (wkBags >= weeklySettings.customerWeeklyThreshold) thresholdWeekTotal += weeklySettings.customerWeeklyBonus;
-    thresholdYearTotal +=
-      weeksQualifiedInYear(customerWeeklyAll.get(c.id), weeklySettings.customerWeeklyThreshold, thisYear) *
-      weeklySettings.customerWeeklyBonus;
+    thresholdWeekTotal += weeklyThresholdBonus(wkBags, weeklySettings.customerWeeklyThreshold, weeklySettings.customerWeeklyBonus);
+    thresholdYearTotal += weeklyThresholdBonusInYear(
+      customerWeeklyAll.get(c.id),
+      weeklySettings.customerWeeklyThreshold,
+      weeklySettings.customerWeeklyBonus,
+      thisYear
+    );
   }
   for (const d of drivers) {
     const wkBags = driverWeekly.get(d.id)?.[wk] ?? 0;
     instantWeekTotal += driverInstantWeekly.get(d.id)?.[wk] ?? 0;
     instantYearTotal += yearTotal(driverInstantYearly.get(d.id), thisYear);
-    if (wkBags >= weeklySettings.driverWeeklyThreshold) thresholdWeekTotal += weeklySettings.driverWeeklyBonus;
-    thresholdYearTotal +=
-      weeksQualifiedInYear(driverWeeklyAll.get(d.id), weeklySettings.driverWeeklyThreshold, thisYear) *
-      weeklySettings.driverWeeklyBonus;
+    thresholdWeekTotal += weeklyThresholdBonus(wkBags, weeklySettings.driverWeeklyThreshold, weeklySettings.driverWeeklyBonus);
+    thresholdYearTotal += weeklyThresholdBonusInYear(
+      driverWeeklyAll.get(d.id),
+      weeklySettings.driverWeeklyThreshold,
+      weeklySettings.driverWeeklyBonus,
+      thisYear
+    );
   }
   const incentiveWeekTotal = instantWeekTotal + thresholdWeekTotal;
   const incentiveYearTotal = instantYearTotal + thresholdYearTotal;

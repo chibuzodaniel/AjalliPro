@@ -2,7 +2,7 @@ import { getCurrentUser } from "@/lib/auth-helpers";
 import { canManageCustomers } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { getApprovedRecordsSorted, getAllApprovedRecordsEverSorted } from "@/lib/records";
-import { computeIncentiveData } from "@/lib/incentives";
+import { computeIncentiveData, weeklyThresholdBonus } from "@/lib/incentives";
 import { currentWeekKey } from "@/lib/week";
 import { getWeeklyIncentiveSettings } from "@/lib/settings";
 import AddCustomerButton from "@/components/customers/AddCustomerButton";
@@ -77,7 +77,10 @@ export default async function CustomersPage() {
               <td>{yrBags}</td>
               <td>
                 {wkBags >= weeklySettings.customerWeeklyThreshold ? (
-                  <span className="pill approved">+{weeklySettings.customerWeeklyBonus} bonus qualified</span>
+                  <span className="pill approved">
+                    +{weeklyThresholdBonus(wkBags, weeklySettings.customerWeeklyThreshold, weeklySettings.customerWeeklyBonus)}{" "}
+                    bonus qualified
+                  </span>
                 ) : (
                   <span className="pill pending">below threshold</span>
                 )}

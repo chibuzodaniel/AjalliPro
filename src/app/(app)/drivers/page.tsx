@@ -2,7 +2,7 @@ import { getCurrentUser } from "@/lib/auth-helpers";
 import { canManageDrivers, isApprover } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { getApprovedRecordsSorted } from "@/lib/records";
-import { computeIncentiveData } from "@/lib/incentives";
+import { computeIncentiveData, weeklyThresholdBonus } from "@/lib/incentives";
 import { currentWeekKey } from "@/lib/week";
 import { getWeeklyIncentiveSettings } from "@/lib/settings";
 import { formatMoney } from "@/lib/money";
@@ -72,7 +72,7 @@ export default async function DriversPage() {
               </td>
               <td>
                 {wkBags}
-                {wkBags >= weeklySettings.driverWeeklyThreshold ? ` 🎉 +${weeklySettings.driverWeeklyBonus} bonus` : ""}
+                {wkBags >= weeklySettings.driverWeeklyThreshold ? ` 🎉 +${weeklyThresholdBonus(wkBags, weeklySettings.driverWeeklyThreshold, weeklySettings.driverWeeklyBonus)} bonus` : ""}
               </td>
               <td>
                 <Pill status={d.status}>{d.status.toLowerCase()}</Pill>

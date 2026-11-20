@@ -11,7 +11,8 @@ import { notifyDailyRecordApprovers, sendPushToUsers } from "@/lib/push";
 import { dailyRecordSchema, dailyRecordEditSchema } from "@/lib/validation/daily-record";
 import { latestClosingStock, latestLeakageClosing, computeClosingStock, computeLeakageClosing } from "@/lib/stock";
 import { getPricingSettings, getPackingBagTypes, getWeeklyIncentiveSettings } from "@/lib/settings";
-import { computeIncentiveData } from "@/lib/incentives";
+import { computeIncentiveData, weeklyThresholdBonus } from "@/lib/incentives";
+import { isLegacyDriverBonusWeek } from "@/lib/incentiveAwards";
 import { currentWeekKey, todayISO } from "@/lib/week";
 import { formatMoney } from "@/lib/money";
 import {
@@ -743,9 +744,11 @@ export interface IncentiveAwardResult {
  * Approves a customer/driver's weekly incentive bonus (crossing the
  * 500/1000-bag threshold) and deducts it from stock — on TODAY's daily
  * record, not the day the threshold was actually reached, so today's
- * record must already exist. Records an IncentiveAward as both the
- * idempotency guard (never twice for the same entity+week) and the audit
- * trail of who approved it.
+ * record must already exist. The bonus is earned once per full threshold
+ * reached that week, so a week may get several IncentiveAward rows (a
+ * top-up when a further threshold is crossed after an earlier approval);
+ * their sum is the idempotency guard (never more than what was earned) and
+ * each row is the audit trail of who approved it.
  */
 export async function approveIncentiveAward(
   entityType: "CUSTOMER" | "DRIVER",
@@ -761,25 +764,24 @@ export async function approveIncentiveAward(
     return { ok: false, error: "Invalid week." };
   }
   const isPastWeek = weekKey !== currentWeekKey();
-
-  const existingAward = await prisma.incentiveAward.findFirst({
-    where: {
-      entityType,
-      weekKey,
-      ...(entityType === "CUSTOMER" ? { customerId: entityId } : { driverId: entityId }),
-    },
-  });
-  if (existingAward) {
-    return { ok: false, error: "This bonus has already been approved." };
+  if (isLegacyDriverBonusWeek(entityType, weekKey)) {
+    return { ok: false, error: "This driver's bonus for that week was already given before approvals were tracked." };
   }
 
   // All-time records (ignoring archives), so a past week that's since been archived still counts.
-  const [weeklySettings, approvedRecords, entity] = await Promise.all([
+  const [weeklySettings, approvedRecords, entity, existingAwards] = await Promise.all([
     getWeeklyIncentiveSettings(),
     getAllApprovedRecordsEverSorted(),
     entityType === "CUSTOMER"
       ? prisma.customer.findUnique({ where: { id: entityId } })
       : prisma.driver.findUnique({ where: { id: entityId } }),
+    prisma.incentiveAward.findMany({
+      where: {
+        entityType,
+        weekKey,
+        ...(entityType === "CUSTOMER" ? { customerId: entityId } : { driverId: entityId }),
+      },
+    }),
   ]);
   if (!entity) return { ok: false, error: "Not found." };
 
@@ -787,7 +789,7 @@ export async function approveIncentiveAward(
   const weeklyBags =
     entityType === "CUSTOMER" ? (customerWeekly.get(entityId)?.[weekKey] ?? 0) : (driverWeekly.get(entityId)?.[weekKey] ?? 0);
   const threshold = entityType === "CUSTOMER" ? weeklySettings.customerWeeklyThreshold : weeklySettings.driverWeeklyThreshold;
-  const bonusBags = entityType === "CUSTOMER" ? weeklySettings.customerWeeklyBonus : weeklySettings.driverWeeklyBonus;
+  const bonusPerThreshold = entityType === "CUSTOMER" ? weeklySettings.customerWeeklyBonus : weeklySettings.driverWeeklyBonus;
   if (weeklyBags < threshold) {
     return {
       ok: false,
@@ -795,6 +797,14 @@ export async function approveIncentiveAward(
         ? `"${entity.name}" didn't reach the weekly threshold in ${weekKey}.`
         : `"${entity.name}" doesn't currently qualify for the weekly bonus.`,
     };
+  }
+  // Bonus is per full threshold reached (2000 bags on 1000 = 2×). Only the part
+  // not yet approved is deducted, so a week can be topped up but never paid twice.
+  const earnedBags = weeklyThresholdBonus(weeklyBags, threshold, bonusPerThreshold);
+  const alreadyReceived = existingAwards.reduce((s, a) => s + a.bonusBags, 0);
+  const bonusBags = earnedBags - alreadyReceived;
+  if (bonusBags <= 0) {
+    return { ok: false, error: "This bonus has already been approved." };
   }
 
   const today = todayISO();

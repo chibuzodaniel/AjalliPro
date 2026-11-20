@@ -6,7 +6,7 @@ import { requireRoleSafe } from "@/lib/auth-helpers";
 import { logActivity } from "@/lib/activity";
 import { customerSchema, customerPricingSchema, customerDetailsSchema, customerSmsSchema } from "@/lib/validation/customer";
 import { getApprovedRecordsSorted, getAllApprovedRecordsEverSorted } from "@/lib/records";
-import { computeIncentiveData } from "@/lib/incentives";
+import { computeIncentiveData, weeklyThresholdBonus } from "@/lib/incentives";
 import { currentWeekKey } from "@/lib/week";
 import { getWeeklyIncentiveSettings, getEmailTemplateSettings } from "@/lib/settings";
 import { isEmailConfigured, sendWeeklyCustomerEmail } from "@/lib/mail";
@@ -172,6 +172,8 @@ export interface MailPreviewEntry {
   weeklyBags: number;
   yearlyBags: number;
   qualifies: boolean;
+  /** Bonus earned this week (once per full threshold); the base bonus when not yet qualified. */
+  bonus: number;
 }
 
 async function computeWeeklyMailEntries() {
@@ -199,6 +201,11 @@ async function computeWeeklyMailEntries() {
       weeklyBags,
       yearlyBags,
       qualifies: weeklyBags >= weeklySettings.customerWeeklyThreshold,
+      /** Bonus earned this week — once per full threshold reached; the base bonus when not yet qualified (for the "bags away" line). */
+      bonus:
+        weeklyBags >= weeklySettings.customerWeeklyThreshold
+          ? weeklyThresholdBonus(weeklyBags, weeklySettings.customerWeeklyThreshold, weeklySettings.customerWeeklyBonus)
+          : weeklySettings.customerWeeklyBonus,
     };
   });
 
@@ -233,7 +240,7 @@ async function sendWeeklyEmails(
         yearlyBags: entry.yearlyBags,
         qualifies: entry.qualifies,
         threshold: weeklySettings.customerWeeklyThreshold,
-        bonus: weeklySettings.customerWeeklyBonus,
+        bonus: entry.bonus,
         weekKey,
         template,
       });
@@ -259,7 +266,7 @@ async function sendWeeklySms(entries: WeeklyMailEntry[], weeklySettings: WeeklyS
         yearlyBags: entry.yearlyBags,
         qualifies: entry.qualifies,
         threshold: weeklySettings.customerWeeklyThreshold,
-        bonus: weeklySettings.customerWeeklyBonus,
+        bonus: entry.bonus,
       });
       smsSent += 1;
     } catch {
