@@ -12,7 +12,11 @@ import {
 } from "@/lib/incentives";
 import { currentWeekKey, MONTH_NAMES } from "@/lib/week";
 import { getWeeklyIncentiveSettings } from "@/lib/settings";
-import { getPendingIncentiveAwards } from "@/lib/incentiveAwards";
+import Link from "next/link";
+import {
+  getIncentiveAwardHistory,
+  type IncentiveAwardStatus,
+} from "@/lib/incentiveAwards";
 import KpiCard from "@/components/ui/KpiCard";
 import RangeTabs from "@/components/ui/RangeTabs";
 import ViewAllModal from "@/components/ui/ViewAllModal";
@@ -43,27 +47,24 @@ function ProgressBar({ bags, threshold, qualifies }: { bags: number; threshold: 
 export default async function IncentivesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; status?: string }>;
 }) {
   const sp = await searchParams;
   const tab = sp.tab === "drivers" ? "drivers" : "customers";
+  const statusFilter =
+    sp.status === "RECEIVED" || sp.status === "AWAITING" || sp.status === "NOT_RECEIVED" ? sp.status : "all";
   const user = await getCurrentUser();
   const canRevertAward = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
   const canApproveAward = canRevertAward;
 
-  const [customers, drivers, approvedRecords, allApprovedRecordsEver, weeklySettings, awardHistory, pendingAwards] =
+  const [customers, drivers, approvedRecords, allApprovedRecordsEver, weeklySettings, awardHistory] =
     await Promise.all([
       prisma.customer.findMany({ orderBy: { name: "asc" } }),
       prisma.driver.findMany({ where: { status: "APPROVED" }, orderBy: { name: "asc" } }),
       getApprovedRecordsSorted(),
       getAllApprovedRecordsEverSorted(),
       getWeeklyIncentiveSettings(),
-      prisma.incentiveAward.findMany({
-        include: { customer: true, driver: true, approvedBy: true, dailyRecord: true },
-        orderBy: { approvedAt: "desc" },
-        take: 50,
-      }),
-      getPendingIncentiveAwards(),
+      getIncentiveAwardHistory(),
     ]);
   // "This week" figures reflect only the current session (since the last archive).
   // Everything else here — all-time weeks qualified, year-to-date totals — keeps
@@ -83,6 +84,16 @@ export default async function IncentivesPage({
   const wk = currentWeekKey();
   const year = new Date().getFullYear();
   const { customerWeeklyThreshold, customerWeeklyBonus, driverWeeklyThreshold, driverWeeklyBonus } = weeklySettings;
+
+  const statusesByEntity = new Map<string, Record<string, IncentiveAwardStatus>>();
+  for (const h of awardHistory) {
+    const k = `${h.entityType}:${h.entityId}`;
+    const m = statusesByEntity.get(k) ?? {};
+    m[h.weekKey] = h.status;
+    statusesByEntity.set(k, m);
+  }
+  const statusesFor = (entityType: "CUSTOMER" | "DRIVER", id: string) =>
+    statusesByEntity.get(`${entityType}:${id}`) ?? {};
 
   const custRows = customers.map((c) => {
     const wkBags = customerWeekly.get(c.id)?.[wk] ?? 0;
@@ -222,7 +233,7 @@ export default async function IncentivesPage({
             <td>{instantYear}</td>
             <td>{yearBonusBags}</td>
             <td>
-              <IncentiveHistoryButton name={c.name} weeklyRows={weeklyRows} monthlyRows={monthlyRows} yearlyRows={yearlyRows} />
+              <IncentiveHistoryButton name={c.name} weekStatuses={statusesFor("CUSTOMER", c.id)} weeklyRows={weeklyRows} monthlyRows={monthlyRows} yearlyRows={yearlyRows} />
             </td>
           </tr>
         ))}
@@ -263,7 +274,7 @@ export default async function IncentivesPage({
             <td>{instantYear}</td>
             <td>{totalYear}</td>
             <td>
-              <IncentiveHistoryButton name={d.name} weeklyRows={weeklyRows} monthlyRows={monthlyRows} yearlyRows={yearlyRows} />
+              <IncentiveHistoryButton name={d.name} weekStatuses={statusesFor("DRIVER", d.id)} weeklyRows={weeklyRows} monthlyRows={monthlyRows} yearlyRows={yearlyRows} />
             </td>
           </tr>
         ))}
@@ -352,15 +363,42 @@ export default async function IncentivesPage({
 
       {(() => {
         const entityType = tab === "customers" ? "CUSTOMER" : "DRIVER";
-        const pendingAwardsForTab = pendingAwards.filter((p) => p.entityType === entityType);
-        const awardHistoryForTab = awardHistory.filter((a) => a.entityType === entityType);
+        const noun = tab === "customers" ? "customer" : "driver";
+        const historyForTab = awardHistory.filter((h) => h.entityType === entityType);
+        const counts = {
+          RECEIVED: historyForTab.filter((h) => h.status === "RECEIVED").length,
+          AWAITING: historyForTab.filter((h) => h.status === "AWAITING").length,
+          NOT_RECEIVED: historyForTab.filter((h) => h.status === "NOT_RECEIVED").length,
+        };
+        const visible = statusFilter === "all" ? historyForTab : historyForTab.filter((h) => h.status === statusFilter);
+        const statusQs = (s: string) => `/incentives?tab=${tab}${s === "all" ? "" : `&status=${s}`}`;
+        const filterOptions = [
+          { value: "all", label: `All (${historyForTab.length})` },
+          { value: "RECEIVED", label: `Received (${counts.RECEIVED})` },
+          { value: "AWAITING", label: `Awaiting approval (${counts.AWAITING})` },
+          { value: "NOT_RECEIVED", label: `Not received (${counts.NOT_RECEIVED})` },
+        ];
         return (
       <div className="card" style={{ marginTop: 16 }}>
-        <div className="section-title">{tab === "customers" ? "Customer" : "Driver"} weekly bonus history</div>
+        <div className="section-title">{tab === "customers" ? "Customer" : "Driver"} weekly bonus history (all-time)</div>
         <div className="section-sub">
-          Every {tab === "customers" ? "customer" : "driver"} who's hit this week's threshold, whether their bonus
-          has been deducted from stock yet or is still awaiting Admin/Super Admin approval — bonus bags come off
-          stock on the day they're approved, not the day the threshold was reached.
+          Every week a {noun} crossed the weekly threshold, and whether they actually received the bonus.{" "}
+          <b>Received</b> = approved by Admin/Super Admin and deducted from stock. <b>Awaiting approval</b> = this
+          week, can still be approved. <b>Not received</b> = a past week that qualified but was never approved — it can
+          still be approved late, and the bags come off today&apos;s stock. Past weeks are judged against the current
+          threshold.
+        </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: "10px 0" }}>
+          {filterOptions.map((o) => (
+            <Link
+              key={o.value}
+              href={statusQs(o.value)}
+              className={`btn btn-sm ${statusFilter === o.value ? "" : "btn-ghost"}`}
+              style={{ padding: "4px 10px", fontSize: 12 }}
+            >
+              {o.label}
+            </Link>
+          ))}
         </div>
         <div className="table-wrap">
           <table>
@@ -368,6 +406,7 @@ export default async function IncentivesPage({
               <tr>
                 <th>Name</th>
                 <th>Week</th>
+                <th>Bags that week</th>
                 <th>Bonus bags</th>
                 <th>Status</th>
                 <th>Approved by</th>
@@ -376,61 +415,51 @@ export default async function IncentivesPage({
               </tr>
             </thead>
             <tbody>
-              {pendingAwardsForTab.map((p) => (
-                <tr key={`pending:${p.entityType}:${p.entityId}`}>
+              {visible.map((h) => (
+                <tr key={h.key}>
                   <td>
-                    {p.name}{" "}
-                    <span style={{ fontSize: 11, color: "var(--text-faint)" }}>
-                      ({p.entityType === "CUSTOMER" ? "customer" : "driver"})
-                    </span>
-                    {p.entityType === "CUSTOMER" && p.address && (
-                      <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>{p.address}</div>
+                    {h.name}
+                    {h.address && <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>{h.address}</div>}
+                  </td>
+                  <td>{h.weekKey}</td>
+                  <td>{h.weeklyBags}</td>
+                  <td>+{h.bonusBags}</td>
+                  <td>
+                    {h.status === "RECEIVED" && h.award && (
+                      <span className="pill approved">received — deducted {h.award.deductedOn}</span>
                     )}
+                    {h.status === "AWAITING" && <span className="pill pending">awaiting approval</span>}
+                    {h.status === "NOT_RECEIVED" && <span className="pill rejected">not received</span>}
                   </td>
-                  <td>{p.weekKey}</td>
-                  <td>+{p.bonusBags}</td>
+                  <td>{h.award?.approvedByName ?? "—"}</td>
                   <td>
-                    <span className="pill pending">not deducted — awaiting approval</span>
+                    {h.award
+                      ? h.award.approvedAt.toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" })
+                      : "—"}
                   </td>
-                  <td>—</td>
-                  <td>—</td>
                   <td>
-                    {canApproveAward && (
+                    {h.status === "RECEIVED" && h.award && canRevertAward && (
+                      <RevertIncentiveAwardButton awardId={h.award.id} />
+                    )}
+                    {(h.status === "AWAITING" || h.status === "NOT_RECEIVED") && canApproveAward && (
                       <ApproveIncentiveAwardButton
-                        entityType={p.entityType}
-                        entityId={p.entityId}
-                        weekKey={p.weekKey}
-                        bonusBags={p.bonusBags}
+                        entityType={h.entityType}
+                        entityId={h.entityId}
+                        weekKey={h.weekKey}
+                        bonusBags={h.bonusBags}
                       />
                     )}
                   </td>
                 </tr>
               ))}
-              {awardHistoryForTab.map((a) => (
-                <tr key={a.id}>
-                  <td>
-                    {a.customer?.name ?? a.driver?.name ?? "Unknown"}{" "}
-                    <span style={{ fontSize: 11, color: "var(--text-faint)" }}>
-                      ({a.entityType === "CUSTOMER" ? "customer" : "driver"})
-                    </span>
-                    {a.entityType === "CUSTOMER" && a.customer?.address && (
-                      <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>{a.customer.address}</div>
-                    )}
-                  </td>
-                  <td>{a.weekKey}</td>
-                  <td>+{a.bonusBags}</td>
-                  <td>
-                    <span className="pill approved">deducted {a.dailyRecord.date}</span>
-                  </td>
-                  <td>{a.approvedBy.name}</td>
-                  <td>{a.approvedAt.toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" })}</td>
-                  <td>{canRevertAward && <RevertIncentiveAwardButton awardId={a.id} />}</td>
-                </tr>
-              ))}
             </tbody>
           </table>
-          {pendingAwardsForTab.length === 0 && awardHistoryForTab.length === 0 && (
-            <div className="empty">No {tab === "customers" ? "customer" : "driver"} has qualified for a weekly bonus yet.</div>
+          {visible.length === 0 && (
+            <div className="empty">
+              {historyForTab.length === 0
+                ? `No ${noun} has qualified for a weekly bonus yet.`
+                : "Nothing matches this filter."}
+            </div>
           )}
         </div>
       </div>
