@@ -41,7 +41,7 @@ export default function ApproveIncentiveAwardButton({
         aria-label="Take bonus bags from"
         style={{ fontSize: 11.5, padding: "3px 6px" }}
       >
-        <option value="FRESH">From fresh stock</option>
+        <option value="FRESH">From available stock</option>
         <option value="LEAKAGE">From leakage pile</option>
       </select>
       <button

@@ -862,7 +862,7 @@ export async function approveIncentiveAward(
   });
 
   await logActivity(
-    `${admin.name} approved the weekly incentive bonus (+${bonusBags} bags) for "${entity.name}"${isPastWeek ? ` for past week ${weekKey} (late payout)` : ""} — deducted from today's ${fromLeakage ? "leakage pile" : "fresh stock"}.`,
+    `${admin.name} approved the weekly incentive bonus (+${bonusBags} bags) for "${entity.name}"${isPastWeek ? ` for past week ${weekKey} (late payout)` : ""} — deducted from today's ${fromLeakage ? "leakage pile" : "available stock"}.`,
     admin.id
   );
   revalidatePath("/", "layout");
@@ -903,7 +903,7 @@ export async function revertIncentiveAward(awardId: string): Promise<IncentiveAw
   });
 
   await logActivity(
-    `${admin.name} reverted the weekly incentive bonus (+${award.bonusBags} bags) for "${entityName}" (${award.weekKey}) — added back to ${fromLeakage ? "the leakage pile" : "fresh stock"}.`,
+    `${admin.name} reverted the weekly incentive bonus (+${award.bonusBags} bags) for "${entityName}" (${award.weekKey}) — added back to ${fromLeakage ? "the leakage pile" : "available stock"}.`,
     admin.id
   );
   revalidatePath("/", "layout");

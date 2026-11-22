@@ -73,7 +73,7 @@ export default function IncentiveAwardNotice({ pending }: { pending: PendingAwar
         <div className="section-sub" style={{ margin: 0 }}>
           {remaining.length === 0
             ? "All caught up — every bonus below has been approved."
-            : "These have crossed the weekly bag threshold. Approving deducts the bonus bags from today's fresh stock or leakage pile (your pick) and records who approved it."}
+            : "These have crossed the weekly bag threshold. Approving deducts the bonus bags from today's available stock or leakage pile (your pick) and records who approved it."}
         </div>
         {pending.map((item) => {
           const key = `${item.entityType}:${item.entityId}`;
@@ -117,7 +117,7 @@ export default function IncentiveAwardNotice({ pending }: { pending: PendingAwar
                     aria-label="Take bonus bags from"
                     style={{ fontSize: 11.5, padding: "3px 6px" }}
                   >
-                    <option value="FRESH">From fresh stock</option>
+                    <option value="FRESH">From available stock</option>
                     <option value="LEAKAGE">From leakage pile</option>
                   </select>
                   <button
