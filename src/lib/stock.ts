@@ -53,7 +53,16 @@ export function computeLeakageClosing(
   leakageBagsNew: number,
   factoryBagsFromLeakage: number,
   driverTruckBagsFromLeakage: number,
-  leakageWasteBags: number
+  leakageWasteBags: number,
+  /** Approved weekly-incentive bonus bags taken from the leakage pile on this day — see IncentiveAward.source. */
+  incentiveBonusBagsFromLeakage = 0
 ): number {
-  return leakageOpening + leakageBagsNew - factoryBagsFromLeakage - driverTruckBagsFromLeakage - leakageWasteBags;
+  return (
+    leakageOpening +
+    leakageBagsNew -
+    factoryBagsFromLeakage -
+    driverTruckBagsFromLeakage -
+    leakageWasteBags -
+    incentiveBonusBagsFromLeakage
+  );
 }

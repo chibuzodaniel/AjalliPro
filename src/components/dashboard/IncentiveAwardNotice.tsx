@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/ui/Modal";
-import { approveIncentiveAward } from "@/app/(app)/daily-record/actions";
+import { approveIncentiveAward, type IncentiveStockSource } from "@/app/(app)/daily-record/actions";
 
 // Shared with IncentiveAwardToast — both are the same underlying
 // "announcement", just rendered differently per role, so they share one
@@ -27,6 +27,7 @@ export default function IncentiveAwardNotice({ pending }: { pending: PendingAwar
   const [loadingKey, setLoadingKey] = useState<string | null>(null);
   const [errors, setErrors] = useState<Map<string, string>>(new Map());
   const [approved, setApproved] = useState<Set<string>>(new Set());
+  const [sources, setSources] = useState<Map<string, IncentiveStockSource>>(new Map());
 
   // Pops up at most once a day — after that, anything still pending stays
   // visible in the notification bell (which always reflects live data) until
@@ -54,7 +55,7 @@ export default function IncentiveAwardNotice({ pending }: { pending: PendingAwar
       next.delete(key);
       return next;
     });
-    const result = await approveIncentiveAward(item.entityType, item.entityId, item.weekKey);
+    const result = await approveIncentiveAward(item.entityType, item.entityId, item.weekKey, sources.get(key) ?? "FRESH");
     setLoadingKey(null);
     if (!result.ok) {
       setErrors((prev) => new Map(prev).set(key, result.error ?? "Could not approve"));
@@ -72,7 +73,7 @@ export default function IncentiveAwardNotice({ pending }: { pending: PendingAwar
         <div className="section-sub" style={{ margin: 0 }}>
           {remaining.length === 0
             ? "All caught up — every bonus below has been approved."
-            : "These have crossed the weekly bag threshold. Approving deducts the bonus bags from today's stock and records who approved it."}
+            : "These have crossed the weekly bag threshold. Approving deducts the bonus bags from today's fresh stock or leakage pile (your pick) and records who approved it."}
         </div>
         {pending.map((item) => {
           const key = `${item.entityType}:${item.entityId}`;
@@ -106,13 +107,27 @@ export default function IncentiveAwardNotice({ pending }: { pending: PendingAwar
               {isApproved ? (
                 <span style={{ fontSize: 12.5, color: "var(--green)" }}>Approved</span>
               ) : (
-                <button
-                  className="btn btn-sm btn-approve"
-                  disabled={loadingKey === key}
-                  onClick={() => handleApprove(item)}
-                >
-                  {loadingKey === key ? "…" : `Approve (−${item.bonusBags})`}
-                </button>
+                <span style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <select
+                    value={sources.get(key) ?? "FRESH"}
+                    onChange={(e) =>
+                      setSources((prev) => new Map(prev).set(key, e.target.value as IncentiveStockSource))
+                    }
+                    disabled={loadingKey === key}
+                    aria-label="Take bonus bags from"
+                    style={{ fontSize: 11.5, padding: "3px 6px" }}
+                  >
+                    <option value="FRESH">From fresh stock</option>
+                    <option value="LEAKAGE">From leakage pile</option>
+                  </select>
+                  <button
+                    className="btn btn-sm btn-approve"
+                    disabled={loadingKey === key}
+                    onClick={() => handleApprove(item)}
+                  >
+                    {loadingKey === key ? "…" : `Approve (−${item.bonusBags})`}
+                  </button>
+                </span>
               )}
             </div>
           );

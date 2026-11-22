@@ -446,7 +446,10 @@ export default async function IncentivesPage({
                   </td>
                   <td>
                     {h.status === "RECEIVED" && h.award && (
-                      <span className="pill approved">received — deducted {h.award.deductedOn}</span>
+                      <span className="pill approved">
+                        received — deducted {h.award.deductedOn}
+                        {h.award.source === "LEAKAGE" ? " from leakage pile" : ""}
+                      </span>
                     )}
                     {h.status === "RECEIVED" && !h.award && h.legacyAutoDeducted && (
                       <span className="pill approved">received — auto-deducted (before approvals)</span>

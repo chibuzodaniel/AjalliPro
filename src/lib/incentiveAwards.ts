@@ -130,6 +130,8 @@ export interface IncentiveAwardHistoryRow {
   award: {
     id: string;
     deductedOn: string;
+    /** Which pile the (latest) approval took the bags from. */
+    source: "FRESH" | "LEAKAGE";
     approvedByName: string;
     approvedAt: Date;
   } | null;
@@ -207,6 +209,7 @@ export async function getIncentiveAwardHistory(): Promise<IncentiveAwardHistoryR
         ? {
             id: latest.id,
             deductedOn: latest.dailyRecord.date,
+            source: latest.source === "LEAKAGE" ? "LEAKAGE" : "FRESH",
             approvedByName: latest.approvedBy.name,
             approvedAt: latest.approvedAt,
           }

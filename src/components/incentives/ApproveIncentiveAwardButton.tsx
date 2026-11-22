@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { approveIncentiveAward } from "@/app/(app)/daily-record/actions";
+import { approveIncentiveAward, type IncentiveStockSource } from "@/app/(app)/daily-record/actions";
 
 export default function ApproveIncentiveAwardButton({
   entityType,
@@ -16,13 +16,14 @@ export default function ApproveIncentiveAwardButton({
   bonusBags: number;
 }) {
   const router = useRouter();
+  const [source, setSource] = useState<IncentiveStockSource>("FRESH");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleApprove() {
     setLoading(true);
     setError(null);
-    const result = await approveIncentiveAward(entityType, entityId, weekKey);
+    const result = await approveIncentiveAward(entityType, entityId, weekKey, source);
     setLoading(false);
     if (!result.ok) {
       setError(result.error ?? "Could not approve");
@@ -32,8 +33,23 @@ export default function ApproveIncentiveAwardButton({
   }
 
   return (
-    <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      <button className="btn btn-sm btn-approve" style={{ padding: "4px 10px", fontSize: 11.5 }} disabled={loading} onClick={handleApprove}>
+    <span style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <select
+        value={source}
+        onChange={(e) => setSource(e.target.value as IncentiveStockSource)}
+        disabled={loading}
+        aria-label="Take bonus bags from"
+        style={{ fontSize: 11.5, padding: "3px 6px" }}
+      >
+        <option value="FRESH">From fresh stock</option>
+        <option value="LEAKAGE">From leakage pile</option>
+      </select>
+      <button
+        className="btn btn-sm btn-approve"
+        style={{ padding: "4px 10px", fontSize: 11.5 }}
+        disabled={loading}
+        onClick={handleApprove}
+      >
         {loading ? "…" : `Approve (−${bonusBags})`}
       </button>
       {error && <span className="field-error">{error}</span>}

@@ -440,7 +440,8 @@ async function cascadeRecalculate(
       rec.leakageBags,
       rec.factoryBagsFromLeakage,
       driverTruckBagsFromLeakageTotal,
-      rec.leakageWasteBags
+      rec.leakageWasteBags,
+      rec.incentiveBonusBagsFromLeakage
     );
 
     await tx.dailyRecord.update({
@@ -532,10 +533,17 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
     data.driverSales.reduce((s, d) => s + d.bagsFromLeakage, 0) +
     data.truckDeliveries.reduce((s, t) => s + t.bagsFromLeakage, 0);
 
-  if (data.factoryBagsFromLeakage + driverTruckBagsFromLeakageTotal + data.leakageWasteBags > leakageOpening) {
+  // Bags already taken from this day's leakage pile for approved weekly bonuses still count against it.
+  if (
+    data.factoryBagsFromLeakage +
+      driverTruckBagsFromLeakageTotal +
+      data.leakageWasteBags +
+      existing.incentiveBonusBagsFromLeakage >
+    leakageOpening
+  ) {
     return {
       ok: false,
-      error: `Only ${leakageOpening} bags are available in the leakage pile to sell, rebag, or waste.`,
+      error: `Only ${leakageOpening} bags are available in the leakage pile to sell, rebag, or waste${existing.incentiveBonusBagsFromLeakage > 0 ? ` (${existing.incentiveBonusBagsFromLeakage} already went to approved weekly bonuses)` : ""}.`,
     };
   }
 
@@ -563,7 +571,8 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
     data.leakageBags,
     data.factoryBagsFromLeakage,
     driverTruckBagsFromLeakageTotal,
-    data.leakageWasteBags
+    data.leakageWasteBags,
+    existing.incentiveBonusBagsFromLeakage
   );
   const closing =
     user.role === "SUPER_ADMIN" && data.closingStockOverride != null ? data.closingStockOverride : computedClosing;
@@ -735,6 +744,8 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
   return { ok: true };
 }
 
+export type IncentiveStockSource = "FRESH" | "LEAKAGE";
+
 export interface IncentiveAwardResult {
   ok: boolean;
   error?: string;
@@ -753,9 +764,11 @@ export interface IncentiveAwardResult {
 export async function approveIncentiveAward(
   entityType: "CUSTOMER" | "DRIVER",
   entityId: string,
-  weekKey: string
+  weekKey: string,
+  source: IncentiveStockSource = "FRESH"
 ): Promise<IncentiveAwardResult> {
   const guard = await requireRoleSafe(["ADMIN", "SUPER_ADMIN"]);
+  if (source !== "FRESH" && source !== "LEAKAGE") return { ok: false, error: "Invalid stock source." };
   if (!guard.ok) return { ok: false, error: guard.error };
   const admin = guard.user;
 
@@ -816,36 +829,47 @@ export async function approveIncentiveAward(
     return { ok: false, error: "Today's record is archived — can't adjust its stock." };
   }
 
-  const newClosing = todayRecord.closingStock - bonusBags;
+  const fromLeakage = source === "LEAKAGE";
+  if (fromLeakage && todayRecord.leakageClosing < bonusBags) {
+    return {
+      ok: false,
+      error: `Only ${todayRecord.leakageClosing} bags are left in the leakage pile today — not enough for this ${bonusBags}-bag bonus.`,
+    };
+  }
+  const newClosing = fromLeakage ? todayRecord.closingStock : todayRecord.closingStock - bonusBags;
+  const newLeakageClosing = fromLeakage ? todayRecord.leakageClosing - bonusBags : todayRecord.leakageClosing;
 
   await prisma.$transaction(async (tx) => {
     await tx.dailyRecord.update({
       where: { id: todayRecord.id },
-      data: { closingStock: newClosing, incentiveBonusBags: { increment: bonusBags } },
+      data: fromLeakage
+        ? { leakageClosing: newLeakageClosing, incentiveBonusBagsFromLeakage: { increment: bonusBags } }
+        : { closingStock: newClosing, incentiveBonusBags: { increment: bonusBags } },
     });
     await tx.incentiveAward.create({
       data: {
         entityType,
         weekKey,
         bonusBags,
+        source,
         customerId: entityType === "CUSTOMER" ? entityId : null,
         driverId: entityType === "DRIVER" ? entityId : null,
         dailyRecordId: todayRecord.id,
         approvedById: admin.id,
       },
     });
-    await cascadeRecalculate(tx, today, newClosing, todayRecord.leakageClosing, todayRecord.id);
+    await cascadeRecalculate(tx, today, newClosing, newLeakageClosing, todayRecord.id);
   });
 
   await logActivity(
-    `${admin.name} approved the weekly incentive bonus (+${bonusBags} bags) for "${entity.name}"${isPastWeek ? ` for past week ${weekKey} (late payout)` : ""} — deducted from today's stock.`,
+    `${admin.name} approved the weekly incentive bonus (+${bonusBags} bags) for "${entity.name}"${isPastWeek ? ` for past week ${weekKey} (late payout)` : ""} — deducted from today's ${fromLeakage ? "leakage pile" : "fresh stock"}.`,
     admin.id
   );
   revalidatePath("/", "layout");
   return { ok: true };
 }
 
-/** Undoes an incentive award — deletes it and adds the bonus bags back to stock on the day it was deducted. */
+/** Undoes an incentive award — deletes it and adds the bonus bags back to the pile (fresh or leakage) they came from, on the day they were deducted. */
 export async function revertIncentiveAward(awardId: string): Promise<IncentiveAwardResult> {
   const guard = await requireRoleSafe(["ADMIN", "SUPER_ADMIN"]);
   if (!guard.ok) return { ok: false, error: guard.error };
@@ -861,19 +885,25 @@ export async function revertIncentiveAward(awardId: string): Promise<IncentiveAw
   }
 
   const entityName = award.customer?.name ?? award.driver?.name ?? "Unknown";
-  const newClosing = award.dailyRecord.closingStock + award.bonusBags;
+  const fromLeakage = award.source === "LEAKAGE";
+  const newClosing = fromLeakage ? award.dailyRecord.closingStock : award.dailyRecord.closingStock + award.bonusBags;
+  const newLeakageClosing = fromLeakage
+    ? award.dailyRecord.leakageClosing + award.bonusBags
+    : award.dailyRecord.leakageClosing;
 
   await prisma.$transaction(async (tx) => {
     await tx.incentiveAward.delete({ where: { id: awardId } });
     await tx.dailyRecord.update({
       where: { id: award.dailyRecordId },
-      data: { closingStock: newClosing, incentiveBonusBags: { decrement: award.bonusBags } },
+      data: fromLeakage
+        ? { leakageClosing: newLeakageClosing, incentiveBonusBagsFromLeakage: { decrement: award.bonusBags } }
+        : { closingStock: newClosing, incentiveBonusBags: { decrement: award.bonusBags } },
     });
-    await cascadeRecalculate(tx, award.dailyRecord.date, newClosing, award.dailyRecord.leakageClosing, award.dailyRecordId);
+    await cascadeRecalculate(tx, award.dailyRecord.date, newClosing, newLeakageClosing, award.dailyRecordId);
   });
 
   await logActivity(
-    `${admin.name} reverted the weekly incentive bonus (+${award.bonusBags} bags) for "${entityName}" (${award.weekKey}) — added back to stock.`,
+    `${admin.name} reverted the weekly incentive bonus (+${award.bonusBags} bags) for "${entityName}" (${award.weekKey}) — added back to ${fromLeakage ? "the leakage pile" : "fresh stock"}.`,
     admin.id
   );
   revalidatePath("/", "layout");
