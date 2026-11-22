@@ -13,7 +13,7 @@ import { latestClosingStock, latestLeakageClosing, computeClosingStock, computeL
 import { getPricingSettings, getPackingBagTypes, getWeeklyIncentiveSettings } from "@/lib/settings";
 import { computeIncentiveData, weeklyThresholdBonus } from "@/lib/incentives";
 import { isLegacyDriverBonusWeek } from "@/lib/incentiveAwards";
-import { currentWeekKey, todayISO, weekKeyOf } from "@/lib/week";
+import { currentWeekKey, todayISO } from "@/lib/week";
 import { formatMoney } from "@/lib/money";
 import {
   dailyRecordInclude,
@@ -770,9 +770,7 @@ export async function approveIncentiveAward(
   entityType: "CUSTOMER" | "DRIVER",
   entityId: string,
   weekKey: string,
-  source: IncentiveStockSource = "FRESH",
-  /** YYYY-MM-DD the bonus was actually handed over — asked for when approving a past week. Defaults to today. */
-  givenOn?: string
+  source: IncentiveStockSource = "FRESH"
 ): Promise<IncentiveAwardResult> {
   const guard = await requireRoleSafe(["ADMIN", "SUPER_ADMIN"]);
   if (source !== "FRESH" && source !== "LEAKAGE") return { ok: false, error: "Invalid stock source." };
@@ -827,30 +825,18 @@ export async function approveIncentiveAward(
     return { ok: false, error: "This bonus has already been approved." };
   }
 
-  // The day the bonus was handed over: today, or (for a past week) the date
-  // the approver enters. It can't be in the future or before that week.
+  // Deduct on today's approved record, or if today isn't logged/approved yet,
+  // the most recent approved record — so approving is never blocked on a
+  // missing day. That record's date is what's tracked as the deduction date.
+  // Every later day (approved or pending) is then recalculated, so each next
+  // opening stock and Current Stock carry it forward.
   const today = todayISO();
-  const givenDate = givenOn || today;
-  if (!/^d{4}-d{2}-d{2}$/.test(givenDate) || Number.isNaN(new Date(givenDate + "T00:00:00").getTime())) {
-    return { ok: false, error: "Enter a valid date the bonus was given." };
-  }
-  if (givenDate > today) {
-    return { ok: false, error: "The date given can't be in the future." };
-  }
-  if (weekKeyOf(givenDate).localeCompare(weekKey, undefined, { numeric: true }) < 0) {
-    return { ok: false, error: `The date given can't be before the bonus week (${weekKey}).` };
-  }
-
-  // Deduct on that day's approved record, or if that day isn't logged/approved,
-  // the most recent approved record before it — so approving is never blocked
-  // on a missing day. Every later day (approved or pending) is then
-  // recalculated, so each next opening stock and Current Stock carry it forward.
   const targetRecord = await prisma.dailyRecord.findFirst({
-    where: { status: "APPROVED", archivedAt: null, date: { lte: givenDate } },
+    where: { status: "APPROVED", archivedAt: null, date: { lte: today } },
     orderBy: { date: "desc" },
   });
   if (!targetRecord) {
-    return { ok: false, error: `There's no approved daily record on or before ${givenDate} to deduct this bonus from.` };
+    return { ok: false, error: "There's no approved daily record yet to deduct this bonus from." };
   }
   if (targetRecord.archivedAt) {
     return { ok: false, error: "That record is archived — can't adjust its stock." };
@@ -881,7 +867,6 @@ export async function approveIncentiveAward(
         weekKey,
         bonusBags,
         source,
-        givenOn: givenDate,
         customerId: entityType === "CUSTOMER" ? entityId : null,
         driverId: entityType === "DRIVER" ? entityId : null,
         dailyRecordId: targetRecord.id,
@@ -892,7 +877,7 @@ export async function approveIncentiveAward(
   });
 
   await logActivity(
-    `${admin.name} approved the weekly incentive bonus (+${bonusBags} bags) for "${entity.name}"${isPastWeek ? ` for past week ${weekKey} (late payout)` : ""}, given ${givenDate === today ? "today" : givenDate} — deducted from ${dayLabel === "today" ? "today's" : `the ${dayLabel} record's`} ${fromLeakage ? "leakage pile" : "available stock"}.`,
+    `${admin.name} approved the weekly incentive bonus (+${bonusBags} bags) for "${entity.name}"${isPastWeek ? ` for past week ${weekKey} (late payout)` : ""} — deducted from ${dayLabel === "today" ? "today's" : `the ${dayLabel} record's`} ${fromLeakage ? "leakage pile" : "available stock"}.`,
     admin.id
   );
   revalidatePath("/", "layout");

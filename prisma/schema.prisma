@@ -316,7 +316,7 @@ model IncentiveAward {
   weekKey   String // e.g. "2026-W39" — the week the threshold was reached
   bonusBags Int
   source    String @default("FRESH") // "FRESH" | "LEAKAGE" — which stock pile the bonus bags were taken from
-  givenOn   String? // YYYY-MM-DD the bonus was actually handed over, as entered by the approver (null = approved same day)
+  givenOn   String? // no longer set or shown — only the deduction date (dailyRecord.date) is tracked; kept so existing data isn't dropped
 
   dailyRecordId String // the day this was approved on — stock was deducted here
   dailyRecord   DailyRecord @relation(fields: [dailyRecordId], references: [id])
