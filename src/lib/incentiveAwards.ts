@@ -130,6 +130,8 @@ export interface IncentiveAwardHistoryRow {
   award: {
     id: string;
     deductedOn: string;
+    /** Day the bonus was actually handed over (entered on approval); falls back to the approval date for older awards. */
+    givenOn: string;
     /** Which pile the (latest) approval took the bags from. */
     source: "FRESH" | "LEAKAGE";
     approvedByName: string;
@@ -209,6 +211,7 @@ export async function getIncentiveAwardHistory(): Promise<IncentiveAwardHistoryR
         ? {
             id: latest.id,
             deductedOn: latest.dailyRecord.date,
+            givenOn: latest.givenOn ?? latest.approvedAt.toISOString().slice(0, 10),
             source: latest.source === "LEAKAGE" ? "LEAKAGE" : "FRESH",
             approvedByName: latest.approvedBy.name,
             approvedAt: latest.approvedAt,

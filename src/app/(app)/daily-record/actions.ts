@@ -13,7 +13,7 @@ import { latestClosingStock, latestLeakageClosing, computeClosingStock, computeL
 import { getPricingSettings, getPackingBagTypes, getWeeklyIncentiveSettings } from "@/lib/settings";
 import { computeIncentiveData, weeklyThresholdBonus } from "@/lib/incentives";
 import { isLegacyDriverBonusWeek } from "@/lib/incentiveAwards";
-import { currentWeekKey, todayISO } from "@/lib/week";
+import { currentWeekKey, todayISO, weekKeyOf } from "@/lib/week";
 import { formatMoney } from "@/lib/money";
 import {
   dailyRecordInclude,
@@ -401,8 +401,11 @@ async function cascadeRecalculate(
   startingLeakageClosing: number,
   excludeId?: string
 ) {
+  // Pending records are re-synced too (their opening follows the approved
+  // chain), but only approved records carry their closing forward — a
+  // pending one may still be rejected.
   const forward = await tx.dailyRecord.findMany({
-    where: { status: "APPROVED", archivedAt: null, date: { gt: fromDate } },
+    where: { status: { in: ["APPROVED", "PENDING"] }, archivedAt: null, date: { gt: fromDate } },
     include: dailyRecordInclude,
     orderBy: { date: "asc" },
   });
@@ -412,6 +415,7 @@ async function cascadeRecalculate(
 
   for (const rec of forward) {
     if (rec.id === excludeId) {
+      if (rec.status !== "APPROVED") continue;
       // Its opening/closing were already set explicitly (e.g. a Super Admin override) —
       // don't recompute it, just carry its already-saved closing forward.
       runningClosing = rec.closingStock;
@@ -449,6 +453,7 @@ async function cascadeRecalculate(
       data: { openingStock: opening, closingStock: closing, leakageOpening, leakageClosing },
     });
 
+    if (rec.status !== "APPROVED") continue;
     runningClosing = closing;
     runningLeakageClosing = leakageClosing;
   }
@@ -754,8 +759,8 @@ export interface IncentiveAwardResult {
 /**
  * Approves a customer/driver's weekly incentive bonus (crossing the
  * 500/1000-bag threshold) and deducts it from stock — on TODAY's daily
- * record, not the day the threshold was actually reached, so today's
- * record must already exist. The bonus is earned once per full threshold
+ * record if logged, otherwise the most recent approved record (never the
+ * day the threshold was actually reached). The bonus is earned once per full threshold
  * reached that week, so a week may get several IncentiveAward rows (a
  * top-up when a further threshold is crossed after an earlier approval);
  * their sum is the idempotency guard (never more than what was earned) and
@@ -765,7 +770,9 @@ export async function approveIncentiveAward(
   entityType: "CUSTOMER" | "DRIVER",
   entityId: string,
   weekKey: string,
-  source: IncentiveStockSource = "FRESH"
+  source: IncentiveStockSource = "FRESH",
+  /** YYYY-MM-DD the bonus was actually handed over — asked for when approving a past week. Defaults to today. */
+  givenOn?: string
 ): Promise<IncentiveAwardResult> {
   const guard = await requireRoleSafe(["ADMIN", "SUPER_ADMIN"]);
   if (source !== "FRESH" && source !== "LEAKAGE") return { ok: false, error: "Invalid stock source." };
@@ -820,28 +827,50 @@ export async function approveIncentiveAward(
     return { ok: false, error: "This bonus has already been approved." };
   }
 
+  // The day the bonus was handed over: today, or (for a past week) the date
+  // the approver enters. It can't be in the future or before that week.
   const today = todayISO();
-  const todayRecord = await prisma.dailyRecord.findUnique({ where: { date: today } });
-  if (!todayRecord) {
-    return { ok: false, error: "Log today's daily record first, then approve this bonus." };
+  const givenDate = givenOn || today;
+  if (!/^d{4}-d{2}-d{2}$/.test(givenDate) || Number.isNaN(new Date(givenDate + "T00:00:00").getTime())) {
+    return { ok: false, error: "Enter a valid date the bonus was given." };
   }
-  if (todayRecord.archivedAt) {
-    return { ok: false, error: "Today's record is archived — can't adjust its stock." };
+  if (givenDate > today) {
+    return { ok: false, error: "The date given can't be in the future." };
+  }
+  if (weekKeyOf(givenDate).localeCompare(weekKey, undefined, { numeric: true }) < 0) {
+    return { ok: false, error: `The date given can't be before the bonus week (${weekKey}).` };
   }
 
+  // Deduct on that day's approved record, or if that day isn't logged/approved,
+  // the most recent approved record before it — so approving is never blocked
+  // on a missing day. Every later day (approved or pending) is then
+  // recalculated, so each next opening stock and Current Stock carry it forward.
+  const targetRecord = await prisma.dailyRecord.findFirst({
+    where: { status: "APPROVED", archivedAt: null, date: { lte: givenDate } },
+    orderBy: { date: "desc" },
+  });
+  if (!targetRecord) {
+    return { ok: false, error: `There's no approved daily record on or before ${givenDate} to deduct this bonus from.` };
+  }
+  if (targetRecord.archivedAt) {
+    return { ok: false, error: "That record is archived — can't adjust its stock." };
+  }
+  const deductionDay = targetRecord.date;
+  const dayLabel = deductionDay === today ? "today" : deductionDay;
+
   const fromLeakage = source === "LEAKAGE";
-  if (fromLeakage && todayRecord.leakageClosing < bonusBags) {
+  if (fromLeakage && targetRecord.leakageClosing < bonusBags) {
     return {
       ok: false,
-      error: `Only ${todayRecord.leakageClosing} bags are left in the leakage pile today — not enough for this ${bonusBags}-bag bonus.`,
+      error: `Only ${targetRecord.leakageClosing} bags are left in the leakage pile (${dayLabel}) — not enough for this ${bonusBags}-bag bonus.`,
     };
   }
-  const newClosing = fromLeakage ? todayRecord.closingStock : todayRecord.closingStock - bonusBags;
-  const newLeakageClosing = fromLeakage ? todayRecord.leakageClosing - bonusBags : todayRecord.leakageClosing;
+  const newClosing = fromLeakage ? targetRecord.closingStock : targetRecord.closingStock - bonusBags;
+  const newLeakageClosing = fromLeakage ? targetRecord.leakageClosing - bonusBags : targetRecord.leakageClosing;
 
   await prisma.$transaction(async (tx) => {
     await tx.dailyRecord.update({
-      where: { id: todayRecord.id },
+      where: { id: targetRecord.id },
       data: fromLeakage
         ? { leakageClosing: newLeakageClosing, incentiveBonusBagsFromLeakage: { increment: bonusBags } }
         : { closingStock: newClosing, incentiveBonusBags: { increment: bonusBags } },
@@ -852,17 +881,18 @@ export async function approveIncentiveAward(
         weekKey,
         bonusBags,
         source,
+        givenOn: givenDate,
         customerId: entityType === "CUSTOMER" ? entityId : null,
         driverId: entityType === "DRIVER" ? entityId : null,
-        dailyRecordId: todayRecord.id,
+        dailyRecordId: targetRecord.id,
         approvedById: admin.id,
       },
     });
-    await cascadeRecalculate(tx, today, newClosing, newLeakageClosing, todayRecord.id);
+    await cascadeRecalculate(tx, deductionDay, newClosing, newLeakageClosing, targetRecord.id);
   });
 
   await logActivity(
-    `${admin.name} approved the weekly incentive bonus (+${bonusBags} bags) for "${entity.name}"${isPastWeek ? ` for past week ${weekKey} (late payout)` : ""} — deducted from today's ${fromLeakage ? "leakage pile" : "available stock"}.`,
+    `${admin.name} approved the weekly incentive bonus (+${bonusBags} bags) for "${entity.name}"${isPastWeek ? ` for past week ${weekKey} (late payout)` : ""}, given ${givenDate === today ? "today" : givenDate} — deducted from ${dayLabel === "today" ? "today's" : `the ${dayLabel} record's`} ${fromLeakage ? "leakage pile" : "available stock"}.`,
     admin.id
   );
   revalidatePath("/", "layout");

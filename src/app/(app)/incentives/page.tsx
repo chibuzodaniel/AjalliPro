@@ -393,7 +393,7 @@ export default async function IncentivesPage({
           Every week a {noun} crossed the weekly threshold, and whether they actually received the bonus.{" "}
           <b>Received</b> = approved by Admin/Super Admin and deducted from stock. <b>Awaiting approval</b> = this
           week, can still be approved. <b>Not received</b> = a past week that qualified but was never approved — it can
-          still be approved late, and the bags come off today&apos;s stock. Past weeks are judged against the current
+          still be approved late: you enter the date it was given, the bags come off that day&apos;s stock, and every later day is recalculated. Past weeks are judged against the current
           threshold.
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: "10px 0" }}>
@@ -447,7 +447,8 @@ export default async function IncentivesPage({
                   <td>
                     {h.status === "RECEIVED" && h.award && (
                       <span className="pill approved">
-                        received — deducted {h.award.deductedOn}
+                        received {h.award.givenOn}
+                        {h.award.deductedOn !== h.award.givenOn && ` — deducted ${h.award.deductedOn}`}
                         {h.award.source === "LEAKAGE" ? " from leakage pile" : ""}
                       </span>
                     )}
@@ -478,6 +479,7 @@ export default async function IncentivesPage({
                         entityId={h.entityId}
                         weekKey={h.weekKey}
                         bonusBags={h.remainingBags}
+                        isPastWeek={h.status === "NOT_RECEIVED"}
                       />
                     )}
                     {h.award && canRevertAward && <RevertIncentiveAwardButton awardId={h.award.id} />}
