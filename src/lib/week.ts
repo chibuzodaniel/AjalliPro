@@ -67,3 +67,14 @@ export function weekKeyToMonthKey(weekKey: string): string {
   const month = String(startDate.getMonth() + 1).padStart(2, "0");
   return `${startDate.getFullYear()}-${month}`;
 }
+
+/** 'YYYY-MM-DD' → e.g. "Fri, 21 Nov 2026" — safe on client and server. */
+export function formatDay(dateStr: string): string {
+  return new Date(dateStr + "T00:00:00Z").toLocaleDateString("en-NG", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}

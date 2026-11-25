@@ -21,6 +21,7 @@ import EditDailyRecordButton from "@/components/daily-record/EditDailyRecordButt
 import DeleteDailyRecordButton from "@/components/daily-record/DeleteDailyRecordButton";
 import ApproveRejectButtons from "@/components/shared/ApproveRejectButtons";
 import ViewAllModal from "@/components/ui/ViewAllModal";
+import WorkFreeDaysManager from "@/components/daily-record/WorkFreeDaysManager";
 import { approveDailyRecord } from "../approvals/actions";
 
 function fmtArchivedAt(d: Date) {
@@ -38,7 +39,7 @@ export default async function DailyRecordPage({
   const approver = user ? isApprover(user.role) : false;
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
 
-  const [records, activeCount, drivers, customers, bankAccounts, packers, opening, leakageOpening, pricing, packingBagTypes] =
+  const [records, activeCount, drivers, customers, bankAccounts, packers, opening, leakageOpening, pricing, packingBagTypes, workFreeDays] =
     await Promise.all([
       view === "archived" && approver ? getArchivedRecordsSorted() : getAllRecordsSorted(),
       prisma.dailyRecord.count({ where: { archivedAt: null } }),
@@ -50,6 +51,9 @@ export default async function DailyRecordPage({
       latestLeakageClosing(),
       getPricingSettings(),
       getPackingBagTypes(),
+      isAdmin
+        ? prisma.workFreeDay.findMany({ orderBy: { date: "desc" }, take: 60, include: { createdBy: { select: { name: true } } } })
+        : Promise.resolve([]),
     ]);
   const showingArchived = view === "archived" && approver;
 
@@ -196,6 +200,11 @@ export default async function DailyRecordPage({
           </div>
         )}
       </div>
+      {isAdmin && !showingArchived && (
+        <WorkFreeDaysManager
+          days={workFreeDays.map((d) => ({ id: d.id, date: d.date, reason: d.reason, createdByName: d.createdBy.name }))}
+        />
+      )}
     </div>
   );
 }

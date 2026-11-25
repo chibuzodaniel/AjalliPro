@@ -15,6 +15,7 @@ import { computeIncentiveData, weeklyThresholdBonus } from "@/lib/incentives";
 import { isLegacyDriverBonusWeek } from "@/lib/incentiveAwards";
 import { currentWeekKey, todayISO } from "@/lib/week";
 import { formatMoney } from "@/lib/money";
+import { findMissingDates, missingDatesMessage, formatDay } from "@/lib/workFreeDays";
 import {
   dailyRecordInclude,
   recordProdTotal,
@@ -170,6 +171,62 @@ async function resolvePackers(
 export interface CreateDailyRecordResult {
   ok: boolean;
   error?: string;
+  /** Set when saving was blocked because earlier days have no record and aren't marked work-free. */
+  missingDates?: string[];
+}
+
+function isAdminRole(role: string) {
+  return role === "ADMIN" || role === "SUPER_ADMIN";
+}
+
+/** Days that saving a record on `date` would leave unrecorded and not marked work-free — for the form's live warning. */
+export async function checkMissingDates(date: string, recordId?: string): Promise<string[]> {
+  await requireUser();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return [];
+  if (!recordId) return findMissingDates(date);
+  const rec = await prisma.dailyRecord.findUnique({ where: { id: recordId }, select: { date: true } });
+  if (!rec || rec.date === date) return [];
+  return findMissingDates(date, { excludeId: recordId, oldDate: rec.date });
+}
+
+export async function markWorkFreeDays(dates: string[], reason?: string): Promise<{ ok: boolean; error?: string }> {
+  const guard = await requireRoleSafe(["ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
+  const unique = [...new Set(dates)].filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
+  if (unique.length === 0) return { ok: false, error: "Pick a date." };
+  const recorded = await prisma.dailyRecord.findMany({
+    where: { date: { in: unique }, archivedAt: null },
+    select: { date: true },
+  });
+  if (recorded.length > 0) {
+    return {
+      ok: false,
+      error: `${recorded.map((r) => formatDay(r.date)).join(", ")} already ${recorded.length === 1 ? "has a" : "have"} daily record${recorded.length === 1 ? "" : "s"} — can't mark as work-free.`,
+    };
+  }
+  const trimmedReason = reason?.trim().slice(0, 120) || null;
+  await prisma.workFreeDay.createMany({
+    data: unique.map((date) => ({ date, reason: trimmedReason, createdById: user.id })),
+    skipDuplicates: true,
+  });
+  await logActivity(
+    `${user.name} marked ${unique.map(formatDay).join(", ")} as work-free${trimmedReason ? ` (${trimmedReason})` : ""}.`,
+    user.id
+  );
+  revalidatePath("/daily-record");
+  return { ok: true };
+}
+
+export async function unmarkWorkFreeDay(id: string): Promise<{ ok: boolean; error?: string }> {
+  const guard = await requireRoleSafe(["ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const day = await prisma.workFreeDay.findUnique({ where: { id } });
+  if (!day) return { ok: false, error: "Work-free day not found." };
+  await prisma.workFreeDay.delete({ where: { id } });
+  await logActivity(`${guard.user.name} removed the work-free mark on ${formatDay(day.date)}.`, guard.user.id);
+  revalidatePath("/daily-record");
+  return { ok: true };
 }
 
 export async function createDailyRecord(input: unknown): Promise<CreateDailyRecordResult> {
@@ -191,6 +248,11 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
   const existing = await prisma.dailyRecord.findUnique({ where: { date: data.date } });
   if (existing) {
     return { ok: false, error: `A daily record for ${data.date} already exists.` };
+  }
+
+  const missing = await findMissingDates(data.date);
+  if (missing.length > 0) {
+    return { ok: false, error: missingDatesMessage(missing, isAdminRole(user.role)), missingDates: missing };
   }
 
   const [computedOpening, computedLeakageOpening, fixedPricing, packingBagTypes, drivers, truckCustomers, packerByName] =
@@ -394,6 +456,7 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
 export interface UpdateDailyRecordResult {
   ok: boolean;
   error?: string;
+  missingDates?: string[];
 }
 
 async function cascadeRecalculate(
@@ -492,6 +555,10 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
     const conflict = await prisma.dailyRecord.findUnique({ where: { date: data.date } });
     if (conflict && conflict.id !== id) {
       return { ok: false, error: `A daily record for ${data.date} already exists.` };
+    }
+    const missing = await findMissingDates(data.date, { excludeId: id, oldDate: existing.date });
+    if (missing.length > 0) {
+      return { ok: false, error: missingDatesMessage(missing, isAdminRole(user.role)), missingDates: missing };
     }
   }
 

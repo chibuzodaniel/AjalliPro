@@ -60,6 +60,7 @@ model User {
   bankAccountsCreated  BankAccount[]
   bankAccountExpenses  BankAccountExpense[]
   bankAccountCredits   BankAccountCredit[]
+  workFreeDaysMarked   WorkFreeDay[]
 }
 
 model PushSubscription {
@@ -215,6 +216,16 @@ model PackingBagType {
   createdAt      DateTime @default(now())
 
   expenseItems ExpenseItem[]
+}
+
+/** A calendar day an Admin/Super Admin has marked as no work (holiday, shutdown, etc.). Dates with neither a daily record nor a work-free mark count as missing, and block recording a later date until they're filled in or marked. */
+model WorkFreeDay {
+  id          String   @id @default(cuid())
+  date        String   @unique // 'YYYY-MM-DD'
+  reason      String?
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
 }
 
 model Driver {

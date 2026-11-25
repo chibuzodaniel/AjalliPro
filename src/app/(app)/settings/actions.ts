@@ -268,7 +268,7 @@ export async function deleteUser(userId: string): Promise<DeleteUserResult> {
     return { ok: false, error: "This is the primary Super Admin account and can't be deleted." };
   }
 
-  const [recordsCreated, recordsApproved, driversCreated, driversApproved, customersCreated, expensesMarkedPaid] =
+  const [recordsCreated, recordsApproved, driversCreated, driversApproved, customersCreated, expensesMarkedPaid, workFreeMarked] =
     await Promise.all([
       prisma.dailyRecord.count({ where: { createdById: userId } }),
       prisma.dailyRecord.count({ where: { approvedById: userId } }),
@@ -276,9 +276,10 @@ export async function deleteUser(userId: string): Promise<DeleteUserResult> {
       prisma.driver.count({ where: { approvedById: userId } }),
       prisma.customer.count({ where: { createdById: userId } }),
       prisma.expenseItem.count({ where: { paidById: userId } }),
+      prisma.workFreeDay.count({ where: { createdById: userId } }),
     ]);
   const activityCount =
-    recordsCreated + recordsApproved + driversCreated + driversApproved + customersCreated + expensesMarkedPaid;
+    recordsCreated + recordsApproved + driversCreated + driversApproved + customersCreated + expensesMarkedPaid + workFreeMarked;
   if (activityCount > 0) {
     return {
       ok: false,
