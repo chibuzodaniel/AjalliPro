@@ -223,10 +223,12 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
     data.driverSales.reduce((s, d) => s + d.bagsFromLeakage, 0) +
     data.truckDeliveries.reduce((s, t) => s + t.bagsFromLeakage, 0);
 
-  if (data.factoryBagsFromLeakage + driverTruckBagsFromLeakageTotal + data.leakageWasteBags > leakageOpening) {
+  // Today's new leakage can be rebagged (and sold or wasted) the same day, so it counts as available.
+  const leakageAvailable = leakageOpening + data.leakageBags;
+  if (data.factoryBagsFromLeakage + driverTruckBagsFromLeakageTotal + data.leakageWasteBags > leakageAvailable) {
     return {
       ok: false,
-      error: `Only ${leakageOpening} bags are available in the leakage pile to sell, rebag, or waste.`,
+      error: `Only ${leakageAvailable} bags are available in the leakage pile to sell, rebag, or waste (${leakageOpening} carried over + ${data.leakageBags} new today).`,
     };
   }
 
@@ -538,17 +540,19 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
     data.driverSales.reduce((s, d) => s + d.bagsFromLeakage, 0) +
     data.truckDeliveries.reduce((s, t) => s + t.bagsFromLeakage, 0);
 
+  // Today's new leakage can be rebagged (and sold or wasted) the same day, so it counts as available.
   // Bags already taken from this day's leakage pile for approved weekly bonuses still count against it.
+  const leakageAvailable = leakageOpening + data.leakageBags;
   if (
     data.factoryBagsFromLeakage +
       driverTruckBagsFromLeakageTotal +
       data.leakageWasteBags +
       existing.incentiveBonusBagsFromLeakage >
-    leakageOpening
+    leakageAvailable
   ) {
     return {
       ok: false,
-      error: `Only ${leakageOpening} bags are available in the leakage pile to sell, rebag, or waste${existing.incentiveBonusBagsFromLeakage > 0 ? ` (${existing.incentiveBonusBagsFromLeakage} already went to approved weekly bonuses)` : ""}.`,
+      error: `Only ${leakageAvailable} bags are available in the leakage pile to sell, rebag, or waste (${leakageOpening} carried over + ${data.leakageBags} new today)${existing.incentiveBonusBagsFromLeakage > 0 ? ` — ${existing.incentiveBonusBagsFromLeakage} already went to approved weekly bonuses` : ""}.`,
     };
   }
 

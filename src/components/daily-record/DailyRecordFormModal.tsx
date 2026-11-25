@@ -461,6 +461,8 @@ export default function DailyRecordFormModal({
   ]);
 
   const leakageOpeningNum = Number(leakageOpeningValue) || 0;
+  // Today's new leakage can be rebagged and sold/wasted the same day.
+  const leakageAvailableNum = leakageOpeningNum + (Number(leakageBags) || 0);
   const leakageClosingPreview =
     leakageOpeningNum +
     (Number(leakageBags) || 0) -
@@ -780,6 +782,36 @@ export default function DailyRecordFormModal({
           + Add packer
         </button>
 
+        <div className="subhead">Leakages</div>
+        <div className="form-grid">
+          <div className="field">
+            <label>New leakages today (bags)</label>
+            <input
+              type="number"
+              min={0}
+              placeholder="0"
+              value={leakageBags}
+              onChange={(e) => setLeakageBags(e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label>Wasted while rebagging (bags — lost, not sellable)</label>
+            <input
+              type="number"
+              min={0}
+              max={leakageAvailableNum}
+              placeholder="0"
+              value={leakageWasteBags}
+              onChange={(e) => setLeakageWasteBags(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="hint" style={{ marginBottom: 14 }}>
+          {leakageAvailableNum} bags in the leakage pile today ({leakageOpeningNum} carried over +{" "}
+          {Number(leakageBags) || 0} new). Rebagged and sold some? Enter it under &quot;sold from leakage stock&quot;
+          in Factory sales, or the &quot;From leakage&quot; box on each driver/truck row below.
+        </div>
+
         <div className="subhead">Factory sales (walk-in, no driver)</div>
         <div className="form-grid">
           <div className="field">
@@ -805,25 +837,17 @@ export default function DailyRecordFormModal({
           </div>
         </div>
         <div className="field">
-          <label>How many was sold from leakage stock (bags — available: {leakageOpeningNum})</label>
+          <label>
+            How many was sold from leakage stock (bags — available: {leakageAvailableNum}
+            {(Number(leakageBags) || 0) > 0 ? `, incl. ${Number(leakageBags) || 0} new today` : ""})
+          </label>
           <input
             type="number"
             min={0}
-            max={leakageOpeningNum}
+            max={leakageAvailableNum}
             placeholder="0"
             value={factoryBagsFromLeakage}
             onChange={(e) => setFactoryBagsFromLeakage(e.target.value)}
-          />
-        </div>
-        <div className="field">
-          <label>Wasted while rebagging (bags — lost, not sellable)</label>
-          <input
-            type="number"
-            min={0}
-            max={leakageOpeningNum}
-            placeholder="0"
-            value={leakageWasteBags}
-            onChange={(e) => setLeakageWasteBags(e.target.value)}
           />
         </div>
         <div className="calc-box" style={{ marginTop: -4, marginBottom: 14 }}>
@@ -942,13 +966,13 @@ export default function DailyRecordFormModal({
                     Loading fee not applicable
                   </label>
                 )}
-                {leakageOpeningNum > 0 && (
+                {leakageAvailableNum > 0 && (
                   <label style={{ display: "flex", alignItems: "center", gap: 5 }}>
                     From leakage:
                     <input
                       type="number"
                       min={0}
-                      max={Math.min(bags, leakageOpeningNum)}
+                      max={Math.min(bags, leakageAvailableNum)}
                       placeholder="0"
                       style={{ width: 64, padding: "3px 6px", fontSize: 11.5 }}
                       value={row.bagsFromLeakage}
@@ -1144,13 +1168,13 @@ export default function DailyRecordFormModal({
                       Hired truck cost not applicable
                     </label>
                   )}
-                  {leakageOpeningNum > 0 && (
+                  {leakageAvailableNum > 0 && (
                     <label style={{ display: "flex", alignItems: "center", gap: 5 }}>
                       From leakage:
                       <input
                         type="number"
                         min={0}
-                        max={Math.min(bags, leakageOpeningNum)}
+                        max={Math.min(bags, leakageAvailableNum)}
                         placeholder="0"
                         style={{ width: 64, padding: "3px 6px", fontSize: 11.5 }}
                         value={row.bagsFromLeakage}
@@ -1192,24 +1216,7 @@ export default function DailyRecordFormModal({
           + Add truck delivery
         </button>
 
-        <div className="subhead">Leakages</div>
-        <div className="field">
-          <label>New leakages today (bags)</label>
-          <input
-            type="number"
-            min={0}
-            placeholder="0"
-            value={leakageBags}
-            onChange={(e) => setLeakageBags(e.target.value)}
-          />
-        </div>
-        {leakageOpeningNum > 0 && (
-          <div className="hint" style={{ marginBottom: 10 }}>
-            Some of today&apos;s driver sales / truck deliveries sold from the leakage pile instead of fresh stock?
-            Use the &quot;From leakage&quot; field next to that driver/truck row above — it&apos;s already counted in
-            the bags entered there, this just marks who it was sold to.
-          </div>
-        )}
+        <div className="subhead">Leakage balance</div>
         <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginBottom: 6 }}>
           Opening {leakageOpeningNum} + New {Number(leakageBags) || 0} − Rebagged {Number(factoryBagsFromLeakage) || 0}
           {driverTruckBagsFromLeakageTotal > 0 ? ` − Sold via driver/truck ${driverTruckBagsFromLeakageTotal}` : ""}
