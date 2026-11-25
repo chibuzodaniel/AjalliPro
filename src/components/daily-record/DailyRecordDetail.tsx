@@ -10,6 +10,21 @@ import { expenseStatusSuffix, recordDriverTruckBagsFromLeakageTotal, type DailyR
 import { sendDailyReportSmsNow } from "@/app/(app)/reports/actions";
 import { confirmBankMoneyReceived } from "@/app/(app)/daily-record/actions";
 
+/** e.g. "Last edited by Ada · 25 Nov 2026, 4:05 pm" — null if never edited after submission. */
+export function editedSummary(record: Pick<DailyRecordFull, "lastEditedBy" | "lastEditedAt">): string | null {
+  if (!record.lastEditedBy) return null;
+  const when = record.lastEditedAt
+    ? new Date(record.lastEditedAt).toLocaleString("en-NG", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : null;
+  return `Last edited by ${record.lastEditedBy.name}${when ? ` · ${when}` : ""}`;
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
@@ -96,6 +111,7 @@ function printDailyRecordPdf(record: DailyRecordFull) {
     roleLabel(record.createdByRole) ? ` (${esc(roleLabel(record.createdByRole))})` : ""
   }`;
   const statusLine = `${record.status}${record.approvedBy ? ` by ${esc(record.approvedBy.name)}` : ""}`;
+  const editedLine = editedSummary(record);
 
   const html = `<!doctype html>
 <html>
@@ -119,7 +135,7 @@ function printDailyRecordPdf(record: DailyRecordFull) {
 </head>
 <body>
   <h1>Cusica International — Ajalli Table Water</h1>
-  <div class="sub-heading">Daily Record — ${esc(record.date)} · Submitted by ${submittedBy} · Status: ${esc(statusLine)}</div>
+  <div class="sub-heading">Daily Record — ${esc(record.date)} · Submitted by ${submittedBy}${editedLine ? ` · ${esc(editedLine)}` : ""} · Status: ${esc(statusLine)}</div>
 
   <div class="totals"><span>Opening stock</span><span>${record.openingStock} bags</span></div>
 
@@ -275,6 +291,12 @@ export default function DailyRecordDetail({ record, isAdmin }: { record: DailyRe
               {roleLabel(record.createdByRole) ? ` (${roleLabel(record.createdByRole)})` : ""}
             </div>
           </Section>
+
+          {editedSummary(record) && (
+            <Section title="Last edited">
+              <div>{editedSummary(record)!.replace(/^Last edited by /, "")}</div>
+            </Section>
+          )}
 
           <div className="calc-box">
             <span>Opening stock</span>

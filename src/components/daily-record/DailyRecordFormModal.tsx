@@ -157,6 +157,8 @@ export interface DailyRecordFormInitial {
   leakageBags: number;
   leakageWasteBags: number;
   expenses: { description: string; amount: number; paid: boolean }[];
+  /** Edit mode: paid state of the record’s existing auto-generated fee lines, so their ticks start as saved. */
+  autoExpensesPaid?: { description: string; paid: boolean }[];
   bankAccountId: string | null;
   bankAmountSent: number;
 }
@@ -635,10 +637,24 @@ export default function DailyRecordFormModal({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [autoFeePaid, setAutoFeePaid] = useState<Map<string, boolean>>(new Map());
 
+  // A fee the user hasn’t touched yet starts as it was saved (matched to the
+  // record’s existing fee lines by description, in order), so editing a record
+  // never quietly turns an already-paid fee back into owing.
+  const effectiveAutoFeePaid = useMemo(() => {
+    const saved = [...(initial.autoExpensesPaid ?? [])];
+    const result = new Map<string, boolean>();
+    for (const item of autoFeeItems) {
+      const idx = saved.findIndex((s) => s.description === item.label);
+      const savedPaid = idx === -1 ? false : saved.splice(idx, 1)[0].paid;
+      result.set(item.id, autoFeePaid.get(item.id) ?? savedPaid);
+    }
+    return result;
+  }, [autoFeeItems, autoFeePaid, initial.autoExpensesPaid]);
+
   function toggleAutoFeePaid(id: string) {
     setAutoFeePaid((prev) => {
       const next = new Map(prev);
-      next.set(id, !(prev.get(id) ?? false));
+      next.set(id, !(effectiveAutoFeePaid.get(id) ?? false));
       return next;
     });
   }
@@ -685,7 +701,7 @@ export default function DailyRecordFormModal({
           bags: Number(d.bags) || 0,
           bonusBags: Number(d.bonusBags) || 0,
           loadingFeeWaived: d.loadingFeeWaived,
-          loadingFeePaid: autoFeePaid.get(`driverLoadingFee:${d.key}`) ?? false,
+          loadingFeePaid: effectiveAutoFeePaid.get(`driverLoadingFee:${d.key}`) ?? false,
           bagsFromLeakage: Number(d.bagsFromLeakage) || 0,
         })),
       truckDeliveries: truckDeliveries
@@ -699,10 +715,10 @@ export default function DailyRecordFormModal({
           loadingFeeWaived: t.loadingFeeWaived,
           offloadingFeeWaived: t.offloadingFeeWaived,
           hiredCostWaived: t.hiredCostWaived,
-          fuelPaid: autoFeePaid.get(`truckFuel:${t.key}`) ?? false,
-          hiredCostPaid: autoFeePaid.get(`truckHiredCost:${t.key}`) ?? false,
-          loadingFeePaid: autoFeePaid.get(`truckLoadingFee:${t.key}`) ?? false,
-          offloadingFeePaid: autoFeePaid.get(`truckOffloadingFee:${t.key}`) ?? false,
+          fuelPaid: effectiveAutoFeePaid.get(`truckFuel:${t.key}`) ?? false,
+          hiredCostPaid: effectiveAutoFeePaid.get(`truckHiredCost:${t.key}`) ?? false,
+          loadingFeePaid: effectiveAutoFeePaid.get(`truckLoadingFee:${t.key}`) ?? false,
+          offloadingFeePaid: effectiveAutoFeePaid.get(`truckOffloadingFee:${t.key}`) ?? false,
           bagsFromLeakage: Number(t.bagsFromLeakage) || 0,
         })),
       leakageBags: Number(leakageBags) || 0,
@@ -1627,7 +1643,7 @@ export default function DailyRecordFormModal({
                     <b>{formatMoney(item.amount)}</b>
                     <input
                       type="checkbox"
-                      checked={autoFeePaid.get(item.id) ?? false}
+                      checked={effectiveAutoFeePaid.get(item.id) ?? false}
                       onChange={() => toggleAutoFeePaid(item.id)}
                     />
                     <span style={{ fontSize: 11.5, color: "var(--text-dim)" }}>Paid</span>

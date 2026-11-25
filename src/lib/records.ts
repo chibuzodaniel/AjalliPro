@@ -12,6 +12,7 @@ export const dailyRecordInclude = {
   createdBy: true,
   approvedBy: true,
   archivedBy: true,
+  lastEditedBy: { select: { id: true, name: true } },
 } satisfies Prisma.DailyRecordInclude;
 
 export type DailyRecordFull = Prisma.DailyRecordGetPayload<{

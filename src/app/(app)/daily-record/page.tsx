@@ -82,6 +82,12 @@ export default async function DailyRecordPage({
               <span className="badge-role">{roleLabel(r.createdByRole)}</span>
             </>
           )}
+          {r.lastEditedBy && (
+            <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 2 }}>
+              edited by {r.lastEditedBy.name}
+              {r.lastEditedAt ? ` · ${fmtArchivedAt(r.lastEditedAt)}` : ""}
+            </div>
+          )}
         </td>
         {showingArchived ? (
           <td style={{ fontSize: 12.5, color: "var(--text-faint)" }}>

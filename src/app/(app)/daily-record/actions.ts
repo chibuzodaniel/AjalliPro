@@ -150,6 +150,80 @@ function buildTruckCostExpenses(
   return expenses;
 }
 
+interface DesiredExpense {
+  description: string;
+  amount: number;
+  /** The "paid" tick as it stands in the form when saved. */
+  paid: boolean;
+  rollsKg: number | null;
+  packingBagsBundles: number | null;
+  packingBagTypeId: string | null;
+}
+
+/**
+ * Brings a record's expense lines in line with an edit without wiping them:
+ * each wanted line reuses an existing line with the same description (in
+ * order), so its payment history, who paid it, and when stay intact and a
+ * paid fee can't come back as owing and get paid twice. Lines no longer
+ * wanted are removed; new ones are created.
+ *
+ * Paid tick on a reused line: ticked → fully paid (keeps the original
+ * paidAt/paidBy if it already was); unticked → back to unpaid if it had been
+ * fully paid, otherwise any part-payment is kept.
+ */
+async function syncExpenseItems(
+  tx: Prisma.TransactionClient,
+  dailyRecordId: string,
+  desired: DesiredExpense[],
+  userId: string
+) {
+  const current = await tx.expenseItem.findMany({ where: { dailyRecordId }, orderBy: { id: "asc" } });
+  const unused = [...current];
+  const now = new Date();
+
+  for (const want of desired) {
+    const idx = unused.findIndex((c) => c.description === want.description);
+    const details = {
+      amount: want.amount,
+      rollsKg: want.rollsKg,
+      packingBagsBundles: want.packingBagsBundles,
+      packingBagTypeId: want.packingBagTypeId,
+    };
+    if (idx === -1) {
+      await tx.expenseItem.create({
+        data: {
+          dailyRecordId,
+          description: want.description,
+          ...details,
+          amountPaid: want.paid ? want.amount : 0,
+          paid: want.paid,
+          paidAt: want.paid ? now : null,
+          paidById: want.paid ? userId : null,
+        },
+      });
+      continue;
+    }
+    const [old] = unused.splice(idx, 1);
+    let payment: Prisma.ExpenseItemUncheckedUpdateInput;
+    if (want.paid) {
+      payment =
+        old.paid && old.amountPaid >= want.amount
+          ? {}
+          : { amountPaid: want.amount, paid: true, paidAt: old.paidAt ?? now, paidById: old.paidById ?? userId };
+    } else if (old.amountPaid >= want.amount || old.paid) {
+      await tx.expensePayment.deleteMany({ where: { expenseItemId: old.id } });
+      payment = { amountPaid: 0, paid: false, paidAt: null, paidById: null };
+    } else {
+      payment = { paid: false };
+    }
+    await tx.expenseItem.update({ where: { id: old.id }, data: { ...details, ...payment } });
+  }
+
+  if (unused.length > 0) {
+    await tx.expenseItem.deleteMany({ where: { id: { in: unused.map((u) => u.id) } } });
+  }
+}
+
 /**
  * Packers are entered as free text on the daily record form, same as before —
  * there's no separate "add packer" step. Matching an existing name (case-
@@ -723,17 +797,53 @@ export async function updateDailyRecord(
   const bankDetailsChanged =
     newBankAccountId !== existing.bankAccountId || newBankAmountSent !== existing.bankAmountSent;
 
+  const desiredExpenses: DesiredExpense[] = [
+    ...data.expenses.map((e) => {
+      const matchedType = matchPackingBagType(e.description, packingBagTypes);
+      return {
+        description: e.description,
+        amount: e.amount,
+        paid: e.paid,
+        rollsKg:
+          isRollsExpense(e.description) && fixedPricing.rollsPricePerKg > 0 ? e.amount / fixedPricing.rollsPricePerKg : null,
+        packingBagsBundles: matchedType && matchedType.pricePerBundle > 0 ? e.amount / matchedType.pricePerBundle : null,
+        packingBagTypeId: matchedType?.id ?? null,
+      };
+    }),
+    ...[
+      ...buildLoadingFeeExpenses(data.driverSales, driverById, user.id, fixedPricing.truckLoadingFeePerBag),
+      ...buildTruckCostExpenses(
+        data.truckDeliveries,
+        truckCustomerById,
+        fixedPricing.truckLoadingFeePerBag,
+        fixedPricing.truckOffloadingFeePerBag,
+        fixedPricing.truckHiredCostPerBag,
+        user.id
+      ),
+    ].map((e) => ({
+      description: e.description,
+      amount: e.amount,
+      paid: e.paid,
+      rollsKg: null,
+      packingBagsBundles: null,
+      packingBagTypeId: null,
+    })),
+  ];
+
   try {
     await prisma.$transaction(
       async (tx) => {
         await tx.productionLine.deleteMany({ where: { dailyRecordId: id } });
         await tx.driverSale.deleteMany({ where: { dailyRecordId: id } });
         await tx.truckDelivery.deleteMany({ where: { dailyRecordId: id } });
-        await tx.expenseItem.deleteMany({ where: { dailyRecordId: id } });
+        // Expense lines are synced (not wiped) after the record update below,
+        // so payments already recorded against them survive the edit.
 
         await tx.dailyRecord.update({
           where: { id },
           data: {
+            lastEditedById: user.id,
+            lastEditedAt: new Date(),
             date: data.date,
             openingStock: opening,
             closingStock: closing,
@@ -792,39 +902,10 @@ export async function updateDailyRecord(
                 };
               }),
             },
-            expenseItems: {
-              create: [
-                ...data.expenses.map((e) => {
-                  const matchedType = matchPackingBagType(e.description, packingBagTypes);
-                  return {
-                    description: e.description,
-                    amount: e.amount,
-                    amountPaid: e.paid ? e.amount : 0,
-                    paid: e.paid,
-                    paidAt: e.paid ? new Date() : null,
-                    paidById: e.paid ? user.id : null,
-                    rollsKg:
-                      isRollsExpense(e.description) && fixedPricing.rollsPricePerKg > 0
-                        ? e.amount / fixedPricing.rollsPricePerKg
-                        : null,
-                    packingBagsBundles:
-                      matchedType && matchedType.pricePerBundle > 0 ? e.amount / matchedType.pricePerBundle : null,
-                    packingBagTypeId: matchedType?.id ?? null,
-                  };
-                }),
-                ...buildLoadingFeeExpenses(data.driverSales, driverById, user.id, fixedPricing.truckLoadingFeePerBag),
-                ...buildTruckCostExpenses(
-                  data.truckDeliveries,
-                  truckCustomerById,
-                  fixedPricing.truckLoadingFeePerBag,
-                  fixedPricing.truckOffloadingFeePerBag,
-                  fixedPricing.truckHiredCostPerBag,
-                  user.id
-                ),
-              ],
-            },
           },
         });
+
+        await syncExpenseItems(tx, id, desiredExpenses, user.id);
 
         if (existing.status === "APPROVED") {
           if (dateChanged) {

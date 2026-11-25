@@ -71,6 +71,19 @@ export default function DriverNameDetail({
       >
         {name}
       </button>
+      {canEdit && (
+        <button
+          className="icon-btn no-print"
+          title="Edit driver details"
+          style={{ marginLeft: 6 }}
+          onClick={() => {
+            startEdit();
+            setOpen(true);
+          }}
+        >
+          ✎
+        </button>
+      )}
       <Modal open={open} onClose={() => { setOpen(false); setEditing(false); }} title={editing ? `Edit — ${name}` : name}>
         {editing ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 13.5 }}>

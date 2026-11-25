@@ -83,6 +83,19 @@ export default function CustomerNameDetail({
         >
           {name}
         </button>
+        {canEdit && (
+          <button
+            className="icon-btn no-print"
+            title="Edit customer details"
+            style={{ marginLeft: 6 }}
+            onClick={() => {
+              startEdit();
+              setOpen(true);
+            }}
+          >
+            ✎
+          </button>
+        )}
         {address && <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>{address}</div>}
       </div>
       <Modal open={open} onClose={() => { setOpen(false); setEditing(false); }} title={editing ? `Edit — ${name}` : name}>

@@ -39,6 +39,7 @@ model User {
   dailyRecordsCreated  DailyRecord[]        @relation("DailyRecordCreatedBy")
   dailyRecordsApproved DailyRecord[]        @relation("DailyRecordApprovedBy")
   dailyRecordsArchived DailyRecord[]        @relation("DailyRecordArchivedBy")
+  dailyRecordsEdited   DailyRecord[]        @relation("DailyRecordLastEditedBy")
   bankMoneyConfirmedBy DailyRecord[]        @relation("DailyRecordBankReceivedBy")
   smsTemplatesCreated  SmsTemplate[]
   driversCreated       Driver[]             @relation("DriverCreatedBy")
@@ -105,6 +106,9 @@ model DailyRecord {
   createdByRole          Role
   approvedById           String?
   approvedBy             User?          @relation("DailyRecordApprovedBy", fields: [approvedById], references: [id])
+  lastEditedById         String? // who last saved a change to this record after it was first submitted
+  lastEditedBy           User?          @relation("DailyRecordLastEditedBy", fields: [lastEditedById], references: [id])
+  lastEditedAt           DateTime?
   createdAt              DateTime       @default(now())
   updatedAt              DateTime       @updatedAt
   archivedAt             DateTime? // set when a Super Admin archives the record to start a fresh recording session; null = active/current
