@@ -7,10 +7,11 @@ import {
   createDailyRecord,
   updateDailyRecord,
   findDailyRecordByDate,
-  checkMissingDates,
+  checkUnfilledDates,
   markWorkFreeDays,
 } from "@/app/(app)/daily-record/actions";
 import { formatDay } from "@/lib/week";
+import type { UnfilledDates } from "@/lib/workFreeDays";
 import { formatMoney } from "@/lib/money";
 import { matchPackingBagType } from "@/lib/records";
 
@@ -81,6 +82,21 @@ interface AutoFeeItem {
 }
 
 let rowKeySeq = 0;
+const warningBoxStyle: React.CSSProperties = {
+  marginBottom: 14,
+  padding: "10px 12px",
+  border: "1px solid currentColor",
+  borderRadius: 8,
+  display: "flex",
+  flexDirection: "column",
+  gap: 8,
+};
+
+function listDays(days: string[]): string {
+  const shown = days.slice(0, 7).map(formatDay).join(", ");
+  return days.length > 7 ? `${shown} and ${days.length - 7} more` : shown;
+}
+
 function nextKey() {
   rowKeySeq += 1;
   return rowKeySeq;
@@ -306,6 +322,8 @@ export default function DailyRecordFormModal({
   const [effectiveMode, setEffectiveMode] = useState<"create" | "edit">(mode);
   const [effectiveRecordId, setEffectiveRecordId] = useState<string | undefined>(recordId);
   const [foundExistingDate, setFoundExistingDate] = useState<string | null>(null);
+  // New entry only: the picked date already has a filled record, so it's blocked.
+  const [dateTaken, setDateTaken] = useState<{ status: string; archived: boolean } | null>(null);
 
   function applyFormData(data: {
     openingStock: number;
@@ -350,7 +368,9 @@ export default function DailyRecordFormModal({
       try {
         const found = await findDailyRecordByDate(date);
         if (cancelled) return;
-        if (found) {
+        const continuable = found && found.productionOnly && !found.archived;
+        setDateTaken(found && !continuable ? { status: found.status, archived: found.archived } : null);
+        if (found && continuable) {
           if (found.id !== effectiveRecordId) {
             applyFormData(found);
             setEffectiveMode("edit");
@@ -374,9 +394,11 @@ export default function DailyRecordFormModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, mode]);
 
-  // Days between the previous record and this date that have no record and
-  // aren't marked work-free — saving is blocked until they're sorted out.
-  const [missingDates, setMissingDates] = useState<string[]>([]);
+  // Earlier days that aren't filled yet — no approved record and not marked
+  // work-free. Saving is blocked until they're sorted out.
+  const [unfilled, setUnfilled] = useState<UnfilledDates>({ missing: [], pending: [] });
+  const missingDates = unfilled.missing;
+  const pendingDates = unfilled.pending;
   const [markingWorkFree, setMarkingWorkFree] = useState(false);
   // Admin/Super Admin only (same roles that can edit the factory price) — the server enforces it too.
   const canMarkWorkFree = !!canEditFactoryPrice;
@@ -385,8 +407,8 @@ export default function DailyRecordFormModal({
     let cancelled = false;
     const timer = setTimeout(async () => {
       try {
-        const missing = await checkMissingDates(date, effectiveMode === "edit" ? effectiveRecordId : undefined);
-        if (!cancelled) setMissingDates(missing);
+        const result = await checkUnfilledDates(date, effectiveMode === "edit" ? effectiveRecordId : undefined);
+        if (!cancelled) setUnfilled(result);
       } catch {
         // Server still enforces this on save.
       }
@@ -623,8 +645,12 @@ export default function DailyRecordFormModal({
 
   function handleFormSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (missingDates.length > 0) {
-      setError("Some earlier days are missing — see the warning under the date.");
+    if (dateTaken) {
+      setError("This date has already been filled — see the warning under the date.");
+      return;
+    }
+    if (missingDates.length > 0 || pendingDates.length > 0) {
+      setError("Earlier days aren't filled yet — see the warning under the date.");
       return;
     }
     // Nothing to review — skip straight to saving rather than popping an
@@ -692,7 +718,9 @@ export default function DailyRecordFormModal({
     let result;
     try {
       result =
-        effectiveMode === "create" ? await createDailyRecord(payload) : await updateDailyRecord(effectiveRecordId!, payload);
+        effectiveMode === "create"
+          ? await createDailyRecord(payload)
+          : await updateDailyRecord(effectiveRecordId!, payload, { fromNewEntry: mode === "create" });
     } catch (err) {
       setLoading(false);
       setError(err instanceof Error ? err.message : "Could not save daily record");
@@ -701,7 +729,7 @@ export default function DailyRecordFormModal({
     setLoading(false);
     if (!result.ok) {
       setError(result.error ?? "Could not save daily record");
-      if (result.missingDates) setMissingDates(result.missingDates);
+      if (result.unfilled) setUnfilled(result.unfilled);
       return;
     }
     try {
@@ -734,8 +762,8 @@ export default function DailyRecordFormModal({
         {mode === "create" && effectiveMode === "edit" && (
           <div className="calc-box" style={{ marginBottom: 14 }}>
             <span>
-              This date already has a record — production and anything else already logged is filled in below.
-              Saving updates that record instead of creating a new one.
+              Production for this date was already logged from Total Produced — it&apos;s filled in below. Saving
+              completes that record instead of creating a new one.
             </span>
           </div>
         )}
@@ -756,32 +784,32 @@ export default function DailyRecordFormModal({
             />
           </div>
         </div>
-        {missingDates.length > 0 && (
-          <div
-            className="field-error"
-            role="alert"
-            style={{
-              marginBottom: 14,
-              padding: "10px 12px",
-              border: "1px solid currentColor",
-              borderRadius: 8,
-              display: "flex",
-              flexDirection: "column",
-              gap: 8,
-            }}
-          >
+        {dateTaken && (
+          <div className="field-error" role="alert" style={warningBoxStyle}>
             <span>
-              <b>Check the date.</b> {missingDates.length === 1 ? "This day has" : `These ${missingDates.length} days have`}{" "}
-              no daily record and {missingDates.length === 1 ? "isn't" : "aren't"} marked as a work-free day:{" "}
-              {missingDates.slice(0, 7).map(formatDay).join(", ")}
-              {missingDates.length > 7 ? ` and ${missingDates.length - 7} more` : ""}.
+              <b>{formatDay(date)} has already been filled</b>
+              {dateTaken.archived
+                ? " (in an archived session)."
+                : dateTaken.status === "PENDING"
+                  ? " and is waiting for approval."
+                  : "."}{" "}
+              Pick another date{dateTaken.archived ? "" : ", or use the Edit button on that day’s record to change it"}.
             </span>
-            <span>
-              {canMarkWorkFree
-                ? "Record those days first, correct this date, or mark them as work-free if there was no work."
-                : "Record those days first or correct this date. If there was no work on those days, ask an admin to mark them as work-free."}
-            </span>
-            {canMarkWorkFree && (
+          </div>
+        )}
+        {(missingDates.length > 0 || pendingDates.length > 0) && (
+          <div className="field-error" role="alert" style={warningBoxStyle}>
+            <b>Check the date — earlier days aren’t filled yet.</b>
+            {missingDates.length > 0 && (
+              <span>
+                {missingDates.length === 1 ? "This day has" : `These ${missingDates.length} days have`} no daily record and{" "}
+                {missingDates.length === 1 ? "isn’t" : "aren’t"} marked as a work-free day: {listDays(missingDates)}.{" "}
+                {canMarkWorkFree
+                  ? "Record those days first, correct this date, or mark them as work-free if there was no work."
+                  : "Record those days first or correct this date. If there was no work on those days, ask an admin to mark them as work-free."}
+              </span>
+            )}
+            {missingDates.length > 0 && canMarkWorkFree && (
               <div>
                 <button type="button" className="btn btn-sm btn-ghost" onClick={handleMarkWorkFree} disabled={markingWorkFree}>
                   {markingWorkFree
@@ -789,6 +817,15 @@ export default function DailyRecordFormModal({
                     : `Mark ${missingDates.length === 1 ? "it" : `all ${missingDates.length}`} as work-free`}
                 </button>
               </div>
+            )}
+            {pendingDates.length > 0 && (
+              <span>
+                {pendingDates.length === 1 ? "This day’s record is" : `These ${pendingDates.length} days’ records are`} still
+                waiting for approval: {listDays(pendingDates)}.{" "}
+                {canMarkWorkFree
+                  ? "Approve them first (Approvals page or the Daily Record list)."
+                  : "An admin needs to approve them before you can record a later day."}
+              </span>
             )}
           </div>
         )}

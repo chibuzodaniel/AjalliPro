@@ -15,7 +15,13 @@ import { computeIncentiveData, weeklyThresholdBonus } from "@/lib/incentives";
 import { isLegacyDriverBonusWeek } from "@/lib/incentiveAwards";
 import { currentWeekKey, todayISO } from "@/lib/week";
 import { formatMoney } from "@/lib/money";
-import { findMissingDates, missingDatesMessage, formatDay } from "@/lib/workFreeDays";
+import {
+  findUnfilledDates,
+  unfilledDatesMessage,
+  hasUnfilled,
+  formatDay,
+  type UnfilledDates,
+} from "@/lib/workFreeDays";
 import {
   dailyRecordInclude,
   recordProdTotal,
@@ -171,22 +177,50 @@ async function resolvePackers(
 export interface CreateDailyRecordResult {
   ok: boolean;
   error?: string;
-  /** Set when saving was blocked because earlier days have no record and aren't marked work-free. */
-  missingDates?: string[];
+  /** Set when saving was blocked because earlier days aren't filled yet (no approved record, not work-free). */
+  unfilled?: UnfilledDates;
 }
 
 function isAdminRole(role: string) {
   return role === "ADMIN" || role === "SUPER_ADMIN";
 }
 
-/** Days that saving a record on `date` would leave unrecorded and not marked work-free — for the form's live warning. */
-export async function checkMissingDates(date: string, recordId?: string): Promise<string[]> {
+/**
+ * A record that only has production on it — what the Total Produced page's
+ * quick-add creates. "New daily entry" may continue one of these; any other
+ * existing record blocks New entry for that date (use its Edit button).
+ */
+function isProductionOnly(r: {
+  factoryBags: number;
+  pumpWaterAmount: number;
+  leakageBags: number;
+  leakageWasteBags: number;
+  bankAccountId: string | null;
+  driverSales: unknown[];
+  truckDeliveries: unknown[];
+  expenseItems: unknown[];
+}): boolean {
+  return (
+    r.factoryBags === 0 &&
+    r.pumpWaterAmount === 0 &&
+    r.leakageBags === 0 &&
+    r.leakageWasteBags === 0 &&
+    r.bankAccountId === null &&
+    r.driverSales.length === 0 &&
+    r.truckDeliveries.length === 0 &&
+    r.expenseItems.length === 0
+  );
+}
+
+/** Earlier days that saving a record on `date` would leave unfilled — for the form's live warning. */
+export async function checkUnfilledDates(date: string, recordId?: string): Promise<UnfilledDates> {
   await requireUser();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return [];
-  if (!recordId) return findMissingDates(date);
+  const none = { missing: [], pending: [] };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return none;
+  if (!recordId) return findUnfilledDates(date);
   const rec = await prisma.dailyRecord.findUnique({ where: { id: recordId }, select: { date: true } });
-  if (!rec || rec.date === date) return [];
-  return findMissingDates(date, { excludeId: recordId, oldDate: rec.date });
+  if (!rec || rec.date === date) return none;
+  return findUnfilledDates(date, { excludeId: recordId, oldDate: rec.date });
 }
 
 export async function markWorkFreeDays(dates: string[], reason?: string): Promise<{ ok: boolean; error?: string }> {
@@ -250,9 +284,9 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
     return { ok: false, error: `A daily record for ${data.date} already exists.` };
   }
 
-  const missing = await findMissingDates(data.date);
-  if (missing.length > 0) {
-    return { ok: false, error: missingDatesMessage(missing, isAdminRole(user.role)), missingDates: missing };
+  const unfilled = await findUnfilledDates(data.date);
+  if (hasUnfilled(unfilled)) {
+    return { ok: false, error: unfilledDatesMessage(unfilled, isAdminRole(user.role)), unfilled };
   }
 
   const [computedOpening, computedLeakageOpening, fixedPricing, packingBagTypes, drivers, truckCustomers, packerByName] =
@@ -456,7 +490,7 @@ export async function createDailyRecord(input: unknown): Promise<CreateDailyReco
 export interface UpdateDailyRecordResult {
   ok: boolean;
   error?: string;
-  missingDates?: string[];
+  unfilled?: UnfilledDates;
 }
 
 async function cascadeRecalculate(
@@ -524,7 +558,17 @@ async function cascadeRecalculate(
   }
 }
 
-export async function updateDailyRecord(id: string, input: unknown): Promise<UpdateDailyRecordResult> {
+/**
+ * `fromNewEntry`: the save comes from "New daily entry" continuing a record
+ * that already exists for that date — only allowed while the record is
+ * production-only (Total Produced quick-add); anything fuller must go
+ * through that record's Edit button.
+ */
+export async function updateDailyRecord(
+  id: string,
+  input: unknown,
+  opts: { fromNewEntry?: boolean } = {}
+): Promise<UpdateDailyRecordResult> {
   const user = await requireUser();
   const parsed = dailyRecordEditSchema.safeParse(input);
   if (!parsed.success) {
@@ -532,12 +576,21 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
   }
   const data = parsed.data;
 
-  const existing = await prisma.dailyRecord.findUnique({ where: { id } });
+  const existing = await prisma.dailyRecord.findUnique({
+    where: { id },
+    include: { driverSales: { select: { id: true } }, truckDeliveries: { select: { id: true } }, expenseItems: { select: { id: true } } },
+  });
   if (!existing) {
     return { ok: false, error: "Daily record not found." };
   }
   if (existing.archivedAt) {
     return { ok: false, error: "This record is archived and read-only." };
+  }
+  if (opts.fromNewEntry && !isProductionOnly(existing)) {
+    return {
+      ok: false,
+      error: `${formatDay(existing.date)} has already been filled. Use the Edit button on that day's record to change it.`,
+    };
   }
 
   const canEdit = isApprover(user.role) || (existing.createdById === user.id && existing.status === "PENDING");
@@ -556,9 +609,9 @@ export async function updateDailyRecord(id: string, input: unknown): Promise<Upd
     if (conflict && conflict.id !== id) {
       return { ok: false, error: `A daily record for ${data.date} already exists.` };
     }
-    const missing = await findMissingDates(data.date, { excludeId: id, oldDate: existing.date });
-    if (missing.length > 0) {
-      return { ok: false, error: missingDatesMessage(missing, isAdminRole(user.role)), missingDates: missing };
+    const unfilled = await findUnfilledDates(data.date, { excludeId: id, oldDate: existing.date });
+    if (hasUnfilled(unfilled)) {
+      return { ok: false, error: unfilledDatesMessage(unfilled, isAdminRole(user.role)), unfilled };
     }
   }
 
@@ -1080,6 +1133,10 @@ export async function archiveAllActiveRecords(): Promise<ArchiveRecordsResult> {
 export interface DailyRecordFormData {
   id: string;
   date: string;
+  /** Only production logged so far (quick-add) — New entry may continue it. */
+  productionOnly: boolean;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  archived: boolean;
   openingStock: number;
   leakageOpening: number;
   production: { packerName: string; bags: number }[];
@@ -1121,6 +1178,9 @@ export async function findDailyRecordByDate(date: string): Promise<DailyRecordFo
   return {
     id: record.id,
     date: record.date,
+    productionOnly: isProductionOnly(record),
+    status: record.status,
+    archived: record.archivedAt !== null,
     openingStock: record.openingStock,
     leakageOpening: record.leakageOpening,
     production: record.productionLines.map((p) => ({
