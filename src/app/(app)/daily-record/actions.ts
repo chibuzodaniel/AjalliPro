@@ -1135,12 +1135,30 @@ export interface DeleteDailyRecordResult {
   error?: string;
 }
 
+/**
+ * Moves a record to the trash and undoes everything it did. Most of a
+ * record's effects are derived from it on the fly — stock & leakage chain,
+ * bank account balance (deposit + auto-debited expenses), packer pay owed,
+ * customer/driver incentive totals, reports — so removing it reverts them.
+ * The one stored side effect, weekly bonuses approved and deducted on that
+ * day, is reverted explicitly (and brought back on restore). A full copy is
+ * kept in the trash with a written list of what was undone.
+ */
 export async function deleteDailyRecord(id: string): Promise<DeleteDailyRecordResult> {
   const guard = await requireRoleSafe(["ADMIN", "SUPER_ADMIN"]);
   if (!guard.ok) return { ok: false, error: guard.error };
   const user = guard.user;
 
-  const existing = await prisma.dailyRecord.findUnique({ where: { id } });
+  const existing = await prisma.dailyRecord.findUnique({
+    where: { id },
+    include: {
+      productionLines: true,
+      driverSales: true,
+      truckDeliveries: true,
+      expenseItems: { include: { payments: true } },
+      incentiveAwards: true,
+    },
+  });
   if (!existing) {
     return { ok: false, error: "Daily record not found." };
   }
@@ -1148,27 +1166,346 @@ export async function deleteDailyRecord(id: string): Promise<DeleteDailyRecordRe
     return { ok: false, error: "This record is archived and read-only." };
   }
 
+  const effects = await describeRecordEffects(id);
+
   await prisma.$transaction(
     async (tx) => {
+      await tx.trashedDailyRecord.create({
+        data: {
+          originalId: existing.id,
+          date: existing.date,
+          status: existing.status,
+          snapshot: JSON.parse(JSON.stringify(existing)),
+          effects,
+          deletedById: user.id,
+        },
+      });
+      // Bonus awards point at this record without cascading — remove them
+      // first. Their stock deduction lived on this record, so it goes with it.
+      await tx.incentiveAward.deleteMany({ where: { dailyRecordId: id } });
+      await tx.dailyRecord.delete({ where: { id } });
       if (existing.status === "APPROVED") {
         const prev = await tx.dailyRecord.findFirst({
           where: { status: "APPROVED", archivedAt: null, date: { lt: existing.date } },
           orderBy: { date: "desc" },
         });
-        const startingClosing = prev?.closingStock ?? 0;
-        const startingLeakageClosing = prev?.leakageClosing ?? 0;
-
-        await tx.dailyRecord.delete({ where: { id } });
-        await cascadeRecalculate(tx, existing.date, startingClosing, startingLeakageClosing);
-      } else {
-        await tx.dailyRecord.delete({ where: { id } });
+        await cascadeRecalculate(tx, existing.date, prev?.closingStock ?? 0, prev?.leakageClosing ?? 0);
       }
     },
     { timeout: 20000 }
   );
 
-  await logActivity(`${user.name} deleted the daily record for ${existing.date}.`, user.id);
+  await logActivity(
+    `${user.name} moved the daily record for ${existing.date} to the trash. Reverted: ${effects.join(" ")}`,
+    user.id
+  );
   revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/**
+ * Plain-language list of what a record does to the rest of the system —
+ * stored with its trash entry as the trace of what trashing reverted, and
+ * shown again before a restore as what will come back.
+ */
+async function describeRecordEffects(id: string): Promise<string[]> {
+  const r = await prisma.dailyRecord.findUniqueOrThrow({
+    where: { id },
+    include: {
+      productionLines: { include: { packer: { select: { name: true } } } },
+      driverSales: { include: { driver: { select: { name: true } }, customer: { select: { name: true } } } },
+      truckDeliveries: { include: { customer: { select: { name: true } } } },
+      expenseItems: { select: { amount: true, amountPaid: true } },
+      factoryCustomer: { select: { name: true } },
+      bankAccount: { select: { bankName: true, accountName: true } },
+      incentiveAwards: { include: { customer: { select: { name: true } }, driver: { select: { name: true } } } },
+    },
+  });
+  const approved = r.status === "APPROVED";
+  const out: string[] = [];
+  const bags = (n: number) => `${n} bag${n === 1 ? "" : "s"}`;
+
+  const produced = r.productionLines.reduce((s, p) => s + p.bags, 0);
+  const driverBags = r.driverSales.reduce((s, d) => s + d.bags + d.bonusBags, 0);
+  const truckBags = r.truckDeliveries.reduce((s, t) => s + t.bags + t.bonusBags, 0);
+  const sold = r.factoryBags + driverBags + truckBags;
+  if (approved) {
+    const later = await prisma.dailyRecord.count({ where: { archivedAt: null, date: { gt: r.date } } });
+    out.push(
+      `Stock: ${bags(produced)} produced and ${bags(sold)} sold or given out` +
+        (later > 0 ? ` — opening/closing stock recalculated on ${later} later record${later === 1 ? "" : "s"}.` : ".")
+    );
+    if (r.leakageBags || r.leakageWasteBags || r.factoryBagsFromLeakage) {
+      out.push(
+        `Leakage balance: ${bags(r.leakageBags)} new leakage, ${bags(r.leakageWasteBags)} wasted, ${bags(r.factoryBagsFromLeakage)} factory-sold from leakage.`
+      );
+    }
+  } else {
+    out.push(
+      `Stock: none — the record was ${r.status.toLowerCase()}, so it hadn't touched stock (${bags(produced)} produced, ${bags(sold)} sold).`
+    );
+  }
+
+  const income =
+    r.factoryBags * r.factoryPricePerBag +
+    r.pumpWaterAmount +
+    r.driverSales.reduce((s, d) => s + d.bags * d.pricePerBag, 0) +
+    r.truckDeliveries.reduce((s, t) => s + t.bags * t.pricePerBag, 0);
+  if (income > 0) out.push(`Income: ${formatMoney(income)} of sales in reports and totals.`);
+
+  if (r.expenseItems.length > 0) {
+    const total = r.expenseItems.reduce((s, e) => s + e.amount, 0);
+    const paid = r.expenseItems.reduce((s, e) => s + e.amountPaid, 0);
+    out.push(
+      `Expenses: ${r.expenseItems.length} line${r.expenseItems.length === 1 ? "" : "s"} totalling ${formatMoney(total)} (${formatMoney(paid)} marked paid, with payment history)${approved ? ", including the default account's debits" : ""}.`
+    );
+  }
+
+  if (r.bankAccount && r.bankAmountSent > 0) {
+    out.push(
+      `Bank: ${formatMoney(r.bankAmountSent)} ${r.bankMoneyReceived ? "confirmed" : "expected"} deposit to ${r.bankAccount.bankName} — ${r.bankAccount.accountName}${approved ? " (counts in its balance)" : ""}.`
+    );
+  }
+
+  const byPacker = new Map<string, number>();
+  for (const p of r.productionLines) {
+    byPacker.set(p.packer.name, (byPacker.get(p.packer.name) ?? 0) + p.bags * p.pricePerBag);
+  }
+  const pay = [...byPacker].filter(([, amt]) => amt > 0).map(([name, amt]) => `${name} ${formatMoney(amt)}`);
+  if (pay.length > 0) {
+    out.push(`Packer pay owed: ${pay.join(", ")} (payments already made to packers are never changed).`);
+  }
+
+  if (approved) {
+    const credited = new Map<string, number>();
+    const add = (name: string | undefined, n: number) => {
+      if (name && n > 0) credited.set(name, (credited.get(name) ?? 0) + n);
+    };
+    for (const d of r.driverSales) {
+      add(d.driver.name, d.bags);
+      add(d.customer?.name, d.bags);
+    }
+    for (const t of r.truckDeliveries) add(t.customer?.name, t.bags);
+    add(r.factoryCustomer?.name, r.factoryBags);
+    if (credited.size > 0) {
+      out.push(`Incentive bag totals: ${[...credited].map(([name, n]) => `${name} ${bags(n)}`).join(", ")}.`);
+    }
+  }
+
+  for (const a of r.incentiveAwards) {
+    out.push(
+      `Weekly bonus: ${bags(a.bonusBags)} for ${a.customer?.name ?? a.driver?.name ?? "unknown"} (${a.weekKey}), from ${a.source === "LEAKAGE" ? "the leakage pile" : "available stock"} — marked received.`
+    );
+  }
+  return out;
+}
+
+/** Shape of TrashedDailyRecord.snapshot — a DailyRecord with its child rows, JSON-serialised (dates as ISO strings). */
+type TrashSnapshot = Record<string, unknown> & {
+  incentiveBonusBags?: number;
+  incentiveBonusBagsFromLeakage?: number;
+  productionLines: Record<string, unknown>[];
+  driverSales: Record<string, unknown>[];
+  truckDeliveries: Record<string, unknown>[];
+  expenseItems: (Record<string, unknown> & { payments: Record<string, unknown>[] })[];
+  incentiveAwards?: (Record<string, unknown> & {
+    customerId: string | null;
+    driverId: string | null;
+    weekKey: string;
+    bonusBags: number;
+    source: string;
+  })[];
+};
+
+function withoutKeys<T extends Record<string, unknown>>(obj: T, keys: string[]) {
+  const copy: Record<string, unknown> = { ...obj };
+  for (const k of keys) delete copy[k];
+  return copy;
+}
+
+export interface RestorePreview {
+  ok: boolean;
+  error?: string;
+  date?: string;
+  /** Everything that comes back with the record. */
+  restores?: string[];
+  /** Notes about things that will NOT come back, and why. */
+  notes?: string[];
+  /** Reasons the restore can't go ahead at all. */
+  blockers?: string[];
+}
+
+type TrashedRow = { id: string; date: string; deletedAt: Date; restoredAt: Date | null; snapshot: unknown; effects: unknown };
+
+const RECORD_ITSELF_LINE =
+  "The record itself — production, driver sales, truck deliveries, leakages, expenses and their payments, exactly as they were.";
+
+function fmtDateTime(d: Date): string {
+  return d.toLocaleString("en-NG", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+async function planRestore(trashed: TrashedRow) {
+  const snap = trashed.snapshot as TrashSnapshot;
+  const blockers: string[] = [];
+  const notes: string[] = [];
+  if (trashed.restoredAt) {
+    blockers.push(`This record was already restored on ${fmtDateTime(trashed.restoredAt)}.`);
+  }
+
+  const [sameDate, archivedSince] = await Promise.all([
+    prisma.dailyRecord.findUnique({ where: { date: trashed.date }, select: { id: true } }),
+    prisma.dailyRecord.findFirst({ where: { archivedAt: { gt: trashed.deletedAt } }, select: { id: true } }),
+  ]);
+  if (sameDate) {
+    blockers.push(`${formatDay(trashed.date)} already has a new record. Trash or move that one first if you want this one back.`);
+  }
+  if (archivedSince) {
+    blockers.push("The recording session was archived after this record was trashed, so it can't go back into the current session.");
+  }
+
+  // A weekly bonus for the same person and week approved again since the
+  // trash would be paid twice if this one came back too — leave it out.
+  const awards = snap.incentiveAwards ?? [];
+  const keep: typeof awards = [];
+  for (const a of awards) {
+    const again = await prisma.incentiveAward.findFirst({
+      where: {
+        weekKey: a.weekKey,
+        ...(a.customerId ? { customerId: a.customerId } : { driverId: a.driverId }),
+      },
+      include: { customer: { select: { name: true } }, driver: { select: { name: true } } },
+    });
+    if (again) {
+      notes.push(
+        `Weekly bonus of ${a.bonusBags} bags for ${again.customer?.name ?? again.driver?.name ?? "that person"} (${a.weekKey}) won't come back — that week's bonus was approved again after this record was trashed.`
+      );
+    } else {
+      keep.push(a);
+    }
+  }
+
+  const restores = Array.isArray(trashed.effects) ? (trashed.effects as string[]) : [];
+  const restoresShown = restores.filter(
+    (line) => !line.startsWith("Weekly bonus:") || keep.some((a) => line.includes(`(${a.weekKey})`))
+  );
+  return {
+    snap,
+    blockers,
+    notes,
+    keepAwards: keep,
+    skippedAwards: awards.filter((a) => !keep.includes(a)),
+    restores: [RECORD_ITSELF_LINE, ...restoresShown],
+  };
+}
+
+/** What restoring would bring back (and anything that stops it) — shown for confirmation first. */
+export async function getRestorePreview(trashId: string): Promise<RestorePreview> {
+  const guard = await requireRoleSafe(["ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const trashed = await prisma.trashedDailyRecord.findUnique({ where: { id: trashId } });
+  if (!trashed) return { ok: false, error: "That record is no longer in the trash." };
+  const plan = await planRestore(trashed);
+  return { ok: true, date: trashed.date, restores: plan.restores, notes: plan.notes, blockers: plan.blockers };
+}
+
+/**
+ * Puts a trashed record back exactly as it was (same id, rows, payments,
+ * weekly bonuses deducted that day), then re-runs the stock chain from it.
+ */
+export async function restoreTrashedDailyRecord(trashId: string): Promise<{ ok: boolean; error?: string }> {
+  const guard = await requireRoleSafe(["ADMIN", "SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const user = guard.user;
+
+  const trashed = await prisma.trashedDailyRecord.findUnique({ where: { id: trashId } });
+  if (!trashed) return { ok: false, error: "That record is no longer in the trash." };
+
+  const plan = await planRestore(trashed);
+  if (plan.blockers.length > 0) return { ok: false, error: plan.blockers.join(" ") };
+  const { snap } = plan;
+
+  // Bonuses left out still have their bags counted on the record — take them off.
+  let bonusFresh = snap.incentiveBonusBags ?? 0;
+  let bonusLeakage = snap.incentiveBonusBagsFromLeakage ?? 0;
+  for (const a of plan.skippedAwards) {
+    if (a.source === "LEAKAGE") bonusLeakage = Math.max(0, bonusLeakage - a.bonusBags);
+    else bonusFresh = Math.max(0, bonusFresh - a.bonusBags);
+  }
+
+  const restoredAt = new Date();
+  const record = withoutKeys(snap, [
+    "productionLines",
+    "driverSales",
+    "truckDeliveries",
+    "expenseItems",
+    "incentiveAwards",
+    "updatedAt",
+  ]);
+
+  try {
+    await prisma.$transaction(
+      async (tx) => {
+        await tx.dailyRecord.create({
+          data: {
+            ...(record as Prisma.DailyRecordUncheckedCreateInput),
+            incentiveBonusBags: bonusFresh,
+            incentiveBonusBagsFromLeakage: bonusLeakage,
+            productionLines: { create: snap.productionLines.map((p) => withoutKeys(p, ["dailyRecordId"])) as never },
+            driverSales: { create: snap.driverSales.map((d) => withoutKeys(d, ["dailyRecordId"])) as never },
+            truckDeliveries: { create: snap.truckDeliveries.map((t) => withoutKeys(t, ["dailyRecordId"])) as never },
+            expenseItems: {
+              create: snap.expenseItems.map((e) => ({
+                ...withoutKeys(e, ["dailyRecordId", "payments"]),
+                payments: { create: e.payments.map((p) => withoutKeys(p, ["expenseItemId"])) },
+              })) as never,
+            },
+            incentiveAwards: { create: plan.keepAwards.map((a) => withoutKeys(a, ["dailyRecordId"])) as never },
+          },
+        });
+        const prev = await tx.dailyRecord.findFirst({
+          where: { status: "APPROVED", archivedAt: null, date: { lt: trashed.date } },
+          orderBy: { date: "desc" },
+        });
+        await cascadeRecalculate(tx, prev?.date ?? "", prev?.closingStock ?? 0, prev?.leakageClosing ?? 0);
+        // Keep the entry as history of the restore rather than removing it.
+        await tx.trashedDailyRecord.update({
+          where: { id: trashId },
+          data: {
+            restoredAt,
+            restoredById: user.id,
+            restoredItems: plan.restores,
+            notRestoredItems: plan.notes,
+          },
+        });
+      },
+      { timeout: 20000 }
+    );
+  } catch (err) {
+    console.error("restoreTrashedDailyRecord failed", err);
+    return {
+      ok: false,
+      error:
+        "Couldn't restore this record — something it refers to (a driver, customer, packer, bank account or user) may have been deleted since.",
+    };
+  }
+
+  await logActivity(
+    `${user.name} restored the daily record for ${formatDay(trashed.date)} from the trash on ${fmtDateTime(restoredAt)} (trashed ${fmtDateTime(trashed.deletedAt)}). Restored: ${plan.restores.join(" ")}${plan.notes.length ? ` Not restored: ${plan.notes.join(" ")}` : ""}`,
+    user.id
+  );
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/** Removes a trashed record for good. Super Admin only. */
+export async function purgeTrashedDailyRecord(trashId: string): Promise<{ ok: boolean; error?: string }> {
+  const guard = await requireRoleSafe(["SUPER_ADMIN"]);
+  if (!guard.ok) return { ok: false, error: guard.error };
+  const trashed = await prisma.trashedDailyRecord.findUnique({ where: { id: trashId } });
+  if (!trashed) return { ok: false, error: "That record is no longer in the trash." };
+  await prisma.trashedDailyRecord.delete({ where: { id: trashId } });
+  await logActivity(`${guard.user.name} permanently deleted the trashed daily record for ${trashed.date}.`, guard.user.id);
+  revalidatePath("/daily-record");
   return { ok: true };
 }
 

@@ -36,7 +36,7 @@ export default function DeleteDailyRecordButton({
     <>
       <button
         className="icon-btn no-print"
-        title="Delete this record"
+        title="Move this record to the trash"
         onClick={() => setOpen(true)}
         style={{ display: "inline-flex", alignItems: "center" }}
       >
@@ -48,16 +48,19 @@ export default function DeleteDailyRecordButton({
         </svg>
       </button>
       {open && (
-        <Modal open={open} onClose={() => setOpen(false)} title="Delete daily record?">
+        <Modal open={open} onClose={() => setOpen(false)} title="Move to trash?">
           <div style={{ display: "flex", flexDirection: "column", gap: 12, fontSize: 13.5 }}>
             <p style={{ margin: 0 }}>
-              This will <b>permanently delete</b> the daily record for <b>{date}</b> — production, sales, truck
-              deliveries, expenses, and leakages logged for that day. This cannot be undone.
+              The daily record for <b>{date}</b> — production, sales, truck deliveries, expenses and leakages — will
+              be moved to the <b>Trash</b> tab, and everything it did is reverted automatically: stock and leakage
+              balance, its bank deposit, expenses and their payments, packer pay owed, customer/driver incentive
+              totals, and any weekly bonuses deducted that day. The Trash keeps a list of what was reverted, and an
+              admin can restore it all from there.
             </p>
             {status === "APPROVED" && (
               <p style={{ margin: 0 }}>
                 This record is <b>approved</b>, so opening/closing stock (and the leakage balance) on every later
-                approved record will be recalculated to skip it.
+                approved record will be recalculated to skip it (and again if it’s restored).
               </p>
             )}
             {error && <div className="field-error">{error}</div>}
@@ -66,7 +69,7 @@ export default function DeleteDailyRecordButton({
                 Cancel
               </button>
               <button className="btn btn-sm btn-reject" style={{ padding: "10px 18px" }} onClick={handleDelete} disabled={loading}>
-                {loading ? "Deleting…" : "Delete permanently"}
+                {loading ? "Moving…" : "Move to trash"}
               </button>
             </div>
           </div>

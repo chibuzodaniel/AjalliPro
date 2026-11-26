@@ -62,6 +62,8 @@ model User {
   bankAccountExpenses  BankAccountExpense[]
   bankAccountCredits   BankAccountCredit[]
   workFreeDaysMarked   WorkFreeDay[]
+  dailyRecordsTrashed  TrashedDailyRecord[] @relation("TrashedDailyRecordDeletedBy")
+  dailyRecordsRestored TrashedDailyRecord[] @relation("TrashedDailyRecordRestoredBy")
 }
 
 model PushSubscription {
@@ -220,6 +222,28 @@ model PackingBagType {
   createdAt      DateTime @default(now())
 
   expenseItems ExpenseItem[]
+}
+
+/** A daily record an Admin/Super Admin moved to the trash: a full copy (record, production, sales, deliveries, expenses and their payments, weekly bonuses) taken just before the live record was removed, so it can be restored exactly as it was. Kept after a restore as history. */
+model TrashedDailyRecord {
+  id               String    @id @default(cuid())
+  originalId       String // the DailyRecord id it had — reused on restore
+  date             String // YYYY-MM-DD
+  status           String
+  snapshot         Json
+  effects          Json      @default("[]") // string[] — plain-language list of what trashing reverted (and a restore brings back)
+  deletedById      String
+  deletedBy        User      @relation("TrashedDailyRecordDeletedBy", fields: [deletedById], references: [id])
+  deletedAt        DateTime  @default(now())
+  // Set once restored — the entry is kept as history instead of being removed.
+  restoredAt       DateTime?
+  restoredById     String?
+  restoredBy       User?     @relation("TrashedDailyRecordRestoredBy", fields: [restoredById], references: [id])
+  restoredItems    Json? // string[] — what came back with it
+  notRestoredItems Json? // string[] — what was left out, and why
+
+  @@index([deletedAt])
+  @@index([restoredAt])
 }
 
 /** A calendar day an Admin/Super Admin has marked as no work (holiday, shutdown, etc.). Dates with neither a daily record nor a work-free mark count as missing, and block recording a later date until they're filled in or marked. */

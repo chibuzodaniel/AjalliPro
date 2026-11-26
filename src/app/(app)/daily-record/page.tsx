@@ -22,7 +22,67 @@ import DeleteDailyRecordButton from "@/components/daily-record/DeleteDailyRecord
 import ApproveRejectButtons from "@/components/shared/ApproveRejectButtons";
 import ViewAllModal from "@/components/ui/ViewAllModal";
 import WorkFreeDaysManager from "@/components/daily-record/WorkFreeDaysManager";
+import TrashedRecordsList, {
+  type TrashedRecordRow,
+  type RestoredRecordRow,
+} from "@/components/daily-record/TrashedRecordsList";
 import { approveDailyRecord } from "../approvals/actions";
+
+type SnapshotRows = {
+  createdById?: string;
+  factoryBags?: number;
+  productionLines?: { bags?: number }[];
+  driverSales?: { bags?: number }[];
+  truckDeliveries?: { bags?: number }[];
+};
+
+async function loadTrashRows(): Promise<TrashedRecordRow[]> {
+  const trashed = await prisma.trashedDailyRecord.findMany({
+    where: { restoredAt: null },
+    orderBy: { deletedAt: "desc" },
+    include: { deletedBy: { select: { name: true } } },
+  });
+  const snaps = trashed.map((t) => t.snapshot as unknown as SnapshotRows);
+  const creatorIds = [...new Set(snaps.map((s) => s.createdById).filter((id): id is string => !!id))];
+  const creators = await prisma.user.findMany({ where: { id: { in: creatorIds } }, select: { id: true, name: true } });
+  const nameById = new Map(creators.map((u) => [u.id, u.name]));
+  const sum = (rows: { bags?: number }[] | undefined) => (rows ?? []).reduce((s, r) => s + (r.bags ?? 0), 0);
+  return trashed.map((t, i) => {
+    const snap = snaps[i];
+    return {
+      id: t.id,
+      date: t.date,
+      status: t.status,
+      produced: sum(snap.productionLines),
+      sold: (snap.factoryBags ?? 0) + sum(snap.driverSales) + sum(snap.truckDeliveries),
+      createdByName: (snap.createdById && nameById.get(snap.createdById)) || "—",
+      deletedByName: t.deletedBy.name,
+      deletedAt: t.deletedAt.toISOString(),
+      effects: Array.isArray(t.effects) ? (t.effects as string[]) : [],
+    };
+  });
+}
+
+const asStrings = (v: unknown) => (Array.isArray(v) ? (v as string[]) : []);
+
+async function loadRestoredRows(): Promise<RestoredRecordRow[]> {
+  const rows = await prisma.trashedDailyRecord.findMany({
+    where: { restoredAt: { not: null } },
+    orderBy: { restoredAt: "desc" },
+    take: 50,
+    include: { deletedBy: { select: { name: true } }, restoredBy: { select: { name: true } } },
+  });
+  return rows.map((t) => ({
+    id: t.id,
+    date: t.date,
+    deletedByName: t.deletedBy.name,
+    deletedAt: t.deletedAt.toISOString(),
+    restoredByName: t.restoredBy?.name ?? "—",
+    restoredAt: t.restoredAt!.toISOString(),
+    restoredItems: asStrings(t.restoredItems),
+    notRestoredItems: asStrings(t.notRestoredItems),
+  }));
+}
 
 function fmtArchivedAt(d: Date) {
   return d.toLocaleDateString("en-NG", { year: "numeric", month: "short", day: "numeric" });
@@ -34,7 +94,7 @@ export default async function DailyRecordPage({
   searchParams: Promise<{ view?: string }>;
 }) {
   const sp = await searchParams;
-  const view = sp.view === "archived" ? "archived" : "active";
+  const view = sp.view === "archived" ? "archived" : sp.view === "trash" ? "trash" : "active";
   const user = await getCurrentUser();
   const approver = user ? isApprover(user.role) : false;
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
@@ -56,6 +116,10 @@ export default async function DailyRecordPage({
         : Promise.resolve([]),
     ]);
   const showingArchived = view === "archived" && approver;
+  const showingTrash = view === "trash" && approver;
+  const [trashRows, restoredRows] = showingTrash
+    ? await Promise.all([loadTrashRows(), loadRestoredRows()])
+    : [[], []];
 
   function recordRow(r: DailyRecordFull) {
     return (
@@ -158,7 +222,7 @@ export default async function DailyRecordPage({
           <h1>Daily Record</h1>
           <div className="sub">Opening stock, production, sales, leakages &amp; expenses for one day</div>
         </div>
-        {!showingArchived && (
+        {!showingArchived && !showingTrash && (
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             {user?.role === "SUPER_ADMIN" && <ArchiveRecordsButton activeCount={activeCount} />}
             <AddDailyRecordButton
@@ -190,9 +254,13 @@ export default async function DailyRecordPage({
           options={[
             { value: "active", label: "Active" },
             { value: "archived", label: "Archived" },
+            { value: "trash", label: "Trash" },
           ]}
         />
       )}
+      {showingTrash ? (
+        <TrashedRecordsList rows={trashRows} restored={restoredRows} canPurge={user?.role === "SUPER_ADMIN"} />
+      ) : (
       <div className="card">
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
           <ViewAllModal title={showingArchived ? "All Archived Records" : "All Daily Records"}>{recordsTable}</ViewAllModal>
@@ -206,7 +274,8 @@ export default async function DailyRecordPage({
           </div>
         )}
       </div>
-      {isAdmin && !showingArchived && (
+      )}
+      {isAdmin && !showingArchived && !showingTrash && (
         <WorkFreeDaysManager
           days={workFreeDays.map((d) => ({ id: d.id, date: d.date, reason: d.reason, createdByName: d.createdBy.name }))}
         />

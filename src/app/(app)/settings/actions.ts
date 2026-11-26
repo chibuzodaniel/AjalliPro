@@ -268,7 +268,7 @@ export async function deleteUser(userId: string): Promise<DeleteUserResult> {
     return { ok: false, error: "This is the primary Super Admin account and can't be deleted." };
   }
 
-  const [recordsCreated, recordsApproved, driversCreated, driversApproved, customersCreated, expensesMarkedPaid, workFreeMarked] =
+  const [recordsCreated, recordsApproved, driversCreated, driversApproved, customersCreated, expensesMarkedPaid, workFreeMarked, recordsTrashed] =
     await Promise.all([
       prisma.dailyRecord.count({ where: { createdById: userId } }),
       prisma.dailyRecord.count({ where: { approvedById: userId } }),
@@ -277,9 +277,10 @@ export async function deleteUser(userId: string): Promise<DeleteUserResult> {
       prisma.customer.count({ where: { createdById: userId } }),
       prisma.expenseItem.count({ where: { paidById: userId } }),
       prisma.workFreeDay.count({ where: { createdById: userId } }),
+      prisma.trashedDailyRecord.count({ where: { deletedById: userId } }),
     ]);
   const activityCount =
-    recordsCreated + recordsApproved + driversCreated + driversApproved + customersCreated + expensesMarkedPaid + workFreeMarked;
+    recordsCreated + recordsApproved + driversCreated + driversApproved + customersCreated + expensesMarkedPaid + workFreeMarked + recordsTrashed;
   if (activityCount > 0) {
     return {
       ok: false,
@@ -566,6 +567,7 @@ export async function resetSelectedData(selection: ResetSelection, confirmPhrase
       if (selection.customers) await tx.mailLog.deleteMany({});
       if (selection.expenses) await tx.expenseItem.deleteMany({});
       if (selection.dailyRecords) await tx.dailyRecord.deleteMany({}); // cascades production lines, driver sales, truck deliveries, expenses
+      if (selection.dailyRecords) await tx.trashedDailyRecord.deleteMany({});
       if (selection.drivers) await tx.driver.deleteMany({});
       if (selection.customers) await tx.customer.deleteMany({});
       if (selection.packers) await tx.packer.deleteMany({});
