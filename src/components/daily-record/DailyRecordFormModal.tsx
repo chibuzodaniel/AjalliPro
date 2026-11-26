@@ -159,6 +159,9 @@ export interface DailyRecordFormInitial {
   expenses: { description: string; amount: number; paid: boolean }[];
   /** Edit mode: paid state of the record’s existing auto-generated fee lines, so their ticks start as saved. */
   autoExpensesPaid?: { description: string; paid: boolean }[];
+  /** Edit mode: weekly-bonus bags already deducted on this day (approved incentives) — part of the closing figures. */
+  incentiveBonusBags?: number;
+  incentiveBonusBagsFromLeakage?: number;
   bankAccountId: string | null;
   bankAmountSent: number;
 }
@@ -264,12 +267,20 @@ export default function DailyRecordFormModal({
   // pre-fill an old date and make a fresh "New daily entry" collide with a date that
   // already has a real record.
   const [date, setDate] = useState(mode === "create" ? initial.date : (draft?.date ?? initial.date));
-  const [openingValue, setOpeningValue] = useState(
-    draft?.openingValue ?? (initial.openingStock ? String(initial.openingStock) : "")
-  );
-  const [leakageOpeningValue, setLeakageOpeningValue] = useState(
-    draft?.leakageOpeningValue ?? (leakageOpening ? String(leakageOpening) : "")
-  );
+  // Opening figures always come fresh from the server (the previous approved
+  // day's closing) — never from a saved draft, which may be days out of date.
+  const [openingValue, setOpeningValue] = useState(initial.openingStock ? String(initial.openingStock) : "");
+  const [openingTouched, setOpeningTouched] = useState(false);
+  const [leakageOpeningValue, setLeakageOpeningValue] = useState(leakageOpening ? String(leakageOpening) : "");
+  const [leakageOpeningTouched, setLeakageOpeningTouched] = useState(false);
+  // Only keep a draft once the user has actually typed something — otherwise
+  // just opening and closing the form would save one and bring back stale
+  // figures next time.
+  const [dirty, setDirty] = useState(() => draft !== null);
+  const [incentiveBags, setIncentiveBags] = useState({
+    fresh: initial.incentiveBonusBags ?? 0,
+    leakage: initial.incentiveBonusBagsFromLeakage ?? 0,
+  });
   const [production, setProduction] = useState<ProductionRow[]>(() =>
     draft
       ? rekeyRows(draft.production).map((r) => ({ ...r, packerName: r.packerName ?? "" }))
@@ -343,7 +354,12 @@ export default function DailyRecordFormModal({
     expenses: DailyRecordFormInitial["expenses"];
     bankAccountId?: string | null;
     bankAmountSent?: number;
+    incentiveBonusBags?: number;
+    incentiveBonusBagsFromLeakage?: number;
   }) {
+    setOpeningTouched(false);
+    setLeakageOpeningTouched(false);
+    setIncentiveBags({ fresh: data.incentiveBonusBags ?? 0, leakage: data.incentiveBonusBagsFromLeakage ?? 0 });
     setOpeningValue(data.openingStock ? String(data.openingStock) : "");
     setLeakageOpeningValue(data.leakageOpening ? String(data.leakageOpening) : "");
     setProduction(toProductionRows(data.production));
@@ -434,6 +450,7 @@ export default function DailyRecordFormModal({
   }
 
   useEffect(() => {
+    if (!dirty) return;
     const toSave: DraftState = {
       date,
       openingValue,
@@ -458,6 +475,7 @@ export default function DailyRecordFormModal({
       // localStorage unavailable (e.g. private browsing quota) — draft persistence is a convenience, not critical
     }
   }, [
+    dirty,
     draftKey,
     date,
     openingValue,
@@ -484,6 +502,7 @@ export default function DailyRecordFormModal({
       // ignore
     }
     setRestoredDraft(false);
+    setDirty(false);
     setDate(initial.date);
     applyFormData({ ...initial, leakageOpening });
     setEffectiveMode(mode);
@@ -513,9 +532,11 @@ export default function DailyRecordFormModal({
       driverTruckBagsNet -
       driverBonusTotal -
       truckBonusTotal -
-      (Number(leakageBags) || 0)
+      (Number(leakageBags) || 0) -
+      incentiveBags.fresh
     );
   }, [
+    incentiveBags.fresh,
     production,
     driverSales,
     truckDeliveries,
@@ -528,13 +549,15 @@ export default function DailyRecordFormModal({
 
   const leakageOpeningNum = Number(leakageOpeningValue) || 0;
   // Today's new leakage can be rebagged and sold/wasted the same day.
-  const leakageAvailableNum = leakageOpeningNum + (Number(leakageBags) || 0);
+  // Bags already given out from the pile as approved weekly bonuses aren't available again.
+  const leakageAvailableNum = Math.max(0, leakageOpeningNum + (Number(leakageBags) || 0) - incentiveBags.leakage);
   const leakageClosingPreview =
     leakageOpeningNum +
     (Number(leakageBags) || 0) -
     (Number(factoryBagsFromLeakage) || 0) -
     driverTruckBagsFromLeakageTotal -
-    (Number(leakageWasteBags) || 0);
+    (Number(leakageWasteBags) || 0) -
+    incentiveBags.leakage;
 
   // Super Admin can override these two computed figures directly — same
   // "always-editable" treatment as opening stock / leakage opening above.
@@ -542,16 +565,12 @@ export default function DailyRecordFormModal({
   // admin actually types into the field, so opening the form never silently
   // submits an override that doesn't match what's shown.
   const [closingStockTouched, setClosingStockTouched] = useState(false);
-  const [closingStockValue, setClosingStockValue] = useState(String(closingPreview));
-  useEffect(() => {
-    if (!closingStockTouched) setClosingStockValue(String(closingPreview));
-  }, [closingPreview, closingStockTouched]);
+  const [closingStockTyped, setClosingStockValue] = useState("");
+  const closingStockValue = closingStockTouched ? closingStockTyped : String(closingPreview);
 
   const [leakageClosingTouched, setLeakageClosingTouched] = useState(false);
-  const [leakageClosingValue, setLeakageClosingValue] = useState(String(leakageClosingPreview));
-  useEffect(() => {
-    if (!leakageClosingTouched) setLeakageClosingValue(String(leakageClosingPreview));
-  }, [leakageClosingPreview, leakageClosingTouched]);
+  const [leakageClosingTyped, setLeakageClosingValue] = useState("");
+  const leakageClosingValue = leakageClosingTouched ? leakageClosingTyped : String(leakageClosingPreview);
   // A driver with no loading fee of their own set falls back to the general
   // per-bag loading fee from Settings (same rate truck deliveries use).
   function effectiveDriverLoadingFee(driver: DriverOption | undefined) {
@@ -684,8 +703,8 @@ export default function DailyRecordFormModal({
     setError(null);
     const payload = {
       date,
-      openingStockOverride: canEditOpeningStock ? Number(openingValue) || 0 : null,
-      leakageOpeningOverride: canEditLeakageOpening ? leakageOpeningNum : null,
+      openingStockOverride: canEditOpeningStock && openingTouched ? Number(openingValue) || 0 : null,
+      leakageOpeningOverride: canEditLeakageOpening && leakageOpeningTouched ? leakageOpeningNum : null,
       production: production
         .filter((p) => (Number(p.bags) || 0) > 0)
         .map((p) => ({ packerName: p.packerName || "Unnamed", bags: Number(p.bags) || 0 })),
@@ -766,7 +785,7 @@ export default function DailyRecordFormModal({
       title={effectiveMode === "create" ? "New Daily Record" : `Edit Daily Record — ${foundExistingDate ?? initial.date}`}
       maxWidth={720}
     >
-      <form onSubmit={handleFormSubmit}>
+      <form onSubmit={handleFormSubmit} onChange={() => setDirty(true)}>
         {restoredDraft && (
           <div className="calc-box" style={{ marginBottom: 14, alignItems: "center" }}>
             <span>Restored your unsaved entry from before you were logged out.</span>
@@ -795,7 +814,14 @@ export default function DailyRecordFormModal({
               min={0}
               placeholder="0"
               value={openingValue}
-              onChange={canEditOpeningStock ? (e) => setOpeningValue(e.target.value) : undefined}
+              onChange={
+                canEditOpeningStock
+                  ? (e) => {
+                      setOpeningTouched(true);
+                      setOpeningValue(e.target.value);
+                    }
+                  : undefined
+              }
               readOnly={!canEditOpeningStock}
             />
           </div>
@@ -852,7 +878,14 @@ export default function DailyRecordFormModal({
             min={0}
             placeholder="0"
             value={leakageOpeningValue}
-            onChange={canEditLeakageOpening ? (e) => setLeakageOpeningValue(e.target.value) : undefined}
+            onChange={
+              canEditLeakageOpening
+                ? (e) => {
+                    setLeakageOpeningTouched(true);
+                    setLeakageOpeningValue(e.target.value);
+                  }
+                : undefined
+            }
             readOnly={!canEditLeakageOpening}
           />
         </div>
