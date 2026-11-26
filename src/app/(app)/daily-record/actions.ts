@@ -1165,6 +1165,9 @@ export async function deleteDailyRecord(id: string): Promise<DeleteDailyRecordRe
   if (existing.archivedAt) {
     return { ok: false, error: "This record is archived and read-only." };
   }
+  if (existing.status === "APPROVED" && user.role !== "SUPER_ADMIN") {
+    return { ok: false, error: "Only the Super Admin can delete an approved record." };
+  }
 
   const effects = await describeRecordEffects(id);
 

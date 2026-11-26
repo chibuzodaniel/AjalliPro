@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/ui/Modal";
 import Pill from "@/components/ui/Pill";
+import DeleteDailyRecordButton from "@/components/daily-record/DeleteDailyRecordButton";
 import { formatMoney } from "@/lib/money";
 import { roleLabel } from "@/lib/roles";
 import { expenseStatusSuffix, recordDriverTruckBagsFromLeakageTotal, type DailyRecordFull } from "@/lib/records";
@@ -200,7 +201,16 @@ function printDailyRecordPdf(record: DailyRecordFull) {
   setTimeout(triggerPrint, 300);
 }
 
-export default function DailyRecordDetail({ record, isAdmin }: { record: DailyRecordFull; isAdmin?: boolean }) {
+export default function DailyRecordDetail({
+  record,
+  isAdmin,
+  isSuperAdmin,
+}: {
+  record: DailyRecordFull;
+  isAdmin?: boolean;
+  /** Approved records can only be deleted by the Super Admin. */
+  isSuperAdmin?: boolean;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [smsLoading, setSmsLoading] = useState(false);
@@ -273,6 +283,15 @@ export default function DailyRecordDetail({ record, isAdmin }: { record: DailyRe
               >
                 {smsLoading ? "Sending…" : "📩 Send SMS report"}
               </button>
+            )}
+            {isAdmin && !record.archivedAt && (record.status !== "APPROVED" || isSuperAdmin) && (
+              <DeleteDailyRecordButton
+                id={record.id}
+                date={record.date}
+                status={record.status}
+                labelled
+                onDeleted={() => setOpen(false)}
+              />
             )}
             {smsSent && <span style={{ fontSize: 12, color: "var(--green)" }}>Sent.</span>}
             {smsError && <span className="field-error">{smsError}</span>}

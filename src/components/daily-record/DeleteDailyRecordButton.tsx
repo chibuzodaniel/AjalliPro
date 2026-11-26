@@ -9,10 +9,15 @@ export default function DeleteDailyRecordButton({
   id,
   date,
   status,
+  labelled,
+  onDeleted,
 }: {
   id: string;
   date: string;
   status: string;
+  /** Show a "Delete" text button instead of just the bin icon. */
+  labelled?: boolean;
+  onDeleted?: () => void;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -29,16 +34,22 @@ export default function DeleteDailyRecordButton({
       return;
     }
     setOpen(false);
+    onDeleted?.();
     router.refresh();
   }
 
   return (
     <>
       <button
-        className="icon-btn no-print"
-        title="Move this record to the trash"
+        type="button"
+        className={labelled ? "btn btn-sm btn-ghost no-print" : "icon-btn no-print"}
+        title="Delete — moves this record to the trash"
         onClick={() => setOpen(true)}
-        style={{ display: "inline-flex", alignItems: "center" }}
+        style={
+          labelled
+            ? { display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", fontSize: 12.5, color: "var(--red)" }
+            : { display: "inline-flex", alignItems: "center" }
+        }
       >
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="3 6 5 6 21 6" />
@@ -46,16 +57,19 @@ export default function DeleteDailyRecordButton({
           <line x1="10" y1="11" x2="10" y2="17" />
           <line x1="14" y1="11" x2="14" y2="17" />
         </svg>
+        {labelled && "Delete"}
       </button>
       {open && (
-        <Modal open={open} onClose={() => setOpen(false)} title="Move to trash?">
+        <Modal open={open} onClose={() => setOpen(false)} title="Delete this record?">
           <div style={{ display: "flex", flexDirection: "column", gap: 12, fontSize: 13.5 }}>
             <p style={{ margin: 0 }}>
-              The daily record for <b>{date}</b> — production, sales, truck deliveries, expenses and leakages — will
-              be moved to the <b>Trash</b> tab, and everything it did is reverted automatically: stock and leakage
-              balance, its bank deposit, expenses and their payments, packer pay owed, customer/driver incentive
-              totals, and any weekly bonuses deducted that day. The Trash keeps a list of what was reverted, and an
-              admin can restore it all from there.
+              The daily record for <b>{date}</b> — production, sales, truck deliveries, expenses and leakages — goes to
+              the <b>Trash</b> tab first, and everything it did is reverted automatically: stock and leakage balance,
+              its bank deposit, expenses and their payments, packer pay owed, customer/driver incentive totals, and any
+              weekly bonuses deducted that day.
+            </p>
+            <p style={{ margin: 0 }}>
+              From the Trash an admin can restore it, or the Super Admin can delete it permanently.
             </p>
             {status === "APPROVED" && (
               <p style={{ margin: 0 }}>
@@ -69,7 +83,7 @@ export default function DeleteDailyRecordButton({
                 Cancel
               </button>
               <button className="btn btn-sm btn-reject" style={{ padding: "10px 18px" }} onClick={handleDelete} disabled={loading}>
-                {loading ? "Moving…" : "Move to trash"}
+                {loading ? "Deleting…" : "Delete (move to Trash)"}
               </button>
             </div>
           </div>

@@ -125,7 +125,7 @@ export default async function DailyRecordPage({
     return (
       <tr key={r.id}>
         <td>
-          <DailyRecordDetail record={r} isAdmin={isAdmin} />
+          <DailyRecordDetail record={r} isAdmin={isAdmin} isSuperAdmin={user?.role === "SUPER_ADMIN"} />
         </td>
         <td>{r.openingStock}</td>
         <td>{recordProdTotal(r)}</td>
@@ -186,7 +186,9 @@ export default async function DailyRecordPage({
                 packingBagTypes={packingBagTypes}
               />
             )}
-            {approver && <DeleteDailyRecordButton id={r.id} date={r.date} status={r.status} />}
+            {approver && (r.status !== "APPROVED" || user?.role === "SUPER_ADMIN") && (
+              <DeleteDailyRecordButton id={r.id} date={r.date} status={r.status} labelled />
+            )}
           </td>
         )}
       </tr>
